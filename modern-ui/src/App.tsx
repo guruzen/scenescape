@@ -4,6 +4,7 @@ import { legacyUrl, runtimeConfig } from './config'
 import { useAuth } from './auth/AuthProvider'
 
 type RouteKey = 'overview' | 'live' | 'incidents' | 'history' | 'trends' | 'health' | 'scenes' | 'cameras' | 'sensors' | 'zones' | 'settings'
+type Theme = 'light' | 'light-air' | 'dark' | 'dark-command'
 type Overview = { generated_at: string; counts: Record<string, number | null>; health: Record<string, string> }
 type Row = Record<string, unknown>
 
@@ -13,10 +14,21 @@ const operations: Array<[RouteKey, string]> = [
 const configuration: Array<[RouteKey, string]> = [
   ['scenes', 'Sites, floors & scenes'], ['cameras', 'Cameras'], ['sensors', 'Sensors'], ['zones', 'Zones & tripwires'],
 ]
+const themes: Array<{ value: Theme; label: string }> = [
+  { value: 'light', label: 'Light' },
+  { value: 'light-air', label: 'Light Air' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'dark-command', label: 'Dark Command' },
+]
 
 const routeFromHash = (): RouteKey => {
   const key = window.location.hash.replace(/^#\/?/, '').split('/')[0] as RouteKey
   return [...operations, ...configuration, ['settings', 'Administration'] as [RouteKey, string]].some(([candidate]) => candidate === key) ? key : 'overview'
+}
+const initialTheme = (): Theme => {
+  const saved = localStorage.getItem('scenescape-theme')
+  if (themes.some(({ value }) => value === saved)) return saved as Theme
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 const go = (route: RouteKey) => { window.location.hash = `#/${route}` }
 const text = (value: unknown) => value === null || value === undefined || value === '' ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value)
@@ -67,7 +79,7 @@ function App() {
   const [overview, setOverview] = useState<Overview | null>(null)
   const [scenes, setScenes] = useState<Row[]>([])
   const [apiError, setApiError] = useState('')
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => localStorage.getItem('scenescape-theme') === 'dark' ? 'dark' : 'light')
+  const [theme, setTheme] = useState<Theme>(initialTheme)
 
   useEffect(() => { const onHash = () => setRoute(routeFromHash()); window.addEventListener('hashchange', onHash); return () => window.removeEventListener('hashchange', onHash) }, [])
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('scenescape-theme', theme) }, [theme])
@@ -106,7 +118,7 @@ function App() {
     return <><Header kicker="Administration" title="Identity, migration & fallback"/><section className="panel settings-list"><div><b>Signed in as</b><span>{auth.displayName}{auth.email ? ` · ${auth.email}` : ''}</span></div><div><b>Roles</b><span>{auth.roles.filter((r) => r.startsWith('scenescape-')).join(', ') || 'authenticated'}</span></div><div><b>Modern API</b><span>/api/v2/* — Keycloak Bearer JWT</span></div><div><b>Legacy API compatibility</b><span>/api/v1/* — existing DRF Token behavior preserved</span></div><div><b>Django fallback</b><a className="text-link" href={legacyUrl()}>Open legacy UI</a></div></section></>
   })()
 
-  return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark">S</div><div><b>{runtimeConfig.appTitle}</b><span>Operations console</span></div></div><div className="nav-label">Operations · data plane</div>{operations.map(([key, label]) => <button key={key} className={route === key ? 'nav-item active' : 'nav-item'} onClick={() => go(key)}>{label}</button>)}<div className="nav-label">Configuration · control plane</div>{configuration.map(([key, label]) => <button key={key} className={route === key ? 'nav-item active' : 'nav-item'} onClick={() => go(key)}>{label}</button>)}<div className="nav-label">Administration</div><button className={route === 'settings' ? 'nav-item active' : 'nav-item'} onClick={() => go('settings')}>Access & migration</button><a className="nav-item legacy" href={legacyUrl()}>Django fallback ↗</a></aside><div className="content-shell"><header className="topbar"><div className="environment"><span className="status-dot"/>SceneScape 2026.2.0</div><div className="top-actions"><button className="theme-button" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? 'Dark' : 'Light'}</button><div className="identity"><b>{auth.displayName}</b><span>{auth.isAdmin ? 'Administrator' : 'Operator'}</span></div><button className="btn" onClick={() => void auth.logout()}>Sign out</button></div></header><main>{page}</main></div></div>
+  return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark">S</div><div><b>{runtimeConfig.appTitle}</b><span>Operations console</span></div></div><div className="nav-label">Operations · data plane</div>{operations.map(([key, label]) => <button key={key} className={route === key ? 'nav-item active' : 'nav-item'} onClick={() => go(key)}>{label}</button>)}<div className="nav-label">Configuration · control plane</div>{configuration.map(([key, label]) => <button key={key} className={route === key ? 'nav-item active' : 'nav-item'} onClick={() => go(key)}>{label}</button>)}<div className="nav-label">Administration</div><button className={route === 'settings' ? 'nav-item active' : 'nav-item'} onClick={() => go('settings')}>Access & migration</button><a className="nav-item legacy" href={legacyUrl()}>Django fallback ↗</a></aside><div className="content-shell"><header className="topbar"><div className="environment"><span className="status-dot"/>SceneScape 2026.2.0</div><div className="top-actions"><label className="theme-picker"><span>Theme</span><select aria-label="Visual theme" value={theme} onChange={(e) => setTheme(e.target.value as Theme)}>{themes.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label><div className="identity"><b>{auth.displayName}</b><span>{auth.isAdmin ? 'Administrator' : 'Operator'}</span></div><button className="btn" onClick={() => void auth.logout()}>Sign out</button></div></header><main>{page}</main></div></div>
 }
 
 export default App
