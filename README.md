@@ -49,12 +49,6 @@ The React navigation is therefore divided into:
 
 The new console is intentionally being introduced using a **strangler migration pattern**. Existing SceneScape models, scene processing, calibration workflows, analytics and machine-facing APIs continue to operate while browser-facing workflows are modernized progressively.
 
-### UX direction
-
-![SceneScape operations UX direction](docs/ux/operations-v2/screenshots/01-overview-light.jpg)
-
-> The image above is a UX design artifact that defines the operator direction; it is not presented as a live runtime capture. See [Operations UX v2](docs/ux/operations-v2/README.md) for the design package and migration rationale.
-
 ---
 
 ## Architecture
