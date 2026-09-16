@@ -20,6 +20,7 @@ paho-mqtt==2.1.0
 pillow==12.3.0
 plyfile==1.0.3
 psycopg2-binary==2.9.11
+PyJWT[crypto]==2.10.1
 PyYAML==6.0.3
 requests==2.33.0
 scipy==1.17.1
