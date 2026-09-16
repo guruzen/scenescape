@@ -18,9 +18,15 @@ spec:
         path: /
         backend:
           service:
+{{- if .Values.modernUI.enabled }}
+            name: modern-ui
+            port:
+              number: {{ .Values.modernUI.service.port }}
+{{- else }}
             name: web
             port:
               number: 80
+{{- end }}
 #      - pathType: Prefix
 #        path: /mqtt
 #        backend:
