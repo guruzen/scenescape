@@ -16,6 +16,7 @@ from manager.model_directory_view import ModelDirectory
 # Imports for REST API
 from django.urls import re_path
 from manager import api
+from manager import modern_api
 
 urlpatterns = [
   path('admin/', admin.site.urls),
@@ -81,8 +82,7 @@ if settings.KUBERNETES_SERVICE_HOST:
             name="model_resources"),
   ]
 
-# REST API
-
+# REST API v1: kept unchanged for existing token clients.
 urlpatterns += [
   re_path(r'api/v1/(scenes)$', api.ListThings.as_view()),
   re_path(r'api/v1/(scene)$', api.ManageThing.as_view()),
@@ -115,6 +115,30 @@ urlpatterns += [
   re_path(r'api/v1/(calibrationmarker)/([^/]+)$', api.ManageThing.as_view())
 ]
 
+# REST API v2: browser/operator endpoints authenticated by Keycloak Bearer JWT.
+urlpatterns += [
+  path('api/v2/session', modern_api.SessionAPIView.as_view()),
+  path('api/v2/overview', modern_api.OverviewAPIView.as_view()),
+  re_path(r'api/v2/(scenes)$', modern_api.ModernListThings.as_view()),
+  re_path(r'api/v2/(scene)$', modern_api.ModernManageThing.as_view()),
+  re_path(r'api/v2/(scene)/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$', modern_api.ModernManageThing.as_view()),
+  re_path(r'api/v2/(cameras)$', modern_api.ModernListThings.as_view()),
+  re_path(r'api/v2/(camera)$', modern_api.ModernManageThing.as_view()),
+  re_path(r'api/v2/(camera)/([^/]+)$', modern_api.ModernManageThing.as_view()),
+  re_path(r'api/v2/(sensors)$', modern_api.ModernListThings.as_view()),
+  re_path(r'api/v2/(sensor)$', modern_api.ModernManageThing.as_view()),
+  re_path(r'api/v2/(sensor)/([^/]+)$', modern_api.ModernManageThing.as_view()),
+  re_path(r'api/v2/(regions)$', modern_api.ModernListThings.as_view()),
+  re_path(r'api/v2/(region)$', modern_api.ModernManageThing.as_view()),
+  re_path(r'api/v2/(region)/([^/]+)$', modern_api.ModernManageThing.as_view()),
+  re_path(r'api/v2/(tripwires)$', modern_api.ModernListThings.as_view()),
+  re_path(r'api/v2/(tripwire)$', modern_api.ModernManageThing.as_view()),
+  re_path(r'api/v2/(tripwire)/([^/]+)$', modern_api.ModernManageThing.as_view()),
+  re_path(r'api/v2/(assets)$', modern_api.ModernListThings.as_view()),
+  re_path(r'api/v2/(asset)$', modern_api.ModernManageThing.as_view()),
+  re_path(r'api/v2/(asset)/([^/]+)$', modern_api.ModernManageThing.as_view()),
+]
+
 urlpatterns += [
   path('api/', include('rest_framework.urls')),
   path('api/v1/auth', api.CustomAuthToken.as_view(), name='api_token_auth'),
@@ -123,7 +147,6 @@ urlpatterns += [
   path('api/v1/calculateintrinsics', CalculateCameraIntrinsics.as_view()),
   path('api/v1/aclcheck', api.ACLCheck.as_view()),
   path("api/v1/import-scene/", api.SceneImportAPIView.as_view())
-
 ]
 
 if settings.KUBERNETES_SERVICE_HOST:
