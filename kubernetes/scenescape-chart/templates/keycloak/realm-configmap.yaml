@@ -1,0 +1,41 @@
+{{- if and .Values.modernUI.enabled .Values.keycloak.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-keycloak-realm
+data:
+  scenescape-realm.json: |
+    {
+      "realm": {{ .Values.modernUI.auth.realm | quote }},
+      "enabled": true,
+      "displayName": "SceneScape",
+      "registrationAllowed": false,
+      "resetPasswordAllowed": true,
+      "rememberMe": true,
+      "roles": {
+        "realm": [
+          { "name": "scenescape-viewer", "description": "Read SceneScape operational data" },
+          { "name": "scenescape-admin", "description": "Administer SceneScape resources" }
+        ]
+      },
+      "clients": [
+        {
+          "clientId": {{ .Values.modernUI.auth.clientId | quote }},
+          "name": "SceneScape modern UI",
+          "enabled": true,
+          "publicClient": true,
+          "protocol": "openid-connect",
+          "standardFlowEnabled": true,
+          "directAccessGrantsEnabled": false,
+          "implicitFlowEnabled": false,
+          "redirectUris": ["https://{{ .Values.certdomain }}/*"],
+          "webOrigins": ["https://{{ .Values.certdomain }}"],
+          "attributes": {
+            "pkce.code.challenge.method": "S256",
+            "post.logout.redirect.uris": "https://{{ .Values.certdomain }}/*"
+          },
+          "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "email"]
+        }
+      ]
+    }
+{{- end }}
