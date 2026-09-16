@@ -1,0 +1,75 @@
+{{- if .Values.modernUI.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-modern-ui
+  labels:
+    app: {{ .Release.Name }}-modern-ui
+spec:
+  replicas: {{ .Values.modernUI.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-modern-ui
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-modern-ui
+        {{ include "releaseLabels" . | indent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: modern-ui
+          image: "{{ .Values.modernUI.image.repository }}:{{ default .Chart.AppVersion .Values.modernUI.image.tag }}"
+          imagePullPolicy: {{ .Values.modernUI.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SCENESCAPE_API_UPSTREAM
+              value: "https://web.{{ .Release.Namespace }}.svc.cluster.local:443"
+            - name: SCENESCAPE_KEYCLOAK_REALM
+              value: {{ .Values.modernUI.auth.realm | quote }}
+            - name: SCENESCAPE_KEYCLOAK_CLIENT_ID
+              value: {{ .Values.modernUI.auth.clientId | quote }}
+            - name: SCENESCAPE_LEGACY_BASE_URL
+              value: "/legacy/"
+            - name: SCENESCAPE_APP_TITLE
+              value: {{ .Values.modernUI.appTitle | quote }}
+            {{- if .Values.keycloak.enabled }}
+            - name: SCENESCAPE_KEYCLOAK_URL
+              value: "/auth"
+            - name: SCENESCAPE_KEYCLOAK_UPSTREAM
+              value: "http://keycloak.{{ .Release.Namespace }}.svc.cluster.local:8080"
+            {{- else }}
+            - name: SCENESCAPE_KEYCLOAK_URL
+              value: {{ required "modernUI.auth.keycloakUrl is required when embedded keycloak is disabled" .Values.modernUI.auth.keycloakUrl | quote }}
+            - name: SCENESCAPE_KEYCLOAK_UPSTREAM
+              value: "http://127.0.0.1:65535"
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.modernUI.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 101
+            seccompProfile:
+              type: RuntimeDefault
+{{- end }}
