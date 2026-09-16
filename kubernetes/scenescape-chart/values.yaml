@@ -74,6 +74,51 @@ web:
   image: intel/scenescape-manager
   pullPolicy: IfNotPresent
 
+# Modern browser UI. Disabled by default so the base 2026.2.0 deployment
+# remains unchanged until a modern-ui image is available to the cluster.
+modernUI:
+  enabled: false
+  replicaCount: 1
+  appTitle: SceneScape
+  image:
+    repository: intel/scenescape-modern-ui
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+  auth:
+    realm: scenescape
+    clientId: scenescape-ui
+    # Required when keycloak.enabled=false. This is the browser-visible
+    # Keycloak base URL, for example https://id.example.com/auth.
+    keycloakUrl: ""
+    # Required when keycloak.enabled=false. Must exactly match the iss claim
+    # in access tokens, including any /auth path.
+    issuerUrl: ""
+    # Optional private/internal JWKS URL. Leave empty to derive it from
+    # issuerUrl when an external Keycloak deployment is used.
+    jwksUrl: ""
+    verifySsl: true
+    autoProvisionUsers: true
+    adminRole: scenescape-admin
+  resources: {}
+
+# Embedded Keycloak is intended for evaluation/lab deployments. Production
+# deployments should normally use a managed/external Keycloak with TLS,
+# persistent storage, backup and organization-specific identity controls.
+keycloak:
+  enabled: false
+  image:
+    repository: quay.io/keycloak/keycloak
+    tag: 26.7.3
+    pullPolicy: IfNotPresent
+  existingSecret: ""
+  bootstrapAdminUsername: admin
+  # Empty causes the chart to generate and retain a random bootstrap password.
+  bootstrapAdminPassword: ""
+  resources: {}
+
 scene:
   image: intel/scenescape-controller
   pullPolicy: IfNotPresent
