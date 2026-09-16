@@ -1,0 +1,16 @@
+{{- if .Values.modernUI.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: modern-ui
+  labels:
+    app: {{ .Release.Name }}-modern-ui
+spec:
+  type: {{ .Values.modernUI.service.type }}
+  selector:
+    app: {{ .Release.Name }}-modern-ui
+  ports:
+    - name: http
+      port: {{ .Values.modernUI.service.port }}
+      targetPort: http
+{{- end }}
