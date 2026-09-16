@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+# Local/evaluation overlay for the React operations UI and embedded Keycloak.
+# Apply on top of the generated root docker-compose.yml.
+
+services:
+  web:
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KEYCLOAK_ENABLED: "true"
+      KEYCLOAK_ISSUER_URL: "${SCENESCAPE_PUBLIC_URL:-http://localhost:8088}/auth/realms/scenescape"
+      KEYCLOAK_JWKS_URL: "http://keycloak:8080/auth/realms/scenescape/protocol/openid-connect/certs"
+      KEYCLOAK_URL: "http://keycloak:8080/auth"
+      KEYCLOAK_REALM: "scenescape"
+      KEYCLOAK_CLIENT_ID: "scenescape-ui"
+      KEYCLOAK_ADMIN_ROLE: "scenescape-admin"
+      KEYCLOAK_AUTO_PROVISION_USERS: "true"
+      KEYCLOAK_VERIFY_SSL: "true"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.3
+    command:
+      - start-dev
+      - --http-relative-path=/auth
+      - --proxy-headers=xforwarded
+      - --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_ADMIN_USERNAME:-admin}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD before starting the modern UI}"
+      KC_HOSTNAME: "${SCENESCAPE_PUBLIC_URL:-http://localhost:8088}/auth"
+    volumes:
+      - ./modern-ui/keycloak/scenescape-realm.json:/opt/keycloak/data/import/scenescape-realm.json:ro
+    networks:
+      - scenescape
+    restart: unless-stopped
+
+  modern-ui:
+    build:
+      context: ./modern-ui
+    image: intel/scenescape-modern-ui:${VERSION:-latest}
+    depends_on:
+      web:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    networks:
+      - scenescape
+    ports:
+      - "${MODERN_UI_PORT:-8088}:8080"
+    environment:
+      SCENESCAPE_API_UPSTREAM: "https://web.scenescape.intel.com:443"
+      SCENESCAPE_KEYCLOAK_UPSTREAM: "http://keycloak:8080"
+      SCENESCAPE_API_BASE_URL: ""
+      SCENESCAPE_KEYCLOAK_URL: "/auth"
+      SCENESCAPE_KEYCLOAK_REALM: "scenescape"
+      SCENESCAPE_KEYCLOAK_CLIENT_ID: "scenescape-ui"
+      SCENESCAPE_LEGACY_BASE_URL: "/legacy/"
+      SCENESCAPE_APP_TITLE: "SceneScape"
+    restart: unless-stopped
