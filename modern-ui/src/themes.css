@@ -1,0 +1,178 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* SceneScape visual themes. Base Light/Dark tokens live in index.css; this file
+ * adds alternate visual systems and theme-specific layout behavior. */
+
+:root[data-theme='light-air'] {
+  color: #23303a;
+  background: #eef3f5;
+  --bg: 238 243 245;
+  --panel: 255 255 255;
+  --soft: 244 249 250;
+  --text: 35 48 58;
+  --muted: 104 123 133;
+  --line: 218 229 232;
+  --accent: 33 118 127;
+  --danger: 184 63 73;
+  --warning: 164 108 29;
+  --success: 41 125 83;
+}
+
+:root[data-theme='dark-command'] {
+  color: #e6f0f3;
+  background: #091014;
+  --bg: 9 16 20;
+  --panel: 13 23 29;
+  --soft: 17 31 38;
+  --text: 230 240 243;
+  --muted: 135 158 169;
+  --line: 37 56 64;
+  --accent: 78 209 206;
+  --danger: 255 119 132;
+  --warning: 244 185 91;
+  --success: 99 218 153;
+}
+
+.theme-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 4px 5px 4px 9px;
+  border: 1px solid rgb(var(--line));
+  border-radius: 8px;
+  background: rgb(var(--panel));
+}
+.theme-picker > span {
+  color: rgb(var(--muted));
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.theme-picker select {
+  appearance: none;
+  min-width: 118px;
+  padding: 6px 27px 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  color: rgb(var(--text));
+  background:
+    linear-gradient(45deg, transparent 50%, rgb(var(--muted)) 50%) calc(100% - 12px) 50% / 5px 5px no-repeat,
+    linear-gradient(135deg, rgb(var(--muted)) 50%, transparent 50%) calc(100% - 8px) 50% / 5px 5px no-repeat,
+    rgb(var(--soft));
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.theme-picker select:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
+
+/* Light Air: editorial/architectural layout. More breathing room, larger cards,
+ * broader navigation, softer surfaces and a two-row KPI composition. */
+:root[data-theme='light-air'] .app-shell { grid-template-columns: 286px minmax(0, 1fr); }
+:root[data-theme='light-air'] .sidebar {
+  padding: 24px 18px;
+  background: linear-gradient(180deg, rgb(var(--panel)) 0%, rgb(var(--soft)) 100%);
+  border-right-color: transparent;
+  box-shadow: 8px 0 30px rgba(37, 69, 77, .05);
+}
+:root[data-theme='light-air'] .brand { padding: 4px 8px 25px; border-bottom-color: transparent; }
+:root[data-theme='light-air'] .brand-mark { width: 42px; height: 42px; border-radius: 14px; box-shadow: 0 8px 22px rgba(33,118,127,.18); }
+:root[data-theme='light-air'] .nav-label { margin-top: 26px; }
+:root[data-theme='light-air'] .nav-item { padding: 11px 12px; margin: 3px 0; border-radius: 12px; }
+:root[data-theme='light-air'] .nav-item.active { box-shadow: inset 3px 0 0 rgb(var(--accent)); }
+:root[data-theme='light-air'] .topbar { height: 72px; padding: 0 34px; border-bottom-color: transparent; box-shadow: 0 1px 0 rgba(60,89,98,.06); }
+:root[data-theme='light-air'] main { max-width: 1680px; padding: 38px 42px 48px; }
+:root[data-theme='light-air'] .page-header { margin-bottom: 28px; }
+:root[data-theme='light-air'] .page-header h1 { font-size: 32px; }
+:root[data-theme='light-air'] .metric-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 18px; margin-bottom: 22px; }
+:root[data-theme='light-air'] .metric-grid.compact { grid-template-columns: repeat(3,minmax(0,1fr)); }
+:root[data-theme='light-air'] .metric { min-height: 142px; padding: 21px 22px; border-radius: 18px; border-color: transparent; box-shadow: 0 8px 30px rgba(42,68,75,.07); }
+:root[data-theme='light-air'] .metric strong { font-size: 36px; margin-top: 12px; }
+:root[data-theme='light-air'] .panel { border-color: transparent; border-radius: 18px; box-shadow: 0 10px 34px rgba(42,68,75,.065); overflow: hidden; }
+:root[data-theme='light-air'] .workspace-grid { grid-template-columns: minmax(0,1.6fr) minmax(330px,.65fr); gap: 22px; margin-bottom: 22px; }
+:root[data-theme='light-air'] .panel-title { padding: 20px 22px; }
+:root[data-theme='light-air'] .scene-canvas { height: 520px; }
+:root[data-theme='light-air'] .coverage-note { right: 22px; bottom: 20px; border-radius: 12px; box-shadow: 0 8px 25px rgba(42,68,75,.08); }
+:root[data-theme='light-air'] .attention-card { margin: 18px 18px 0; padding: 16px; border-radius: 14px; }
+:root[data-theme='light-air'] .card-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; }
+:root[data-theme='light-air'] .scene-card { padding: 18px; }
+:root[data-theme='light-air'] .mini-scene { height: 205px; border-radius: 14px; }
+:root[data-theme='light-air'] .btn,
+:root[data-theme='light-air'] .theme-picker { border-radius: 11px; }
+:root[data-theme='light-air'] .toolbar input { padding: 11px 13px; border-radius: 11px; }
+
+/* Dark Command: control-room layout. Higher information density, narrow rail,
+ * flatter geometry and a larger live-workspace-to-attention ratio. */
+:root[data-theme='dark-command'] .app-shell { grid-template-columns: 208px minmax(0,1fr); }
+:root[data-theme='dark-command'] .sidebar { padding: 12px 9px; background: #070d11; }
+:root[data-theme='dark-command'] .brand { padding: 2px 7px 14px; }
+:root[data-theme='dark-command'] .brand-mark { width: 30px; height: 30px; border-radius: 4px; color: #071012; box-shadow: 0 0 24px rgba(78,209,206,.15); }
+:root[data-theme='dark-command'] .brand b { font-size: 13px; }
+:root[data-theme='dark-command'] .brand span { font-size: 8px; }
+:root[data-theme='dark-command'] .nav-label { margin: 15px 8px 5px; font-size: 8px; }
+:root[data-theme='dark-command'] .nav-item { padding: 7px 8px; margin: 1px 0; border-radius: 3px; font-size: 11px; }
+:root[data-theme='dark-command'] .nav-item.active { box-shadow: inset 2px 0 0 rgb(var(--accent)); }
+:root[data-theme='dark-command'] .topbar { height: 52px; padding: 0 18px; background: rgba(9,16,20,.94); }
+:root[data-theme='dark-command'] .environment { font-size: 10px; letter-spacing: .03em; }
+:root[data-theme='dark-command'] .top-actions { gap: 7px; }
+:root[data-theme='dark-command'] .theme-picker { min-height: 30px; padding: 2px 3px 2px 7px; border-radius: 3px; }
+:root[data-theme='dark-command'] .theme-picker select { min-width: 112px; padding-top: 4px; padding-bottom: 4px; border-radius: 2px; }
+:root[data-theme='dark-command'] main { max-width: none; padding: 18px 20px 28px; }
+:root[data-theme='dark-command'] .page-header { margin-bottom: 13px; }
+:root[data-theme='dark-command'] .page-header h1 { font-size: 23px; margin-top: 2px; }
+:root[data-theme='dark-command'] .kicker { font-size: 8px; }
+:root[data-theme='dark-command'] .btn { min-height: 30px; padding: 5px 8px; border-radius: 3px; font-size: 10px; }
+:root[data-theme='dark-command'] .metric-grid { gap: 8px; margin-bottom: 10px; }
+:root[data-theme='dark-command'] .metric { min-height: 94px; padding: 11px 12px; border-radius: 3px; background: linear-gradient(180deg, rgb(var(--panel)), rgb(var(--soft))); }
+:root[data-theme='dark-command'] .metric span { font-size: 9px; text-transform: uppercase; letter-spacing: .05em; }
+:root[data-theme='dark-command'] .metric strong { font-size: 26px; margin: 5px 0 1px; }
+:root[data-theme='dark-command'] .metric strong.small-value { font-size: 14px; }
+:root[data-theme='dark-command'] .metric small { font-size: 9px; }
+:root[data-theme='dark-command'] .panel { border-radius: 3px; }
+:root[data-theme='dark-command'] .workspace-grid { grid-template-columns: minmax(0,1.75fr) minmax(280px,.55fr); gap: 9px; margin-bottom: 9px; }
+:root[data-theme='dark-command'] .panel-title { padding: 10px 12px; }
+:root[data-theme='dark-command'] .panel-title h2 { font-size: 12px; }
+:root[data-theme='dark-command'] .panel-title p { font-size: 9px; }
+:root[data-theme='dark-command'] .scene-canvas { height: 540px; background: radial-gradient(circle at 50% 45%, #15262d 0%, #0a1216 68%); }
+:root[data-theme='dark-command'] .coverage-note { right: 10px; bottom: 10px; border-radius: 2px; font-size: 9px; background: rgba(13,23,29,.92); }
+:root[data-theme='dark-command'] .attention-card { margin: 8px 8px 0; padding: 10px; border-radius: 2px; }
+:root[data-theme='dark-command'] .attention-card span { font-size: 9px; line-height: 1.4; }
+:root[data-theme='dark-command'] .incident-panel .btn { margin: 8px; width: calc(100% - 16px); }
+:root[data-theme='dark-command'] .scene-list { padding: 0 12px 4px; }
+:root[data-theme='dark-command'] .scene-row { padding: 8px 0; }
+:root[data-theme='dark-command'] .card-grid { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+:root[data-theme='dark-command'] .scene-card { padding: 9px; }
+:root[data-theme='dark-command'] .mini-scene { height: 130px; border-radius: 2px; margin-bottom: 8px; }
+:root[data-theme='dark-command'] th,
+:root[data-theme='dark-command'] td { padding: 8px 9px; }
+:root[data-theme='dark-command'] td { font-size: 10px; }
+:root[data-theme='dark-command'] .toolbar { margin-bottom: 8px; }
+:root[data-theme='dark-command'] .toolbar input { padding: 6px 8px; border-radius: 3px; }
+:root[data-theme='dark-command'] .split-list > div { padding: 11px; }
+:root[data-theme='dark-command'] .list-row { padding: 6px 0; }
+:root[data-theme='dark-command'] .settings-list > div { padding: 9px 0; }
+
+@media (max-width: 1100px) {
+  :root[data-theme='light-air'] .metric-grid { grid-template-columns: repeat(2,1fr); }
+  :root[data-theme='light-air'] .workspace-grid,
+  :root[data-theme='dark-command'] .workspace-grid { grid-template-columns: 1fr; }
+  :root[data-theme='dark-command'] .card-grid { grid-template-columns: repeat(2,1fr); }
+}
+
+@media (max-width: 760px) {
+  :root[data-theme='light-air'] .app-shell,
+  :root[data-theme='dark-command'] .app-shell { grid-template-columns: 1fr; }
+  :root[data-theme='light-air'] .sidebar,
+  :root[data-theme='dark-command'] .sidebar { position: relative; height: auto; display: grid; grid-template-columns: repeat(2,1fr); gap: 4px; }
+  :root[data-theme='light-air'] main { padding: 22px 18px 30px; }
+  :root[data-theme='dark-command'] main { padding: 14px; }
+  :root[data-theme='light-air'] .metric-grid,
+  :root[data-theme='light-air'] .metric-grid.compact,
+  :root[data-theme='dark-command'] .metric-grid,
+  :root[data-theme='dark-command'] .metric-grid.compact,
+  :root[data-theme='light-air'] .card-grid,
+  :root[data-theme='dark-command'] .card-grid { grid-template-columns: 1fr; }
+  .theme-picker > span { display: none; }
+  .theme-picker select { min-width: 105px; }
+}
