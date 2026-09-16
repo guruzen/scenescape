@@ -11,6 +11,8 @@
 .coverage_*
 .env
 .scenescape-profile
+.scenescape-modern.env
+.scenescape-runtime/
 .pytest_cache
 .vscode
 __pycache__

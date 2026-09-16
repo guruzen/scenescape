@@ -30,7 +30,7 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD before starting the modern UI}"
       KC_HOSTNAME: "${SCENESCAPE_PUBLIC_URL:-http://localhost:8088}/auth"
     volumes:
-      - ./modern-ui/keycloak/scenescape-realm.json:/opt/keycloak/data/import/scenescape-realm.json:ro
+      - ${SCENESCAPE_KEYCLOAK_REALM_FILE:-./modern-ui/keycloak/scenescape-realm.json}:/opt/keycloak/data/import/scenescape-realm.json:ro
       - vol-keycloak:/opt/keycloak/data
     networks:
       - scenescape
