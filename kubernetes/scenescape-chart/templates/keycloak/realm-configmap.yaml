@@ -34,7 +34,7 @@ data:
             "pkce.code.challenge.method": "S256",
             "post.logout.redirect.uris": "https://{{ .Values.certdomain }}/*"
           },
-          "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "email"]
+          "defaultClientScopes": ["web-origins", "acr", "basic", "roles", "profile", "email"]
         }
       ]
     }
