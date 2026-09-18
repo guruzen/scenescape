@@ -388,6 +388,46 @@ wait_for_endpoint() {
   return 1
 }
 
+repair_keycloak_client_scopes() {
+  local kcadm="/opt/keycloak/bin/kcadm.sh"
+  local client_id scope_id current_scopes
+
+  log "Checking Keycloak client scopes"
+
+  if ! compose exec -T keycloak "${kcadm}" config credentials \
+      --server http://127.0.0.1:8080/auth \
+      --realm master \
+      --user "${KEYCLOAK_ADMIN_USERNAME}" \
+      --password "${KEYCLOAK_ADMIN_PASSWORD}" >/dev/null 2>&1; then
+    warn "Could not authenticate the Keycloak admin CLI; verify KEYCLOAK_ADMIN_USERNAME/PASSWORD in .scenescape-modern.env."
+    return 1
+  fi
+
+  client_id="$(compose exec -T keycloak "${kcadm}" get clients -r scenescape \
+      -q clientId=scenescape-ui --fields id --format csv --noquotes 2>/dev/null | awk 'NR==2 {print $1}')"
+  [[ -n "${client_id}" ]] || { warn "Keycloak client 'scenescape-ui' was not found."; return 1; }
+
+  scope_id="$(compose exec -T keycloak "${kcadm}" get client-scopes -r scenescape \
+      --fields id,name --format csv --noquotes 2>/dev/null | awk -F, '$2=="basic" {print $1; exit}')"
+  [[ -n "${scope_id}" ]] || { warn "Keycloak client scope 'basic' was not found."; return 1; }
+
+  current_scopes="$(compose exec -T keycloak "${kcadm}" get "clients/${client_id}/default-client-scopes" -r scenescape \
+      --fields name --format csv --noquotes 2>/dev/null || true)"
+  if printf '%s\n' "${current_scopes}" | grep -qx 'basic'; then
+    info "Keycloak client scope 'basic' is already attached."
+    return 0
+  fi
+
+  if compose exec -T keycloak "${kcadm}" update \
+      "clients/${client_id}/default-client-scopes/${scope_id}" -r scenescape >/dev/null 2>&1; then
+    info "Attached Keycloak default client scope 'basic' (provides access-token sub/auth_time claims)."
+    return 0
+  fi
+
+  warn "Could not attach Keycloak client scope 'basic' automatically. Use the Keycloak admin console: Clients > scenescape-ui > Client scopes > Add client scope > basic > Default."
+  return 1
+}
+
 print_endpoints() {
   info "Modern UI: ${SCENESCAPE_PUBLIC_URL}"
   info "Keycloak admin: ${SCENESCAPE_PUBLIC_URL}/auth/admin/"
@@ -408,7 +448,9 @@ cmd_start() {
   log "Waiting for browser endpoints"
   local local_base="http://127.0.0.1:${MODERN_UI_PORT}"
   wait_for_endpoint "Modern UI" "${local_base}/healthz" 90 2 || true
-  wait_for_endpoint "Keycloak realm" "${local_base}/auth/realms/scenescape/.well-known/openid-configuration" 90 2 || true
+  if wait_for_endpoint "Keycloak realm" "${local_base}/auth/realms/scenescape/.well-known/openid-configuration" 90 2; then
+    repair_keycloak_client_scopes || true
+  fi
 
   log "SceneScape is started"
   print_endpoints
