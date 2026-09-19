@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiBlob, apiFetch } from '../api/client'
+import GeospatialMap from './GeospatialMap'
 
 type Row = Record<string, any>
 
@@ -286,7 +287,34 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
             <label>Bearing<input type="number" step="any" value={draft.map_bearing ?? 0} onChange={(e)=>field('map_bearing',Number(e.target.value))}/></label>
             <label className="checkbox-label"><input type="checkbox" checked={Boolean(draft.output_lla)} onChange={(e)=>field('output_lla',e.target.checked)}/>Output LLA</label>
             <label className="wide">Map corners LLA<textarea value={corners} onChange={(e)=>setCorners(e.target.value)} placeholder="[[lat,lng,alt], ... four corners]"/></label>
-          </div></div>}
+          </div>
+          <GeospatialMap
+            key={`${idOf(selected || {}) || 'new'}-${String(draft.geospatial_provider || 'google')}`}
+            provider={(draft.geospatial_provider === 'mapbox' ? 'mapbox' : 'google')}
+            settings={{
+              lat: Number(draft.map_center_lat ?? 37.7749),
+              lng: Number(draft.map_center_lng ?? -122.4194),
+              zoom: Number(draft.map_zoom ?? 15),
+              bearing: Number(draft.map_bearing ?? 0),
+            }}
+            onSettings={(value) => setDraft((old) => ({ ...old, map_center_lat: value.lat, map_center_lng: value.lng, map_zoom: value.zoom, map_bearing: value.bearing }))}
+            onGenerated={(value) => {
+              setMapFile(value.file)
+              setCorners(JSON.stringify(value.corners))
+              setDraft((old) => ({
+                ...old,
+                map_type: 'geospatial_map',
+                output_lla: true,
+                scale: Number(value.scale.toFixed(2)),
+                map_center_lat: value.lat,
+                map_center_lng: value.lng,
+                map_zoom: value.zoom,
+                map_bearing: value.bearing,
+              }))
+              setMessage('Geospatial map generated. Save scene to persist the PNG and LLA bounds.')
+            }}
+          />
+          </div>}
           <div className="scene-subsection"><h3>Map transform</h3><div className="scene-form-grid">
             <label>Translation [x,y,z]<input value={translation} onChange={(e)=>setTranslation(e.target.value)}/></label>
             <label>Rotation° [x,y,z]<input value={rotation} onChange={(e)=>setRotation(e.target.value)}/></label>
