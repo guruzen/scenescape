@@ -257,6 +257,10 @@ def reconcile_identity(config):
         mappers = json.loads(kcadm(config, "get", f"clients/{client}/protocol-mappers/models", "-r", "scenescape"))
         mapper = {"name": "scenescape-api-audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper",
                   "config": {"included.custom.audience": "scenescape-api", "access.token.claim": "true", "id.token.claim": "false"}}
+        scene_mapper = {"name": "scenescape-scene-scopes", "protocol": "openid-connect", "protocolMapper": "oidc-usermodel-attribute-mapper",
+                        "config": {"user.attribute": "scenescape_scenes", "claim.name": "scenes", "jsonType.label": "String",
+                                   "multivalued": "true", "access.token.claim": "true", "id.token.claim": "true",
+                                   "userinfo.token.claim": "true"}}
         existing = next((m for m in mappers if m.get("name") == mapper["name"]), None)
         path = f"clients/{client}/protocol-mappers/models"
         if existing:
@@ -265,12 +269,25 @@ def reconcile_identity(config):
         else:
             kcadm(config, "create", path, "-r", "scenescape", "-f", "-", data=json.dumps(mapper).encode())
 
+        scene_existing = next((m for m in mappers if m.get("name") == scene_mapper["name"]), None)
+        if scene_existing:
+            scene_mapper["id"] = scene_existing["id"]
+            kcadm(config, "update", path + "/" + scene_existing["id"], "-r", "scenescape", "-f", "-", data=json.dumps(scene_mapper).encode())
+        else:
+            kcadm(config, "create", path, "-r", "scenescape", "-f", "-", data=json.dumps(scene_mapper).encode())
+
         verified_mappers = json.loads(kcadm(config, "get", path, "-r", "scenescape"))
         verified = next((m for m in verified_mappers if m.get("name") == mapper["name"]), None)
         verified_config = (verified or {}).get("config") or {}
         if (not verified or verified_config.get("included.custom.audience") != "scenescape-api"
                 or str(verified_config.get("access.token.claim", "")).lower() != "true"):
             fail("Keycloak did not persist the scenescape-api audience mapper.")
+        verified_scene = next((m for m in verified_mappers if m.get("name") == scene_mapper["name"]), None)
+        scene_config = (verified_scene or {}).get("config") or {}
+        if (not verified_scene or scene_config.get("user.attribute") != "scenescape_scenes"
+                or scene_config.get("claim.name") != "scenes"
+                or str(scene_config.get("access.token.claim", "")).lower() != "true"):
+            fail("Keycloak did not persist the scenescape scene-scope mapper.")
     finally:
         compose(config, "exec", "-T", "keycloak", "rm", "-f", "/tmp/scenescape-kcadm.config", native=True, capture=True, check=False)
 
