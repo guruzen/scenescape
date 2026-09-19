@@ -1159,6 +1159,10 @@ def list_any(plural: str, p=Depends(current_principal), db=Depends(db_dep)):
         rows = list_resources(db, kind)
     if p.is_admin or "*" in p.scene_scopes:
         return rows
+    if kind == "asset":
+        # The object library is global in 2026.2 and is required to render
+        # tracked categories in every authorized scene.
+        return rows
     if plural == "scenes":
         return [row for row in rows if str(row.get("uid")) in p.scene_scopes]
     return [row for row in rows if str(row.get("scene") or row.get("scene_id") or row.get("parent") or "") in p.scene_scopes]
@@ -1175,7 +1179,7 @@ def get_any(plural: str, uid: str, p=Depends(current_principal), db=Depends(db_d
         row = _sensor_value(to_dict(get_resource(db, kind, uid)), native=True)
     else:
         row = to_dict(get_resource(db, kind, uid))
-    if not (p.is_admin or "*" in p.scene_scopes):
+    if not (p.is_admin or "*" in p.scene_scopes) and kind != "asset":
         scene_id = uid if plural == "scenes" else str(row.get("scene") or row.get("scene_id") or row.get("parent") or "")
         _scene_allowed(p, scene_id)
     return row
