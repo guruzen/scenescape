@@ -841,3 +841,24 @@ def test_sensor_telemetry_history(tmp_path, monkeypatch):
     rows=telemetry.json()
     assert [row['value'] for row in rows]==[22.0,21.5]
     assert rows[0]['sensor_id']=='temperature-1'
+
+
+def test_viewer_can_read_global_object_library(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); admin=headers(client)
+    asset=client.post('/api/v2/assets',headers=admin,json={'name':'person','mark_color':'#888888'})
+    assert asset.status_code==200,asset.text
+
+    import time, jwt
+    viewer=jwt.encode({
+        'sub':'viewer-assets','name':'Viewer Assets','roles':['scenescape-viewer'],
+        'scenes':['scene-a'],'iat':int(time.time()),'exp':int(time.time())+300,
+        'aud':'scenescape-api'
+    },'test-signing-key-abcdefghijklmnopqrstuvwxyz',algorithm='HS256')
+    h={'Authorization':'Bearer '+viewer}
+
+    listing=client.get('/api/v2/assets',headers=h)
+    assert listing.status_code==200
+    assert [row['name'] for row in listing.json()]==['person']
+    single=client.get(f"/api/v2/assets/{asset.json()['uid']}",headers=h)
+    assert single.status_code==200 and single.json()['name']=='person'
+    assert client.post('/api/v2/assets',headers=h,json={'name':'forbidden'}).status_code==403
