@@ -256,9 +256,11 @@ def create_user(body: dict) -> dict:
         roles = ["scenescape-viewer"]
     if not isinstance(roles, list):
         raise HTTPException(400, {"roles": ["Must be a list."]})
-    roles = [str(item) for item in roles if str(item) in SCENESCAPE_ROLES]
-    if not roles:
-        roles = ["scenescape-viewer"]
+    role_names = [str(item) for item in roles]
+    invalid_roles = [item for item in role_names if item not in SCENESCAPE_ROLES]
+    if invalid_roles:
+        raise HTTPException(400, {"roles": [f"Invalid SceneScape role: {invalid_roles[0]}"]})
+    roles = role_names or ["scenescape-viewer"]
     scenes = _normalize_scenes(body.get("scenes", []))
     acls = _normalize_acls(body.get("acls", []))
     attrs = {
@@ -324,7 +326,11 @@ def update_user(username: str, body: dict) -> dict:
     if "roles" in body:
         if not isinstance(body["roles"], list):
             raise HTTPException(400, {"roles": ["Must be a list."]})
-        _set_roles(user_id, [str(item) for item in body["roles"]])
+        role_names = [str(item) for item in body["roles"]]
+        invalid_roles = [item for item in role_names if item not in SCENESCAPE_ROLES]
+        if invalid_roles:
+            raise HTTPException(400, {"roles": [f"Invalid SceneScape role: {invalid_roles[0]}"]})
+        _set_roles(user_id, role_names)
     _clear_acl_cache()
     return user_to_dict(_request("GET", f"users/{quote(user_id, safe='')}")[0])
 
