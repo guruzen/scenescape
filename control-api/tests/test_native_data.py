@@ -56,7 +56,11 @@ def test_recover_legacy_data_exports_then_imports_without_volume_deletion(tmp_pa
     state=rt.read_state(); assert state['mode']=='native' and state.get('legacy_recovery_snapshot')
 
 
-def test_legacy_export_uses_real_manager_settings_module():
+def test_legacy_export_bootstraps_manager_package_and_secrets():
     source = (TOOLS / 'export_legacy.py').read_text()
     assert 'manager.settings' in source
     assert 'sscape.settings' not in source
+    assert '/home/scenescape/Scenescape' in source
+    assert '/run/secrets/django/secrets.py' in source
+    assert 'sys.path.insert(0, str(project_root))' in source
+    assert 'spec_from_file_location("manager.secrets"' in source
