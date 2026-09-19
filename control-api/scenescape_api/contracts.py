@@ -292,6 +292,8 @@ def normalize_asset(db, body: dict, *, uid: str | None, creating: bool, legacy: 
     if creating and "name" not in data:
         _bad("name", "This field is required.")
     if "name" in data:
+        if data["name"] is None:
+            _bad("name", "This field may not be null.")
         name = str(data["name"])
         if not name.strip():
             _bad("name", "This field may not be blank.")
@@ -509,24 +511,32 @@ def normalize_spatial(db, kind: str, body: dict, *, uid: str | None, creating: b
     if "points" in data:
         data["points"] = _spatial_points(data["points"])
 
-    if "height" in data and data["height"] is not None:
+    if "height" in data:
+        if data["height"] is None:
+            _bad("height", "This field may not be null.")
         height = _number("height", data["height"])
         if kind == "region" and height < 0.001:
             _bad("height", "Ensure this value is greater than or equal to 0.001.")
         data["height"] = height
 
     if kind == "region":
-        if "buffer_size" in data and data["buffer_size"] is not None:
+        if "buffer_size" in data:
+            if data["buffer_size"] is None:
+                _bad("buffer_size", "This field may not be null.")
             buffer_size = _number("buffer_size", data["buffer_size"])
             if buffer_size < 0:
                 _bad("buffer_size", "Ensure this value is greater than or equal to 0.")
             data["buffer_size"] = buffer_size
         if "volumetric" in data and data["volumetric"] is not None:
             data["volumetric"] = _strict_bool("volumetric", data["volumetric"])
-        if "color_ranges" in data and data["color_ranges"] is not None:
+        if "color_ranges" in data:
+            if data["color_ranges"] is None:
+                _bad("color_ranges", "This field may not be null.")
             data["color_ranges"] = _sensor_color_ranges(data["color_ranges"])
 
-    if "visible" in data and data["visible"] is not None:
+    if "visible" in data:
+        if data["visible"] is None:
+            _bad("visible", "This field may not be null.")
         data["visible"] = _strict_bool("visible", data["visible"])
 
     if creating:
