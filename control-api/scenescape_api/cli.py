@@ -6,7 +6,9 @@ from pathlib import Path
 
 import uvicorn
 
-from .database import Base, Heartbeat, get_engine, sessions
+from sqlalchemy import delete
+
+from .database import Base, Event, Heartbeat, Incident, Observation, Resource, get_engine, sessions
 from .ingest import persist
 from .migrate_legacy import migrate as migrate_snapshot
 
@@ -19,6 +21,18 @@ def seed(path):
     data = json.loads(Path(path).read_text())
     counts = migrate_snapshot(data)
     print(json.dumps({"seeded": counts}, sort_keys=True))
+
+
+def reset(path=None):
+    if os.getenv("SCENESCAPE_ALLOW_RESET", "").strip().lower() not in {"1", "true", "yes"}:
+        raise SystemExit("reset requires SCENESCAPE_ALLOW_RESET=1")
+    Base.metadata.create_all(get_engine())
+    with sessions()() as db:
+        for model in (Incident, Event, Observation, Heartbeat, Resource):
+            db.execute(delete(model))
+        db.commit()
+    if path:
+        seed(path)
 
 
 def serve():
@@ -69,7 +83,7 @@ def worker():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["serve", "worker", "migrate", "seed"])
+    parser.add_argument("command", choices=["serve", "worker", "migrate", "seed", "reset"])
     parser.add_argument("arg", nargs="?")
     args = parser.parse_args()
     if args.command == "serve":
@@ -82,6 +96,8 @@ def main():
         if not args.arg:
             parser.error("seed requires a JSON path")
         seed(args.arg)
+    elif args.command == "reset":
+        reset(args.arg)
 
 
 if __name__ == "__main__":
