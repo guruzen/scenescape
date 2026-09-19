@@ -844,7 +844,7 @@ async def native_sensor_icon_upload(
     if old_icon and old_icon != created:
         delete_media(old_icon)
     notify_config_change("sensor", row.uid)
-    return to_dict(row)
+    return _sensor_value(to_dict(row), native=True)
 
 
 @app.delete("/api/v2/sensors/{sensor_id}/icon")
@@ -866,7 +866,7 @@ def native_sensor_icon_delete(
     if old_icon:
         delete_media(old_icon)
     notify_config_change("sensor", row.uid)
-    return to_dict(row)
+    return _sensor_value(to_dict(row), native=True)
 
 
 @app.get("/api/v2/overview")
