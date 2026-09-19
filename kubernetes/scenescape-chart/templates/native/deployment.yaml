@@ -21,10 +21,10 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
-      {{- with .Values.imagePullSecrets }}
+      {{ with .Values.imagePullSecrets }}
       imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{ toYaml . | nindent 8 }}
+      {{ end }}
       initContainers:
         - name: wait-for-postgres
           image: {{ .Values.pgserver.repository }}/{{ .Values.pgserver.image }}:{{ .Values.pgserver.tag }}
@@ -65,7 +65,7 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-      {{- if .Values.native.seedSample }}
+      {{ if .Values.native.seedSample }}
         - name: seed-native-sample
           image: "{{ .Values.native.image.repository }}:{{ default .Chart.AppVersion .Values.native.image.tag }}"
           imagePullPolicy: {{ .Values.native.image.pullPolicy }}
@@ -109,8 +109,8 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-      {{- end }}
-      {{- if .Values.native.migrateLegacy }}
+      {{ end }}
+      {{ if .Values.native.migrateLegacy }}
         - name: import-legacy-snapshot
           image: "{{ .Values.native.image.repository }}:{{ default .Chart.AppVersion .Values.native.image.tag }}"
           imagePullPolicy: {{ .Values.native.image.pullPolicy }}
@@ -151,7 +151,7 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-      {{- end }}
+      {{ end }}
       containers:
         - name: {{ .Release.Name }}-web
           image: "{{ .Values.native.image.repository }}:{{ default .Chart.AppVersion .Values.native.image.tag }}"
@@ -212,11 +212,11 @@ spec:
               value: https://autocalibration.{{ .Release.Namespace }}.svc.cluster.local:8443
             - name: UPSTREAM_CA_FILE
               value: /run/secrets/certs/scenescape-ca.pem
-            {{- if .Values.mapping.enabled }}
+            {{ if .Values.mapping.enabled }}
             - name: MAPPING_SERVICE_URL
               value: https://mapping.{{ .Release.Namespace }}.svc.cluster.local:8444/v1
-            {{- end }}
-            {{- if .Values.keycloak.enabled }}
+            {{ end }}
+            {{ if .Values.keycloak.enabled }}
             - name: OIDC_ISSUER
               value: "https://{{ .Values.certdomain }}/auth/realms/{{ .Values.modernUI.auth.realm }}"
             - name: OIDC_JWKS_URL
@@ -235,12 +235,12 @@ spec:
                 secretKeyRef:
                   name: {{ if .Values.keycloak.existingSecret }}{{ .Values.keycloak.existingSecret }}{{ else }}{{ .Release.Name }}-keycloak-bootstrap{{ end }}
                   key: password
-            {{- else }}
+            {{ else }}
             - name: OIDC_ISSUER
               value: {{ required "modernUI.auth.issuerUrl is required in native mode with external Keycloak" .Values.modernUI.auth.issuerUrl | quote }}
             - name: OIDC_JWKS_URL
               value: {{ default (printf "%s/protocol/openid-connect/certs" (trimSuffix "/" .Values.modernUI.auth.issuerUrl)) .Values.modernUI.auth.jwksUrl | quote }}
-            {{- if .Values.modernUI.auth.adminSecret }}
+            {{ if .Values.modernUI.auth.adminSecret }}
             - name: KEYCLOAK_ADMIN_URL
               value: {{ required "modernUI.auth.keycloakUrl is required when external Keycloak administration is enabled" .Values.modernUI.auth.keycloakUrl | quote }}
             - name: KEYCLOAK_REALM
@@ -255,8 +255,8 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.modernUI.auth.adminSecret | quote }}
                   key: {{ .Values.modernUI.auth.adminPasswordKey | quote }}
-            {{- end }}
-            {{- end }}
+            {{ end }}
+            {{ end }}
             {{ include "proxy_envs" . | indent 12 }}
           ports:
             - name: https
@@ -290,7 +290,7 @@ spec:
             runAsUser: 1000
             runAsGroup: 1000
           resources:
-            {{- toYaml .Values.native.resources | nindent 12 }}
+            {{ toYaml .Values.native.resources | nindent 12 }}
           volumeMounts:
             - mountPath: /run/secrets/certs/scenescape-ca.pem
               subPath: scenescape-ca.pem
@@ -324,7 +324,7 @@ spec:
             - mountPath: /workspace/migrations
               name: migrations-storage
       volumes:
-        {{- include "certs_volume" . | nindent 8 }}
+        {{ include "certs_volume" . | nindent 8 }}
         - name: browser-auth
           secret:
             secretName: {{ .Release.Name }}-browser.auth
@@ -343,4 +343,4 @@ spec:
         - name: migrations-storage
           persistentVolumeClaim:
             claimName: {{ .Release.Name }}-migrations-pvc
-{{- end }}
+{{ end }}
