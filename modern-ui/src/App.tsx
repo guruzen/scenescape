@@ -236,6 +236,11 @@ function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D'
   const [visualizeRois, setVisualizeRois] = useState(true)
   const [showFloor, setShowFloor] = useState(() => localStorage.getItem('showFloor') !== 'false')
   const [trails, setTrails] = useState<Record<string, number[][]>>({})
+  const [projectCameraFrames, setProjectCameraFrames] = useState(false)
+  const [cameraOpacity, setCameraOpacity] = useState(0.8)
+  const [selectedCameraId, setSelectedCameraId] = useState('')
+  const [cameraView, setCameraView] = useState(false)
+  const [lightIntensity, setLightIntensity] = useState(1)
   const id = rowId(scene)
 
   const loadBundle = () => void apiFetch<Bundle>(`/api/v2/scenes/${id}/bundle`).then(setBundle).catch((e) => setMessage(String(e)))
@@ -286,10 +291,14 @@ function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D'
       <label><input type="checkbox" checked={showTelemetry} onChange={(e)=>setShowTelemetry(e.target.checked)}/>Show Telemetry</label>
       <label><input type="checkbox" checked={visualizeRois} onChange={(e)=>setVisualizeRois(e.target.checked)}/>Visualize ROIs</label>
       {tab === 'Live 3D' && <label><input type="checkbox" checked={showFloor} onChange={(e)=>{setShowFloor(e.target.checked);localStorage.setItem('showFloor',String(e.target.checked))}}/>Floor Plane</label>}
+      {tab === 'Live 3D' && <label><input type="checkbox" checked={projectCameraFrames} onChange={(e)=>setProjectCameraFrames(e.target.checked)}/>Project camera frames</label>}
+      {tab === 'Live 3D' && <label className="range-control">Camera opacity <input type="range" min="0" max="100" value={Math.round(cameraOpacity*100)} onChange={(e)=>setCameraOpacity(Number(e.target.value)/100)}/><span>{Math.round(cameraOpacity*100)}%</span></label>}
+      {tab === 'Live 3D' && <label className="range-control">Light <input type="range" min="10" max="300" value={Math.round(lightIntensity*100)} onChange={(e)=>setLightIntensity(Number(e.target.value)/100)}/><span>{lightIntensity.toFixed(1)}×</span></label>}
+      {tab === 'Live 3D' && bundle.cameras.length > 0 && <><label>Camera <select value={selectedCameraId} onChange={(e)=>{setSelectedCameraId(e.target.value);if(!e.target.value)setCameraView(false)}}><option value="">None</option>{bundle.cameras.map((camera)=><option key={rowId(camera)} value={rowId(camera)}>{rowName(camera)}</option>)}</select></label><label><input type="checkbox" disabled={!selectedCameraId} checked={cameraView} onChange={(e)=>setCameraView(e.target.checked)}/>Scene camera view</label></>}
       {showTrails && <button className="text-button" onClick={()=>setTrails({})}>Clear trails</button>}
     </div>}
     {tab === 'Live 2D' && <Map2D bundle={bundle} live={liveView ? live : { objects: [] }} showTrails={showTrails} showTelemetry={showTelemetry} visualizeRois={visualizeRois} trails={trails}/>} 
-    {tab === 'Live 3D' && <ThreeScene mapPath={map3DPath} objects={liveView ? (live.objects || []) : []} showTrackedObjects={liveView} showSpatial={visualizeRois} showFloor={showFloor} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors} childRegions={bundle.child_regions||[]} childTripwires={bundle.child_tripwires||[]} childSensors={bundle.child_sensors||[]}/>} 
+    {tab === 'Live 3D' && <ThreeScene mapPath={map3DPath} objects={liveView ? (live.objects || []) : []} showTrackedObjects={liveView} showSpatial={visualizeRois} showFloor={showFloor} cameras={bundle.cameras} projectCameraFrames={projectCameraFrames} cameraOpacity={cameraOpacity} selectedCameraId={selectedCameraId} useSelectedCameraView={cameraView} lightIntensity={lightIntensity} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors} childRegions={bundle.child_regions||[]} childTripwires={bundle.child_tripwires||[]} childSensors={bundle.child_sensors||[]}/>} 
     {tab === 'Camera feeds' && <CameraFeeds cameras={bundle.cameras}/>} 
     {tab === 'Geometry' && <SpatialEditor scene={bundle.scene} regions={bundle.regions} tripwires={bundle.tripwires} isAdmin={isAdmin} onSaved={loadBundle}/>}
     {tab === 'Hierarchy' && <HierarchyEditor scenes={scenes} isAdmin={isAdmin} initialParent={id}/>}
