@@ -1,0 +1,17 @@
+{{- if and (or .Values.modernUI.enabled .Values.native.enabled) .Values.keycloak.enabled .Values.keycloak.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-keycloak-data
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.keycloak.persistence.storageClassName }}
+  storageClassName: {{ .Values.keycloak.persistence.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.keycloak.persistence.size }}
+{{- end }}
