@@ -83,6 +83,11 @@ spec:
                       }
               print(json.dumps(payload, default=str, allow_nan=False))
               PY
+              marker=/workspace/migrations/native-import-complete
+              if [ -f "$marker" ]; then
+                echo "Native migration marker already exists; skipping legacy re-export."
+                exit 0
+              fi
               tmp=/workspace/migrations/native-snapshot.json.tmp
               out=/workspace/migrations/native-snapshot.json
               rm -f "$tmp"
@@ -94,7 +99,6 @@ spec:
               assert payload.get("_migration",{}).get("format")=="scenescape-2026.2-export/1"
               PY
               mv "$tmp" "$out"
-              rm -f /workspace/migrations/native-import-complete
               echo "Legacy configuration snapshot prepared at $out"
           env:
             - name: DBHOST
