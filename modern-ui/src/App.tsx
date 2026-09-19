@@ -297,7 +297,10 @@ function Zones({ goTo }: { goTo: (path: string) => void }) {
   const [regions, setRegions] = useState<Row[]>([])
   const [tripwires, setTripwires] = useState<Row[]>([])
   useEffect(() => { void apiFetch<Row[]>('/api/v2/regions').then(setRegions); void apiFetch<Row[]>('/api/v2/tripwires').then(setTripwires) }, [])
-  const rows=[...regions.map((row)=>({...row,_kind:'Region'})),...tripwires.map((row)=>({...row,_kind:'Tripwire'}))]
+  const rows: Array<Row & { _kind: 'Region' | 'Tripwire' }> = [
+    ...regions.map((row) => ({ ...row, _kind: 'Region' as const })),
+    ...tripwires.map((row) => ({ ...row, _kind: 'Tripwire' as const })),
+  ]
   return <><Header kicker="Configuration · control plane" title="Zones & tripwires"/><div className="metric-grid compact"><div className="metric"><span>Regions</span><strong>{regions.length}</strong><small>Polygon / volumetric occupancy areas</small></div><div className="metric"><span>Tripwires</span><strong>{tripwires.length}</strong><small>Directional crossing boundaries</small></div><div className="metric"><span>Authoring</span><strong className="small-value ok">Visual</strong><small>Scene map vertex editor</small></div></div><section className="panel table-wrap"><table><thead><tr><th>Type</th><th>Name</th><th>Scene</th><th>Geometry</th><th>State</th><th></th></tr></thead><tbody>{rows.map((row)=><tr key={`${row._kind}-${rowId(row)}`}><td>{row._kind}</td><td><b>{rowName(row)}</b></td><td><code>{String(row.scene||'—')}</code></td><td>{(row.points||[]).length} points · {Number(row.height||1).toFixed(2)} m</td><td>{row.visible?'Visible':'Hidden'}{row._kind==='Region'&&row.volumetric?' · volumetric':''}</td><td>{row.scene&&<button className="text-button" onClick={()=>goTo(`scene/${row.scene}/geometry`)}>Open editor</button>}</td></tr>)}</tbody></table>{!rows.length&&<div className="table-empty">No regions or tripwires configured.</div>}</section></>
 }
 
