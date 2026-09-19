@@ -60,7 +60,7 @@ function Header({ title, kicker, children }: { title: string; kicker: string; ch
   return <div className="page-header"><div><div className="kicker">{kicker}</div><h1>{title}</h1></div><div className="header-actions">{children}</div></div>
 }
 
-function Map2D({ bundle, live, onPoint }: { bundle: Bundle; live: Row; onPoint?: (point: number[]) => void }) {
+function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = false, visualizeRois = true, trails = {} }: { bundle: Bundle; live: Row; onPoint?: (point: number[]) => void; showTrails?: boolean; showTelemetry?: boolean; visualizeRois?: boolean; trails?: Record<string, number[][]> }) {
   const scene = bundle.scene
   const [mapUrl, setMapUrl] = useState('')
   const [size, setSize] = useState<[number, number]>([1000, 700])
@@ -123,8 +123,8 @@ function Map2D({ bundle, live, onPoint }: { bundle: Bundle; live: Row; onPoint?:
       onPoint([px / scale, (size[1] - py) / scale])
     }}>
       {mapUrl && <image href={mapUrl} x="0" y="0" width={size[0]} height={size[1]} preserveAspectRatio="none" />}
-      {bundle.regions.map((row, i) => row.visible && regionPoints[i] && <polygon key={rowId(row) || i} points={regionPoints[i]} className="region-shape" />)}
-      {childRegions.map((row, i) => childRegionPoints[i] && <polygon key={`child-region-${rowId(row)||i}`} points={childRegionPoints[i]} className="child-region-shape" />)}
+      {visualizeRois && bundle.regions.map((row, i) => row.visible && regionPoints[i] && <polygon key={rowId(row) || i} points={regionPoints[i]} className="region-shape" />)}
+      {visualizeRois && childRegions.map((row, i) => childRegionPoints[i] && <polygon key={`child-region-${rowId(row)||i}`} points={childRegionPoints[i]} className="child-region-shape" />)}
       {bundle.tripwires.map((row, i) => row.visible && tripPoints[i] && <polyline key={rowId(row) || i} points={tripPoints[i]} className="tripwire-line" />)}
       {childTripwires.map((row, i) => childTripPoints[i] && <polyline key={`child-trip-${rowId(row)||i}`} points={childTripPoints[i]} className="child-tripwire-line" />)}
       {bundle.cameras.map((camera, i) => {
@@ -161,9 +161,15 @@ function Map2D({ bundle, live, onPoint }: { bundle: Bundle; live: Row; onPoint?:
           {position && <><circle cx={position[0]} cy={position[1]} r="8" className="sensor-center-dot"/><text x={position[0] + 11} y={position[1] - 7} className="map-label">{rowName(sensor)}</text></>}
         </g>
       })}
+      {showTrails && Object.entries(trails).map(([key, trail]) => {
+        const value = trail.map((point) => xy(point).join(',')).join(' ')
+        return value ? <polyline key={`trail-${key}`} points={value} className="object-trail"/> : null
+      })}
       {(live.objects || []).map((object: Row, i: number) => {
         const [x, y] = xy(object.translation || [i + 1, i + 1])
-        return <g key={String(object.id ?? i)}><circle cx={x} cy={y} r="7" className="track-dot"/><text x={x + 10} y={y + 4} className="map-label">{String(object.category || object.id || 'object')}</text></g>
+        const label = String(object.category || object.id || 'object')
+        const telemetry = showTelemetry ? [object.id != null ? `#${object.id}` : '', Array.isArray(object.velocity) ? `v ${object.velocity.slice(0,2).map((v:any)=>Number(v).toFixed(2)).join(',')}` : ''].filter(Boolean).join(' · ') : ''
+        return <g key={String(object.id ?? i)}><circle cx={x} cy={y} r="7" className="track-dot"/><text x={x + 10} y={y + 4} className="map-label">{label}</text>{telemetry && <text x={x + 10} y={y + 18} className="map-telemetry">{telemetry}</text>}</g>
       })}
     </svg>
     {!mapUrl && <div className="map-watermark">No renderable 2D scene map is available; geometry and live coordinates are still shown.</div>}
@@ -224,6 +230,12 @@ function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D'
   const [history, setHistory] = useState<Row[]>([])
   const [trends, setTrends] = useState<Row[]>([])
   const [message, setMessage] = useState('')
+  const [liveView, setLiveView] = useState(true)
+  const [showTrails, setShowTrails] = useState(false)
+  const [showTelemetry, setShowTelemetry] = useState(false)
+  const [visualizeRois, setVisualizeRois] = useState(true)
+  const [showFloor, setShowFloor] = useState(() => localStorage.getItem('showFloor') !== 'false')
+  const [trails, setTrails] = useState<Record<string, number[][]>>({})
   const id = rowId(scene)
 
   const loadBundle = () => void apiFetch<Bundle>(`/api/v2/scenes/${id}/bundle`).then(setBundle).catch((e) => setMessage(String(e)))
@@ -235,7 +247,21 @@ function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D'
     const controller = new AbortController()
     const refresh = () => void apiFetch<Row>(`/api/v2/scenes/${id}/live`).then((value) => active && setLive(value)).catch(() => {})
     refresh()
-    void apiJsonStream<Row>(`/api/v2/scenes/${id}/live/stream`, (value) => { if (active) setLive(value) }, controller.signal).catch(() => {
+    const acceptLive = (value: Row) => {
+      if (!active) return
+      setLive(value)
+      setTrails((old) => {
+        const next = { ...old }
+        for (const [index, object] of (value.objects || []).entries()) {
+          const key = String(object.id ?? index)
+          const point = Array.isArray(object.translation) ? object.translation.slice(0, 2).map(Number) : null
+          if (!point) continue
+          next[key] = [...(next[key] || []), point].slice(-40)
+        }
+        return next
+      })
+    }
+    void apiJsonStream<Row>(`/api/v2/scenes/${id}/live/stream`, acceptLive, controller.signal).catch(() => {
       if (active && !controller.signal.aborted) fallbackTimer = window.setInterval(refresh, 500)
     })
     return () => { active = false; controller.abort(); if (fallbackTimer) window.clearInterval(fallbackTimer) }
@@ -254,8 +280,16 @@ function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D'
     </div>
     <div className="tabs">{['Live 2D','Live 3D','Camera feeds','Geometry','Hierarchy','Camera calibration','History & replay','Trends & analytics'].map((name) => <button key={name} className={tab === name ? 'btn active-tab' : 'btn'} onClick={() => setTab(name)}>{name}</button>)}</div>
     {message && <div className="notice-box">{message}</div>}
-    {tab === 'Live 2D' && <Map2D bundle={bundle} live={live}/>} 
-    {tab === 'Live 3D' && <ThreeScene mapPath={map3DPath} objects={live.objects || []} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors} childRegions={bundle.child_regions||[]} childTripwires={bundle.child_tripwires||[]} childSensors={bundle.child_sensors||[]}/>} 
+    {(tab === 'Live 2D' || tab === 'Live 3D') && <div className="live-controls">
+      <label><input type="checkbox" checked={liveView} onChange={(e)=>setLiveView(e.target.checked)}/>Live View</label>
+      <label><input type="checkbox" checked={showTrails} onChange={(e)=>setShowTrails(e.target.checked)}/>Show Trails</label>
+      <label><input type="checkbox" checked={showTelemetry} onChange={(e)=>setShowTelemetry(e.target.checked)}/>Show Telemetry</label>
+      <label><input type="checkbox" checked={visualizeRois} onChange={(e)=>setVisualizeRois(e.target.checked)}/>Visualize ROIs</label>
+      {tab === 'Live 3D' && <label><input type="checkbox" checked={showFloor} onChange={(e)=>{setShowFloor(e.target.checked);localStorage.setItem('showFloor',String(e.target.checked))}}/>Floor Plane</label>}
+      {showTrails && <button className="text-button" onClick={()=>setTrails({})}>Clear trails</button>}
+    </div>}
+    {tab === 'Live 2D' && <Map2D bundle={bundle} live={liveView ? live : { objects: [] }} showTrails={showTrails} showTelemetry={showTelemetry} visualizeRois={visualizeRois} trails={trails}/>} 
+    {tab === 'Live 3D' && <ThreeScene mapPath={map3DPath} objects={liveView ? (live.objects || []) : []} showTrackedObjects={liveView} showSpatial={visualizeRois} showFloor={showFloor} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors} childRegions={bundle.child_regions||[]} childTripwires={bundle.child_tripwires||[]} childSensors={bundle.child_sensors||[]}/>} 
     {tab === 'Camera feeds' && <CameraFeeds cameras={bundle.cameras}/>} 
     {tab === 'Geometry' && <SpatialEditor scene={bundle.scene} regions={bundle.regions} tripwires={bundle.tripwires} isAdmin={isAdmin} onSaved={loadBundle}/>}
     {tab === 'Hierarchy' && <HierarchyEditor scenes={scenes} isAdmin={isAdmin} initialParent={id}/>}
