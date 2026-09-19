@@ -59,3 +59,26 @@ def test_topic_templates_match_tagged_shapes():
     assert admin.match_topic(admin.TOPIC_TEMPLATES['DATA_SENSOR'],'scenescape/data/sensor/temp-1')
     assert admin.match_topic(admin.TOPIC_TEMPLATES['EVENT'],'scenescape/event/region/scene-1/roi-1/occupancy')
     assert not admin.match_topic(admin.TOPIC_TEMPLATES['DATA_SENSOR'],'scenescape/data/scene/temp-1/person')
+
+
+def test_service_identity_acl_policy(tmp_path, monkeypatch):
+    import json
+    import scenescape_api.keycloak_admin as admin
+    controller=tmp_path/'controller.auth'
+    browser=tmp_path/'browser.auth'
+    calibration=tmp_path/'calibration.auth'
+    controller.write_text(json.dumps({'user':'scenectrl','password':'secret'}))
+    browser.write_text(json.dumps({'user':'webuser','password':'secret'}))
+    calibration.write_text(json.dumps({'user':'calibration','password':'secret'}))
+    monkeypatch.setenv('SERVICE_AUTH_FILES',f'{controller}:{browser}:{calibration}')
+
+    identities={item['username']:item for item in admin.list_service_identities()}
+    assert set(identities)=={'scenectrl','webuser','calibration'}
+    assert identities['scenectrl']['service_type']=='controller'
+    assert identities['webuser']['service_type']=='browser'
+
+    assert admin.service_acl_check('scenectrl','scenescape/cmd/camera/cam-1',2)==(True,2)
+    assert admin.service_acl_check('scenectrl','scenescape/regulated/scene/scene-1',1)==(False,None)
+    assert admin.service_acl_check('calibration','scenescape/autocalibration/camera/pose/cam-1',2)==(True,2)
+    assert admin.service_acl_check('webuser','scenescape/data/camera/cam-1',4)==(True,4)
+    assert admin.service_acl_check('unknown','scenescape/data/camera/cam-1',1) is None
