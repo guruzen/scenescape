@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import asyncio
 import base64
 import io
@@ -28,7 +31,15 @@ from .media_files import delete_media, save_upload, store_bytes
 from .scene_config import apply_uploaded_map_semantics
 from .scene_import_native import import_scene_archive
 from .mapping_service import mapping_health, mesh_generation_status, start_mesh_generation
-from .pipeline_generation import pipeline_preview
+from .model_library import (
+    create_directory as create_model_directory,
+    delete_entry as delete_model_entry,
+    download_target as model_download_target,
+    extract_zip as extract_model_zip,
+    list_directory as list_model_directory,
+    upload_files as upload_model_files,
+)
+from .pipeline_generation import list_model_configs, pipeline_preview
 from .scene_service import cleanup_scene_media, create_scene, delete_scene, delete_scene_media, update_scene
 from .sensor_service import update_sensor_resource
 from .resources import ALIASES, delete_resource, get_resource, list_resources, to_dict, upsert
@@ -1277,6 +1288,74 @@ def incident_action(incident_id: int, body: dict, p=Depends(current_principal), 
     row.updated_at = datetime.now(timezone.utc)
     db.commit()
     return {"id": row.id, "status": row.status, "assignee": row.assignee, "notes": row.notes, "audit": row.audit, "title": row.title}
+
+
+@app.get("/api/v2/models/configs")
+def native_model_configs(p=Depends(current_principal)):
+    return {"configs": list_model_configs()}
+
+
+@app.get("/api/v2/models")
+def native_model_list(path: str = Query(default=""), p=Depends(current_principal)):
+    return list_model_directory(path)
+
+
+@app.post("/api/v2/models/directories")
+def native_model_create_directory(body: dict, p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    return create_model_directory(body.get("path", ""), str(body.get("name") or ""))
+
+
+@app.post("/api/v2/models/files")
+async def native_model_upload_files(request: Request, p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    form = await request.form()
+    uploads = [item for item in form.getlist("files") if hasattr(item, "read")]
+    relative_paths = [str(item) for item in form.getlist("relative_paths")]
+    overwrite = str(form.get("overwrite") or "").lower() in {"1", "true", "yes", "on"}
+    return await upload_model_files(
+        str(form.get("path") or ""),
+        uploads,
+        relative_paths,
+        overwrite=overwrite,
+    )
+
+
+@app.post("/api/v2/models/extract")
+async def native_model_extract(request: Request, p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    form = await request.form()
+    upload = form.get("file")
+    if upload is None or not hasattr(upload, "read"):
+        raise HTTPException(400, "A ZIP file is required")
+    overwrite = str(form.get("overwrite") or "").lower() in {"1", "true", "yes", "on"}
+    return await extract_model_zip(
+        str(form.get("path") or ""),
+        upload,
+        folder_name=str(form.get("folder_name") or "") or None,
+        overwrite=overwrite,
+    )
+
+
+@app.get("/api/v2/models/download")
+def native_model_download(path: str, p=Depends(current_principal)):
+    target = model_download_target(path)
+    return FileResponse(
+        target,
+        filename=target.name,
+        media_type="application/octet-stream",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.delete("/api/v2/models")
+def native_model_delete(path: str, p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    return delete_model_entry(path)
 
 
 @app.get("/api/v2/{plural}")
