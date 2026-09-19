@@ -132,6 +132,8 @@ export default function SensorInventory({isAdmin}:{isAdmin:boolean}){
 
   const save=async()=>{
     if(!isAdmin)return
+    if(draft.area==='poly'&&points.length<3){setError('A custom polygon measurement area requires at least 3 vertices.');return}
+    if(draft.area==='circle'&&!center){setError('A circular measurement area requires a sensor center. Click the map or enter X/Y coordinates.');return}
     setBusy(true);setError('');setMessage('')
     try{
       let saved:Row
@@ -178,7 +180,8 @@ export default function SensorInventory({isAdmin}:{isAdmin:boolean}){
               <label>Measurement area<select value={String(draft.area||'scene')} onChange={(e)=>field('area',e.target.value)}><option value="scene">Entire scene</option><option value="circle">Circle</option><option value="poly">Custom polygon</option></select></label>
               {draft.area==='circle'&&<label>Radius (meters)<input type="number" min="0" step="0.1" value={Number(draft.radius??1)} onChange={(e)=>field('radius',Number(e.target.value))}/></label>}
               <label className="checkbox-label"><input type="checkbox" checked={Boolean(draft.visible)} onChange={(e)=>field('visible',e.target.checked)}/>Visible in scene</label>
-              <label className="wide">Sensor location<input value={center?center.map((v)=>Number(v).toFixed(3)).join(', '):''} placeholder="Click the map to place the sensor" readOnly/></label>
+              <label>Sensor X (m)<input type="number" step="any" value={center?.[0]??''} onChange={(e)=>setCenter([Number(e.target.value||0),Number(center?.[1]??0)])}/></label>
+              <label>Sensor Y (m)<input type="number" step="any" value={center?.[1]??''} onChange={(e)=>setCenter([Number(center?.[0]??0),Number(e.target.value||0)])}/></label>
             </div>
             <div className="scene-subsection"><h3>Color range</h3><div className="scene-form-grid">{['green','yellow','red'].map((color)=>{const sector=(ranges.sectors||[]).find((item:Row)=>item.color===color)||{};return <label key={color}>{color} minimum<input type="number" step="any" value={Number(sector.color_min??0)} onChange={(e)=>setSector(color,Number(e.target.value))}/></label>})}<label>Range maximum<input type="number" step="any" value={Number(ranges.range_max??10)} onChange={(e)=>setRanges((old)=>({...old,range_max:Number(e.target.value)}))}/></label></div></div>
             <div className="scene-subsection"><h3>Sensor icon</h3><div className="sensor-icon-row">{iconUrl?<img src={iconUrl} alt="Sensor icon" className="sensor-icon-preview"/>:<div className="sensor-icon-placeholder">Default red marker</div>}<label className="file-field">PNG/JPEG icon<input type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" onChange={(e)=>setIconFile(e.target.files?.[0]||null)}/></label>{selected&&draft.icon&&<button className="btn" onClick={()=>void removeIcon()}>Remove icon</button>}</div></div>
@@ -186,7 +189,7 @@ export default function SensorInventory({isAdmin}:{isAdmin:boolean}){
           <div className="sensor-map-column">
             <div className="sensor-map-help">{draft.area==='poly'?'Click map vertices in order. Use Reset polygon to redraw.':'Click the map to place or move the sensor.'}</div>
             <SensorMapEditor scene={scene} sensor={draft} center={center} points={points} onCenter={setCenter} onPoint={(point)=>setPoints((old)=>[...old,point])}/>
-            <div className="editor-actions"><button className="btn" onClick={()=>setCenter(null)}>Clear location</button>{draft.area==='poly'&&<button className="btn" onClick={()=>setPoints([])}>Reset polygon</button>}</div>
+            <div className="editor-actions">{draft.area==='poly'&&<button className="btn" onClick={()=>setPoints([])}>Reset polygon</button>}</div>
             {draft.area==='poly'&&<div className="point-strip">{points.map((point,index)=><code key={index}>{index+1}: {point.map((v)=>v.toFixed(2)).join(', ')}</code>)}</div>}
           </div>
         </div>
