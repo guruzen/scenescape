@@ -7,6 +7,7 @@ import SceneInventory from './native/SceneInventory'
 import CameraInventory from './native/CameraInventory'
 import CameraCalibration from './native/CameraCalibration'
 import SensorInventory from './native/SensorInventory'
+import SpatialEditor from './native/SpatialEditor'
 
 type Row = Record<string, any>
 type Theme = 'light' | 'light-air' | 'dark' | 'dark-command'
@@ -112,8 +113,8 @@ function Map2D({ bundle, live, onPoint }: { bundle: Bundle; live: Row; onPoint?:
       onPoint([px / scale, (size[1] - py) / scale])
     }}>
       {mapUrl && <image href={mapUrl} x="0" y="0" width={size[0]} height={size[1]} preserveAspectRatio="none" />}
-      {bundle.regions.map((row, i) => regionPoints[i] && <polygon key={rowId(row) || i} points={regionPoints[i]} className="region-shape" />)}
-      {bundle.tripwires.map((row, i) => tripPoints[i] && <polyline key={rowId(row) || i} points={tripPoints[i]} className="tripwire-line" />)}
+      {bundle.regions.map((row, i) => row.visible && regionPoints[i] && <polygon key={rowId(row) || i} points={regionPoints[i]} className="region-shape" />)}
+      {bundle.tripwires.map((row, i) => row.visible && tripPoints[i] && <polyline key={rowId(row) || i} points={tripPoints[i]} className="tripwire-line" />)}
       {bundle.cameras.map((camera, i) => {
         const [x, y] = xy(camera.translation || [i + 1, i + 1])
         return <g key={rowId(camera) || i}><circle cx={x} cy={y} r="8" className="camera-dot"/><text x={x + 11} y={y - 7} className="map-label">{rowName(camera)}</text></g>
@@ -193,8 +194,6 @@ function SceneWorkspace({ scene, onBack, isAdmin }: { scene: Row; onBack: () => 
   const [bundle, setBundle] = useState<Bundle | null>(null)
   const [live, setLive] = useState<Row>({ objects: [], stale: true })
   const [tab, setTab] = useState('Live 2D')
-  const [tripName, setTripName] = useState('')
-  const [drawn, setDrawn] = useState<number[][]>([])
   const [history, setHistory] = useState<Row[]>([])
   const [trends, setTrends] = useState<Row[]>([])
   const [message, setMessage] = useState('')
@@ -218,11 +217,6 @@ function SceneWorkspace({ scene, onBack, isAdmin }: { scene: Row; onBack: () => 
   if (!bundle) return <><button className="btn" onClick={onBack}>← Back to scenes</button><div className="center-panel">Loading native scene workspace…{message && <div className="error-box">{message}</div>}</div></>
   const map3DPath = String(bundle.scene.map || bundle.scene.thumbnail || '')
 
-  const saveTripwire = async () => {
-    if (drawn.length < 2) { setMessage('Click at least two points on the map.'); return }
-    await apiFetch('/api/v2/tripwires', { method: 'POST', body: JSON.stringify({ name: tripName || 'Tripwire', scene: id, points: drawn }) })
-    setDrawn([]); setTripName(''); setMessage('Tripwire saved.'); loadBundle()
-  }
   return <>
     <Header kicker="Operations · native scene workspace" title={rowName(bundle.scene)}>
       <button className="btn" onClick={onBack}>← All scenes</button>
@@ -236,7 +230,7 @@ function SceneWorkspace({ scene, onBack, isAdmin }: { scene: Row; onBack: () => 
     {tab === 'Live 2D' && <Map2D bundle={bundle} live={live}/>} 
     {tab === 'Live 3D' && <ThreeScene mapPath={map3DPath} objects={live.objects || []} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale}/>} 
     {tab === 'Camera feeds' && <CameraFeeds cameras={bundle.cameras}/>} 
-    {tab === 'Geometry' && <div className="workspace-grid"><section className="panel"><div className="panel-title"><div><h2>Draw tripwire</h2><p>Click points directly on the native scene map.</p></div></div><div className="form-row"><label>Name<input value={tripName} onChange={(e) => setTripName(e.target.value)} /></label><button className="btn" onClick={() => setDrawn([])}>Clear points</button><button className="btn btn-primary" onClick={() => void saveTripwire()}>Save to scene</button></div><Map2D bundle={bundle} live={live} onPoint={(point) => setDrawn((old) => [...old, point])}/><div className="point-strip">{drawn.map((point, i) => <code key={i}>{point.map((v) => v.toFixed(2)).join(', ')}</code>)}</div></section><section className="panel"><div className="panel-title"><div><h2>Configured geometry</h2><p>Persisted through FastAPI.</p></div></div><div className="stack-list">{bundle.regions.map((r) => <div key={rowId(r)}><b>{rowName(r)}</b><span>Region · {(r.points || []).length} points</span></div>)}{bundle.tripwires.map((r) => <div key={rowId(r)}><b>{rowName(r)}</b><span>Tripwire · {(r.points || []).length} points</span></div>)}</div></section></div>}
+    {tab === 'Geometry' && <SpatialEditor scene={bundle.scene} regions={bundle.regions} tripwires={bundle.tripwires} isAdmin={isAdmin} onSaved={loadBundle}/>}
     {tab === 'Camera calibration' && <CameraCalibration scene={bundle.scene} cameras={bundle.cameras} isAdmin={isAdmin} onSaved={loadBundle}/>}
     {tab === 'History & replay' && <section className="panel history-panel"><div className="panel-title"><div><h2>Persisted observations</h2><p>Metadata replay from the native historian.</p></div><button className="btn btn-primary" onClick={() => void apiFetch<Row[]>(`/api/v2/scenes/${id}/history`).then(setHistory)}>Load history</button></div>{history.length > 0 ? <><input type="range" min="0" max={history.length - 1}/><div className="history-list">{history.slice(-12).map((row) => <div key={row.id}><b>{row.timestamp}</b><span>{(row.payload?.objects || []).length} objects</span></div>)}</div></> : <div className="table-empty">No retained samples loaded yet.</div>}</section>}
     {tab === 'Trends & analytics' && <section className="panel"><div className="panel-title"><div><h2>24-hour object trend</h2><p>Calculated from retained observations, not synthetic data.</p></div><button className="btn btn-primary" onClick={() => void apiFetch<Row[]>(`/api/v2/scenes/${id}/trends`).then(setTrends)}>Apply range</button></div><div className="table-wrap"><table><thead><tr><th>Hour</th><th>Average objects</th><th>Samples</th></tr></thead><tbody>{trends.map((row) => <tr key={row.bucket}><td>{row.bucket}</td><td>{row.average_objects}</td><td>{row.samples}</td></tr>)}</tbody></table>{!trends.length && <div className="table-empty">No trend samples loaded yet.</div>}</div></section>}
