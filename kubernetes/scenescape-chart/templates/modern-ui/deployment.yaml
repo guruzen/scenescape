@@ -1,4 +1,4 @@
-{{- if .Values.modernUI.enabled }}
+{{- if or .Values.modernUI.enabled .Values.native.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
