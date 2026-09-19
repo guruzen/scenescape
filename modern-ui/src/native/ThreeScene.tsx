@@ -306,6 +306,7 @@ export default function ThreeScene({
         root.scale.set(s, s, s)
       } else if (Array.isArray(item.size) && item.size.length >= 3) {
         root.scale.set(Number(item.size[0] || 1), Number(item.size[1] || 1), Number(item.size[2] || 1))
+        root.translateZ(root.scale.z / 2)
       } else if (asset) {
         const s = Number(asset.scale || 1)
         if (prototype) root.scale.set(s, s, s)
@@ -321,7 +322,7 @@ export default function ThreeScene({
     }
 
     if (previewAsset) {
-      renderItem({ id: 'preview', category: previewAsset.name, translation: [0, 0, 0], asset_scale: Number(previewAsset.scale || 1) }, 0)
+      renderItem({ id: 'preview', category: previewAsset.name, translation: [0, 0, 0] }, 0)
     } else {
       ;(objects || []).forEach(renderItem)
     }
