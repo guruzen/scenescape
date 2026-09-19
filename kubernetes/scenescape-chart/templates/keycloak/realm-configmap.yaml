@@ -35,6 +35,32 @@ data:
             "post.logout.redirect.uris": "https://{{ .Values.certdomain }}/*"
           },
           "defaultClientScopes": ["web-origins", "acr", "basic", "roles", "profile", "email"]
+          ,"protocolMappers": [
+            {
+              "name": "scenescape-api-audience",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-audience-mapper",
+              "config": {
+                "included.custom.audience": "scenescape-api",
+                "access.token.claim": "true",
+                "id.token.claim": "false"
+              }
+            },
+            {
+              "name": "scenescape-scene-scopes",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-attribute-mapper",
+              "config": {
+                "user.attribute": "scenescape_scenes",
+                "claim.name": "scenes",
+                "jsonType.label": "String",
+                "multivalued": "true",
+                "access.token.claim": "true",
+                "id.token.claim": "true",
+                "userinfo.token.claim": "true"
+              }
+            }
+          ]
         }
       ]
     }
