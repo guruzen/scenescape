@@ -548,11 +548,21 @@ async def native_import_scene(zipFile: UploadFile = File(...), p=Depends(current
     return result
 
 
+@app.post("/api/v1/save-geospatial-snapshot/")
 @app.post("/api/v2/geospatial/snapshot")
-def native_geospatial_snapshot(body: dict, p=Depends(current_principal)):
+async def native_geospatial_snapshot(request: Request, p=Depends(current_principal)):
     if not p.is_admin:
         raise HTTPException(403, "Administrator role required")
-    value = str(body.get("image_data") or "")
+    content_type = request.headers.get("content-type", "").lower()
+    if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
+        form = await request.form()
+        value = str(form.get("image_data") or "")
+    else:
+        try:
+            body = await request.json()
+        except Exception as exc:
+            raise HTTPException(400, "No image data provided") from exc
+        value = str((body or {}).get("image_data") or "")
     if value.startswith("data:image/png;base64,"):
         value = value.split(",", 1)[1]
     if not value:
