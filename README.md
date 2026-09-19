@@ -1,274 +1,134 @@
-# SceneScape
+# SceneScape - native operations workspace
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSES/Apache-2.0.txt)
-[![Upstream](https://img.shields.io/badge/upstream-open--edge--platform%2Fscenescape-555.svg)](https://github.com/open-edge-platform/scenescape)
-[![Base](https://img.shields.io/badge/base-2026.2.0-0a7.svg)](https://github.com/open-edge-platform/scenescape/tree/2026.2.0)
-[![Modern UI](https://img.shields.io/badge/UI-React%20%2B%20Tailwind-149eca.svg)](modern-ui/)
-[![Identity](https://img.shields.io/badge/Identity-Keycloak-4d4d4d.svg)](modern-ui/keycloak/)
+**One React UI, one Keycloak sign-in, a Django-free API runtime.**
 
-**SceneScape turns multimodal sensor observations into a shared spatial view of the physical world.** It provides the services, APIs and tooling needed to combine vision and other sensor inputs in a common reference frame so applications can reason about scenes, objects, regions, tripwires and spatial events rather than isolated device feeds.
+This fork is based on SceneScape **2026.2.0**. The `feature/react-keycloak-modern-ui` branch now contains a native FastAPI service and React workflows, rather than a React landing page that redirects users to Django. Existing tracking, Analytics, MQTT and calibration services remain separate components.
 
-This fork also contains an ongoing **operator-experience modernization of SceneScape 2026.2.0**: a React + Tailwind operations console, Keycloak-based browser identity, a modern browser API surface, and a controlled migration path that keeps the existing Django UX and `/api/v1` integrations available.
+> **Engineering preview, not a completed parity release.** Core native workflows and the historian have automated coverage. Full WSL2/Docker/Keycloak/MQTT deployment and every advanced upstream workflow have not been validated in the development environment. Read [validation and remaining gaps](docs/ux/native/VALIDATION.md) before migrating an important installation.
 
-> **Modernization status**
-> The modern console and identity/API bridge are implemented on this branch. Historical replay, durable incident management and time-series trend storage are UX/product targets that require additional backend services and are **not** represented as complete capabilities.
+![Native scene workspace, rendered against synthetic test data](docs/ux/native/scene-workspace.jpg)
 
----
-
-## Why SceneScape
-
-Traditional sensor applications often stop at individual detections: a camera sees an object, a device publishes a location, or an analytics pipeline emits an event. SceneScape provides the spatial context needed to combine those observations into a coherent scene.
-
-That enables applications to work with concepts such as:
-
-- scenes and coordinate systems;
-- cameras and non-visual sensors;
-- tracked objects and fused observations;
-- regions and tripwires;
-- 2D/3D spatial visualization;
-- analytics events and scene-aware application logic.
-
-The project is a **reference architecture**, not a vertically integrated commercial product. Production deployments should integrate organization-specific identity, PKI, secrets, observability, retention, backup and security controls.
-
----
-
-## Modern operations experience
-
-The modernization follows a simple rule: **operators should work in an operations console; configuration should remain a separate control-plane activity.**
-
-The React navigation is therefore divided into:
-
-| Operations / data plane | Configuration / control plane |
-| --- | --- |
-| Shift overview | Sites, floors & scenes |
-| Live scenes | Cameras |
-| Incidents | Sensors |
-| History & replay | Zones & tripwires |
-| Trends & analytics | Administration / migration |
-| Feed & service health | Django advanced editor fallback |
-
-The new console is intentionally being introduced using a **strangler migration pattern**. Existing SceneScape models, scene processing, calibration workflows, analytics and machine-facing APIs continue to operate while browser-facing workflows are modernized progressively.
-
----
+*Screenshot of the actual React application using the native API and synthetic test observations. It is not a photograph, live camera feed, or proof of a deployed physical system.*
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    U[Operator browser]
-    M[React + Tailwind modern UI]
-    K[Keycloak]
-    D[Django manager]
-    L[Existing Django UX]
-    V1[/Existing /api/v1/]
-    V2[/Modern /api/v2/]
-    C[Existing machine/API clients]
-    P[(PostgreSQL)]
-    S[SceneScape services / analytics]
-
-    U --> M
-    U --> K
-    K -->|OIDC Authorization Code + PKCE| M
-    M --> V2
-    M -->|/legacy/| L
-    C -->|DRF token compatibility| V1
-    V1 --> D
-    V2 --> D
-    L --> D
-    D -->|validate Bearer JWT via JWKS| K
-    D --> P
-    D <--> S
+```text
+React application                         Keycloak
+  | native routes, protected media          | OIDC / PKCE
+  | authenticated API / streaming fetch      |
+  +---------------- FastAPI ----------------+
+                       |
+       configuration / incidents / media / replay
+                       |
+                   PostgreSQL
+                       |
+              historian / command worker
+                       |
+                existing MQTT broker
+                       |
+         SceneScape Analytics / tracking / cameras
 ```
 
-### Identity and API compatibility
+The production API package `control-api/scenescape_api` does not import Django. Native mode replaces the Compose service named `web` with FastAPI; retaining that service name and its internal TLS endpoint avoids unnecessary changes to existing machine clients. The browser never navigates to that private endpoint or to a Django page.
 
-Browser authentication uses **Keycloak Authorization Code Flow with PKCE**. The Django manager validates Keycloak Bearer tokens using the realm's JWKS. SceneScape roles are carried in the authenticated request, including `scenescape-viewer` and `scenescape-admin`.
+## What is implemented
 
-The migration deliberately preserves the existing integration surface:
-
-| Interface | Purpose | Status |
-| --- | --- | --- |
-| `/api/v1/*` | Existing SceneScape / machine integrations using DRF token behavior | Preserved |
-| `/api/v2/session` | Browser identity and capability context | Implemented |
-| `/api/v2/overview` | Modern operations summary | Implemented |
-| `/api/v2/scenes` | Scene inventory for the modern console | Implemented |
-| `/api/v2/cameras` | Camera inventory | Implemented |
-| `/api/v2/sensors` | Sensor inventory | Implemented |
-| `/api/v2/regions` | Region inventory | Implemented |
-| `/api/v2/tripwires` | Tripwire inventory | Implemented |
-| `/legacy/*` | Existing Django UX exposed as a migration/fallback path | Retained |
-
-This avoids forcing existing API clients to migrate simply because the browser UX changes.
-
----
-
-## Capability status
-
-| Capability | Current modernization status |
+| Workspace | Native implementation |
 | --- | --- |
-| React + Tailwind operator shell | **Implemented** |
-| Light/dark operator theme | **Implemented** |
-| Keycloak browser sign-in | **Implemented** |
-| PKCE browser flow | **Implemented** |
-| Django JWT/JWKS validation | **Implemented** |
-| Existing DRF token clients | **Preserved** |
-| Scene/camera/sensor/region/tripwire inventory | **Implemented through `/api/v2`** |
-| Existing 2D/3D scene viewer | **Used through Django fallback during migration** |
-| Advanced scene creation and calibration | **Django fallback** |
-| Durable incident lifecycle and assignment | **Backend capability required** |
-| Historical scene replay | **Historian/retention backend required** |
-| Trend and occupancy time-series | **Historical/event store required** |
-| Modern UI container and Nginx gateway | **Implemented** |
-| Helm resources for modern UI and Keycloak | **Present; deployment integration must be validated for the target environment** |
-| Production-grade Keycloak deployment | **Use an externally managed/production configuration; bundled configuration is for integration and evaluation** |
+| Live scenes | Authenticated scene/map loading, native 2D map with object positions, trails, cameras, regions and tripwires; a Three.js 3D viewer for self-contained GLB/image maps. Missing/stale observations are identified explicitly. |
+| Configuration | Native CRUD for scenes, cameras, sensors, regions, tripwires, assets, child-scene links and calibration markers; typed validation and revision checks. Advanced fields currently use a schema-guided JSON editor. |
+| Geometry | Draw polygons and directional boundaries, edit coordinates, validate geometry, save to the native API and publish configuration-change commands through an outbox. |
+| Calibration | Manual poses, 2D/3D point correspondence, camera-frame requests and integration endpoints for the existing autocalibration service. |
+| History | Sampled Analytics observations, event-time queries, retained configuration snapshots, metadata replay, occupancy/crossing/dwell summaries and CSV export. |
+| Incidents | Convert an analytics event to a durable incident; acknowledge, investigate, assign, add notes, resolve and reopen with an audit record. |
+| Identity | Keycloak Authorization Code + PKCE, server-side token issuer/audience/expiry checks, application roles and optional scene scopes; separate machine credential compatibility. |
+| Appearance | Light, Light Air, Dark and Dark Command, with persistent selection and layout/density variations. |
 
-A missing historian or incident service is reported by the UI as **unavailable**, rather than being displayed as an empty graph or zero activity. This distinction is important for operational correctness.
+There is no fake live-object animation, invented historical trend, hidden Django iframe or automatic browser handoff in the native application. A missing upstream service is an error/unavailable state, not a working feature.
 
----
+### Important parity boundaries
 
-## Repository layout
+The current native implementation is not a drop-in replacement for every specialized manager feature. Advanced geospatial map rendering, mesh reconstruction workflows, full remote-child forwarding, Kubernetes pipeline/model orchestration and some specialized calibration operations still require parity work. The native 3D viewer does not reproduce every visualization feature of the upstream renderer. Legacy snapshot validation deliberately fails rather than silently discarding unsupported configuration.
+
+Historical metadata is not a video recorder. Automated notification delivery/escalation, a complete alert-rule evaluator, HA failover and production-scale historian performance qualification are not included. See the detailed [capability and validation record](docs/ux/native/VALIDATION.md).
+
+## Existing WSL2 installation: migrate explicitly
+
+Do **not** uninstall your working deployment or delete its volumes.
+
+```bash
+git switch feature/react-keycloak-modern-ui
+git pull --ff-only
+./scenescape.sh doctor
+./scenescape.sh migrate-native --skip-processing-build
+```
+
+`--skip-processing-build` reuses the tracking, Analytics, calibration images and models you already built. Omit it when those images are unavailable. The migration still builds the native API and UI.
+
+The command asks you to type `MIGRATE`, stops the old stack, exports its configuration using a one-shot old manager container, backs up PostgreSQL and media, imports into separate native tables, reconciles the Keycloak client without deleting users, and starts native mode. The old Django HTTP server does not run in native mode. Failed cutover attempts do not delete old data or volumes.
+
+Backups are private files under `.scenescape-runtime/backups/`. They can contain credentials and media. Never commit or share them. After migration, sign out and back in once so your access token includes the new `scenescape-api` audience.
+
+[Full installation, migration and recovery guide](docs/user-guide/get-started/installation.md)
+
+## Fresh WSL2 installation
+
+Use a normal WSL2 Linux user, Docker Desktop's Linux engine with WSL Integration, Docker Compose **2.24.4 or later**, Python 3, Make and OpenSSL. Prefer a checkout in `~/src/scenescape` rather than `/mnt/c`.
+
+```bash
+./scenescape.sh configure
+./scenescape.sh install
+./scenescape.sh status
+```
+
+Open `http://localhost:8088`. The script generates distinct random credentials; the Keycloak bootstrap administrator is not an everyday application user. Create a user in realm `scenescape`, assign `scenescape-viewer` or `scenescape-admin`, and sign into the application with that user.
+
+All normal operations use the same entrypoint:
+
+```bash
+./scenescape.sh start
+./scenescape.sh stop
+./scenescape.sh restart
+./scenescape.sh logs web native-worker modern-ui
+./scenescape.sh build --skip-processing-build
+```
+
+`stop` preserves data. `uninstall` explicitly deletes this Compose project's operational volumes after confirmation; it is **not** an update or troubleshooting command. Backups and local credentials are retained by the uninstall helper.
+
+## Source layout
 
 ```text
-scenescape/
-├── modern-ui/                         # React + Tailwind operator console
-│   ├── src/
-│   │   ├── auth/                      # Keycloak browser session
-│   │   ├── api/                       # Modern browser API client
-│   │   └── App.tsx                    # Operations/control-plane UX
-│   ├── keycloak/                      # Development/integration realm definition
-│   ├── nginx/                         # SPA + API/legacy reverse-proxy gateway
-│   └── Dockerfile
-├── manager/src/manager/
-│   ├── keycloak_auth.py               # Bearer JWT/JWKS authentication bridge
-│   ├── modern_api.py                  # /api/v2 browser API
-│   └── ...                            # Existing Django manager
-├── kubernetes/scenescape-chart/       # Existing + modernization Helm resources
-├── docs/
-│   ├── user-guide/                    # Existing SceneScape documentation
-│   └── ux/operations-v2/              # Operator UX direction and history spec
-├── analytics/                         # Scene analytics services
-├── autocalibration/                   # Calibration capabilities
-└── tests/                             # Project test suites
+control-api/                         FastAPI, schema migrations, collector and tests
+modern-ui/src/native/                Native operator and configuration workflows
+modern-ui/tests/                     Isolated browser harness; not production auth
+sample_data/docker-compose.native-override.yml
+scenescape.sh                        One lifecycle command for WSL2/Linux
+tools/native_runtime.py              Build, migration, start/stop and recovery
+tools/export_legacy.py               One-time export inside the old image only
+kubernetes/scenescape-native/         Native API/worker/UI chart with external dependencies
+docs/ux/native/                      Screenshots, validation and implementation boundaries
 ```
 
----
+The original upstream manager sources and chart remain in Git for reference and explicit rollback. Their presence in the source tree does not mean a Django server is started in native mode.
 
-## Getting started
-
-### Existing SceneScape platform
-
-Use the established SceneScape installation guide for the base platform:
-
-**[Installation guide →](docs/user-guide/get-started/installation.md)**
-
-For system architecture and concepts, start with:
-
-**[Overview and architecture →](docs/user-guide/index.md)**
-
-### Modern UI development
-
-The modern frontend is isolated under `modern-ui/` and can be built independently:
+## Tests
 
 ```bash
-cd modern-ui
-npm install
-npm run typecheck
+cd control-api
+python3 -m pip install -r requirements.txt -r requirements-test.txt
+PYTHONPATH=. pytest -q
+
+cd ../modern-ui
+npm ci
 npm run build
 ```
 
-For interactive development:
+The browser test uses real React components and the native API with an isolated SQLite fixture and a test-only identity adapter. It does **not** validate real Keycloak PKCE, a physical camera or an MQTT broker. Instructions and limitations are in [VALIDATION.md](docs/ux/native/VALIDATION.md). Production builds do not import the test identity adapter.
 
-```bash
-npm run dev
-```
+## Kubernetes
 
-The Vite development configuration expects the Django manager at `https://localhost:8443` for `/api` and `/legacy` proxying. Keycloak must also be reachable using the URL configured in `modern-ui/public/config.js` (or an equivalent runtime-injected configuration).
+Use [kubernetes/scenescape-native](kubernetes/scenescape-native/README.md) for the native API, worker and UI. That chart requires existing PostgreSQL, Keycloak, MQTT, media storage and processing services. It is deliberately not an in-place replacement chart for an existing upstream Helm release: upgrading an umbrella release with a smaller chart could delete unrelated resources.
 
-The production frontend container injects environment-specific browser configuration at startup, allowing the same built image to be used across environments without rebuilding the React bundle.
+## Upstream and license
 
----
-
-## Runtime configuration
-
-The browser consumes a small runtime configuration object:
-
-```js
-window.__SCENESCAPE_CONFIG__ = {
-  apiBaseUrl: '',
-  keycloakUrl: '/auth',
-  keycloakRealm: 'scenescape',
-  keycloakClientId: 'scenescape-ui',
-  legacyBaseUrl: '/legacy/',
-  appTitle: 'SceneScape',
-}
-```
-
-For production, use environment-specific URLs and a production Keycloak configuration. Do not treat the bundled realm/bootstrap settings as a complete security deployment.
-
----
-
-## Migration principles
-
-The modernization is designed to improve usability without destabilizing the SceneScape data and processing plane.
-
-1. **Preserve the domain model.** Existing SceneScape models and scene semantics remain authoritative.
-2. **Preserve machine interfaces.** `/api/v1` token clients continue to work.
-3. **Modernize browser identity separately.** Browser sessions use Keycloak/OIDC instead of coupling the React UX to Django form authentication.
-4. **Migrate workflows progressively.** The modern console becomes the default operator surface while complex authoring/calibration can fall back to Django until migrated.
-5. **Do not fake missing operational data.** Historian, incident and retention capabilities must exist before their UX is represented as operational.
-6. **Keep rollback practical.** The Django UX remains available during the migration period.
-
-See **[UX and history specification](docs/ux/operations-v2/UX-AND-HISTORY-SPEC.md)** for the proposed operator model, incident lifecycle, historical coverage semantics and future backend requirements.
-
----
-
-## Documentation
-
-| Area | Documentation |
-| --- | --- |
-| Product / architecture | [SceneScape user guide](docs/user-guide/index.md) |
-| Installation | [Getting started](docs/user-guide/get-started/installation.md) |
-| REST API | [API reference](docs/user-guide/api-reference.md) |
-| Modern operator UX | [Operations UX v2](docs/ux/operations-v2/README.md) |
-| History / incident design | [UX and history specification](docs/ux/operations-v2/UX-AND-HISTORY-SPEC.md) |
-| Testing | [Testing README](tests/README.md) |
-| Contribution | [Contributing guide](CONTRIBUTING.md) |
-| Security | [Security policy](SECURITY.md) |
-
----
-
-## Testing
-
-Existing project test instructions are documented in [tests/README.md](tests/README.md).
-
-For the React frontend, the minimum static checks are:
-
-```bash
-cd modern-ui
-npm run typecheck
-npm run build
-```
-
-Before treating the modernization as deployment-ready, validate the complete environment: browser login/refresh/logout, Keycloak issuer and JWKS reachability, `/api/v1` compatibility, `/api/v2` authorization, Django fallback routing, Nginx proxy behavior, container health, Helm rendering and the target cluster's ingress/TLS configuration.
-
----
-
-## Upstream and contribution model
-
-This repository is based on the Open Edge Platform **SceneScape 2026.2.0** codebase. The upstream project is maintained at [open-edge-platform/scenescape](https://github.com/open-edge-platform/scenescape).
-
-For changes intended for the upstream project, follow the upstream contribution process and [Contributing Guide](CONTRIBUTING.md). Modernization work in this fork should remain easy to review against the `2026.2.0` baseline so that domain/backend changes and UX migration changes can be evaluated independently.
-
----
-
-## License
-
-SceneScape is licensed under the [Apache License 2.0](LICENSES/Apache-2.0.txt).
-
----
-
-## Disclaimers
-
-This reference implementation focuses on functional service decomposition and API contracts. Production deployments are expected to integrate organization-specific identity, certificate, secret-management, monitoring, backup, retention and security solutions. The provided deployment examples are not intended to represent a complete production-grade security configuration.
-
-Depending on the deployment, SceneScape may use FFmpeg and/or GStreamer. FFmpeg is licensed under LGPL/GPL depending on build and configuration; see [FFmpeg legal information](https://www.ffmpeg.org/legal.html). GStreamer is licensed under LGPL; see the [GStreamer licensing FAQ](https://gstreamer.freedesktop.org/documentation/frequently-asked-questions/licensing.html). Users are responsible for determining the licensing obligations applicable to their deployment.
+Upstream project: [open-edge-platform/scenescape](https://github.com/open-edge-platform/scenescape). This is an independent modernization branch, not an upstream release. Existing licenses and attribution remain applicable; see [LICENSE](LICENSE) and upstream documentation under `docs/`.

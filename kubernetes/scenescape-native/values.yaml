@@ -1,0 +1,59 @@
+# Native core only. Provision PostgreSQL/Keycloak/MQTT and processing services
+# separately. This chart never creates or runs a Django manager pod.
+api:
+  image: intel/scenescape-control-api:2026.2.0-native.1
+  imagePullPolicy: IfNotPresent
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: "2", memory: 2Gi}
+ui:
+  image: intel/scenescape-modern-ui:2026.2.0-native.1
+  imagePullPolicy: IfNotPresent
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+worker:
+  # Exactly one collector per MQTT client ID. Separate from API replicas.
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: "2", memory: 2Gi}
+imagePullSecrets: []
+publicOrigin: "" # Required HTTPS origin, e.g. https://scenescape.example.com
+oidc:
+  issuer: "" # Required full realm issuer; must exactly match token iss
+  jwksUrl: "" # Empty uses issuer/protocol/openid-connect/certs
+  browserUrl: "" # Required browser-visible Keycloak base URL
+  realm: scenescape
+  clientId: scenescape-ui
+  audience: scenescape-api
+# Existing secret keys: DATABASE_URL and API_SIGNING_KEY.
+# DATABASE_URL uses postgresql+psycopg:// with URL-encoded credentials.
+runtimeSecret: ""
+# Existing service-auth secret keys: controller.auth, browser.auth, calibration.auth.
+# Values are the existing JSON credential files, preserving machine API access.
+serviceAuthSecret: ""
+tls:
+  # Existing Secret with tls.crt, tls.key and ca.crt. The API certificate must
+  # include serverName. This is INTERNAL API TLS, not the ingress certificate.
+  existingSecret: ""
+  serverName: ""
+media:
+  existingClaim: "" # Required shared media PVC; back it up before migration.
+mqtt:
+  host: ""
+  port: 1883
+  clientId: scenescape-native-historian
+  caSecret: "" # Existing Secret with ca.crt
+history:
+  sampleSeconds: 1
+  observationDays: 7
+  eventDays: 90
+autocalibration:
+  url: "" # Optional HTTPS URL to existing service
+  caSecret: "" # Existing Secret with ca.crt, required when url is configured
+ingress:
+  enabled: true
+  className: ""
+  host: ""
+  tlsSecret: ""
+  annotations: {}

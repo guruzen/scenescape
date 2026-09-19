@@ -1,0 +1,81 @@
+{{- $name := include "native.name" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: "{{ $name }}-ui"}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: "{{ $name }}-ui"}
+  template:
+    metadata:
+      labels: {app: "{{ $name }}-ui"}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: ui
+          image: {{ .Values.ui.image | quote }}
+          imagePullPolicy: {{ .Values.ui.imagePullPolicy }}
+          ports: [{name: http, containerPort: 8080}]
+          env:
+            - {name: SCENESCAPE_API_UPSTREAM, value: "https://{{ $name }}-api:443"}
+            - {name: SCENESCAPE_API_SERVER_NAME, value: {{ required "tls.serverName must match the API certificate" .Values.tls.serverName | quote }}}
+            - {name: SCENESCAPE_API_SSL_VERIFY, value: "on"}
+            - {name: SCENESCAPE_API_CA_FILE, value: /run/secrets/scenescape-ca.pem}
+            - {name: SCENESCAPE_PUBLIC_SCHEME, value: https}
+            - {name: SCENESCAPE_KEYCLOAK_URL, value: {{ required "oidc.browserUrl is required" .Values.oidc.browserUrl | quote }}}
+            - {name: SCENESCAPE_KEYCLOAK_UPSTREAM, value: "http://127.0.0.1:65535"}
+            - {name: SCENESCAPE_KEYCLOAK_REALM, value: {{ .Values.oidc.realm | quote }}}
+            - {name: SCENESCAPE_KEYCLOAK_CLIENT_ID, value: {{ .Values.oidc.clientId | quote }}}
+            - {name: SCENESCAPE_API_BASE_URL, value: ""}
+          volumeMounts:
+            - {name: api-ca, mountPath: /run/secrets/scenescape-ca.pem, subPath: ca.crt, readOnly: true}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+          resources: {{ toYaml .Values.ui.resources | nindent 12 }}
+          securityContext:
+            runAsUser: 101
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+      volumes:
+        - name: api-ca
+          secret: {secretName: "{{ .Values.tls.existingSecret }}"}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: "{{ $name }}-ui"}
+spec:
+  selector: {app: "{{ $name }}-ui"}
+  ports: [{name: http, port: 80, targetPort: http}]
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}-ui
+  {{- with .Values.ingress.annotations }}
+  annotations: {{ toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  {{- end }}
+  tls:
+    - hosts: [{{ required "ingress.host is required" .Values.ingress.host | quote }}]
+      secretName: {{ required "ingress.tlsSecret is required" .Values.ingress.tlsSecret }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $name }}-ui
+                port: {number: 80}
+{{- end }}

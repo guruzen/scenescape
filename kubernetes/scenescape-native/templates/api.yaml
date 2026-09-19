@@ -1,0 +1,93 @@
+{{- $name := include "native.name" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}-api
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: "{{ $name }}-api"}
+  template:
+    metadata:
+      labels: {app: "{{ $name }}-api"}
+    spec:
+      securityContext:
+        fsGroup: 1000
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: migrate
+          image: {{ .Values.api.image | quote }}
+          imagePullPolicy: {{ .Values.api.imagePullPolicy }}
+          args: [migrate]
+          env:
+            {{- include "native.dbEnv" . | nindent 12 }}
+          securityContext:
+            {{- include "native.security" . | nindent 12 }}
+      containers:
+        - name: api
+          image: {{ .Values.api.image | quote }}
+          imagePullPolicy: {{ .Values.api.imagePullPolicy }}
+          args: [serve]
+          ports: [{name: https, containerPort: 8443}]
+          env:
+            {{- include "native.dbEnv" . | nindent 12 }}
+            - name: API_SIGNING_KEY
+              valueFrom:
+                secretKeyRef: {name: "{{ .Values.runtimeSecret }}", key: API_SIGNING_KEY}
+            - {name: API_PORT, value: "8443"}
+            - {name: API_TLS_CERT, value: /run/secrets/api-tls/tls.crt}
+            - {name: API_TLS_KEY, value: /run/secrets/api-tls/tls.key}
+            - {name: MEDIA_ROOT, value: /data/media}
+            - {name: OIDC_ISSUER, value: {{ required "oidc.issuer is required" .Values.oidc.issuer | quote }}}
+            - {name: OIDC_JWKS_URL, value: {{ .Values.oidc.jwksUrl | quote }}}
+            - {name: OIDC_AUDIENCE, value: {{ .Values.oidc.audience | quote }}}
+            - {name: OIDC_ALLOWED_ORIGINS, value: {{ required "publicOrigin is required" .Values.publicOrigin | quote }}}
+            - {name: SERVICE_AUTH_FILES, value: "/run/secrets/auth/controller.auth,/run/secrets/auth/calibration.auth,/run/secrets/auth/browser.auth"}
+            - {name: HISTORY_SAMPLE_SECONDS, value: {{ .Values.history.sampleSeconds | quote }}}
+            - {name: HISTORY_RETENTION_DAYS, value: {{ .Values.history.observationDays | quote }}}
+            - {name: EVENT_RETENTION_DAYS, value: {{ .Values.history.eventDays | quote }}}
+            {{- if .Values.autocalibration.url }}
+            - {name: AUTOCALIBRATION_URL, value: {{ .Values.autocalibration.url | quote }}}
+            - {name: UPSTREAM_CA_FILE, value: /run/secrets/autocalibration/ca.crt}
+            {{- end }}
+          volumeMounts:
+            - {name: media, mountPath: /data/media}
+            - {name: service-auth, mountPath: /run/secrets/auth, readOnly: true}
+            - {name: api-tls, mountPath: /run/secrets/api-tls, readOnly: true}
+            {{- if .Values.autocalibration.url }}
+            - {name: autocalibration-ca, mountPath: /run/secrets/autocalibration, readOnly: true}
+            {{- end }}
+          readinessProbe:
+            httpGet: {path: /api/v1/health, port: https, scheme: HTTPS}
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet: {path: /healthz, port: https, scheme: HTTPS}
+            periodSeconds: 20
+          startupProbe:
+            httpGet: {path: /api/v1/health, port: https, scheme: HTTPS}
+            failureThreshold: 30
+            periodSeconds: 5
+          resources: {{ toYaml .Values.api.resources | nindent 12 }}
+          securityContext:
+            {{- include "native.security" . | nindent 12 }}
+      volumes:
+        {{- include "native.authVolumes" . | nindent 8 }}
+        - name: media
+          persistentVolumeClaim:
+            claimName: {{ required "media.existingClaim is required" .Values.media.existingClaim }}
+        {{- if .Values.autocalibration.url }}
+        - name: autocalibration-ca
+          secret:
+            secretName: {{ required "autocalibration.caSecret is required with autocalibration.url" .Values.autocalibration.caSecret }}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: "{{ $name }}-api"}
+spec:
+  selector: {app: "{{ $name }}-api"}
+  ports: [{name: https, port: 443, targetPort: https}]

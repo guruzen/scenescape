@@ -1,0 +1,66 @@
+{{- $name := include "native.name" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: "{{ $name }}-worker"}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: "{{ $name }}-worker"}
+  template:
+    metadata:
+      labels: {app: "{{ $name }}-worker"}
+    spec:
+      securityContext: {fsGroup: 1000}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-for-api-schema
+          image: {{ .Values.api.image | quote }}
+          command: [python, -c]
+          args:
+            - "import time,ssl,urllib.request; u='https://{{ $name }}-api:443/api/v1/health';\nwhile True:\n try:\n  urllib.request.urlopen(u,context=ssl._create_unverified_context(),timeout=5); break\n except Exception: time.sleep(2)"
+          securityContext:
+            {{- include "native.security" . | nindent 12 }}
+      containers:
+        - name: worker
+          image: {{ .Values.api.image | quote }}
+          imagePullPolicy: {{ .Values.api.imagePullPolicy }}
+          args: [worker]
+          env:
+            {{- include "native.dbEnv" . | nindent 12 }}
+            - {name: MEDIA_ROOT, value: /data/media}
+            - {name: MQTT_HOST, value: {{ required "mqtt.host is required" .Values.mqtt.host | quote }}}
+            - {name: MQTT_PORT, value: {{ .Values.mqtt.port | quote }}}
+            - {name: MQTT_CLIENT_ID, value: {{ .Values.mqtt.clientId | quote }}}
+            - {name: MQTT_CA_FILE, value: /run/secrets/mqtt/ca.crt}
+            - {name: MQTT_AUTH_FILE, value: /run/secrets/auth/browser.auth}
+            - {name: HISTORY_SAMPLE_SECONDS, value: {{ .Values.history.sampleSeconds | quote }}}
+            - {name: HISTORY_RETENTION_DAYS, value: {{ .Values.history.observationDays | quote }}}
+            - {name: EVENT_RETENTION_DAYS, value: {{ .Values.history.eventDays | quote }}}
+            {{- if .Values.autocalibration.url }}
+            - {name: AUTOCALIBRATION_URL, value: {{ .Values.autocalibration.url | quote }}}
+            - {name: UPSTREAM_CA_FILE, value: /run/secrets/autocalibration/ca.crt}
+            {{- end }}
+          volumeMounts:
+            - {name: media, mountPath: /data/media}
+            - {name: service-auth, mountPath: /run/secrets/auth, readOnly: true}
+            - {name: mqtt-ca, mountPath: /run/secrets/mqtt, readOnly: true}
+            {{- if .Values.autocalibration.url }}
+            - {name: autocalibration-ca, mountPath: /run/secrets/autocalibration, readOnly: true}
+            {{- end }}
+          resources: {{ toYaml .Values.worker.resources | nindent 12 }}
+          securityContext:
+            {{- include "native.security" . | nindent 12 }}
+      volumes:
+        - name: media
+          persistentVolumeClaim: {claimName: "{{ .Values.media.existingClaim }}"}
+        - name: service-auth
+          secret: {secretName: "{{ .Values.serviceAuthSecret }}"}
+        - name: mqtt-ca
+          secret: {secretName: {{ required "mqtt.caSecret is required" .Values.mqtt.caSecret | quote }}}
+        {{- if .Values.autocalibration.url }}
+        - name: autocalibration-ca
+          secret: {secretName: {{ .Values.autocalibration.caSecret | quote }}}
+        {{- end }}

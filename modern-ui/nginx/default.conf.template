@@ -1,82 +1,10 @@
 server {
-  listen 8080;
-  server_name _;
-  root /usr/share/nginx/html;
-  index index.html;
-  client_max_body_size 2g;
-
-  add_header X-Content-Type-Options "nosniff" always;
-  add_header X-Frame-Options "SAMEORIGIN" always;
-  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-  add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
-
-  location = /healthz {
-    access_log off;
-    add_header Content-Type text/plain;
-    return 200 "ok\n";
-  }
-
-  location /api/ {
-    proxy_pass ${SCENESCAPE_API_UPSTREAM};
-    proxy_ssl_verify off;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-
-  location /media/ {
-    proxy_pass ${SCENESCAPE_API_UPSTREAM};
-    proxy_ssl_verify off;
-    proxy_set_header Host $host;
-  }
-
-  location /static/ {
-    proxy_pass ${SCENESCAPE_API_UPSTREAM};
-    proxy_ssl_verify off;
-    proxy_set_header Host $host;
-  }
-
-  location /legacy/ {
-    proxy_pass ${SCENESCAPE_API_UPSTREAM}/;
-    proxy_ssl_verify off;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-
-  location ~ ^/(admin|scene|cam|singleton_sensor|asset|child|sign_in|sign_out|account_locked)(/|$) {
-    proxy_pass ${SCENESCAPE_API_UPSTREAM};
-    proxy_ssl_verify off;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-
-  location ~ "^/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/?$" {
-    proxy_pass ${SCENESCAPE_API_UPSTREAM};
-    proxy_ssl_verify off;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-
-  location /auth/ {
-    proxy_pass ${SCENESCAPE_KEYCLOAK_UPSTREAM};
-    proxy_http_version 1.1;
-    proxy_set_header Host $http_host;
-    proxy_set_header X-Forwarded-Host $http_host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-
-  location = /config.js {
-    add_header Cache-Control "no-store, max-age=0";
-    try_files $uri =404;
-  }
-
-  location / {
-    try_files $uri $uri/ /index.html;
-  }
+  listen 8080; server_name _; root /usr/share/nginx/html; index index.html; client_max_body_size 64m;
+  add_header X-Content-Type-Options "nosniff" always; add_header X-Frame-Options "DENY" always; add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+  location = /healthz { access_log off; add_header Content-Type text/plain; return 200 "ok\n"; }
+  location /api/ { proxy_pass ${SCENESCAPE_API_UPSTREAM}; proxy_ssl_verify ${SCENESCAPE_API_SSL_VERIFY}; proxy_ssl_trusted_certificate ${SCENESCAPE_API_CA_FILE}; proxy_ssl_server_name on; proxy_ssl_name ${SCENESCAPE_API_SERVER_NAME}; proxy_http_version 1.1; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; }
+  location /media/ { proxy_pass ${SCENESCAPE_API_UPSTREAM}; proxy_ssl_verify ${SCENESCAPE_API_SSL_VERIFY}; proxy_ssl_trusted_certificate ${SCENESCAPE_API_CA_FILE}; proxy_ssl_server_name on; proxy_ssl_name ${SCENESCAPE_API_SERVER_NAME}; proxy_set_header Host $host; }
+  location /auth/ { proxy_pass ${SCENESCAPE_KEYCLOAK_UPSTREAM}; proxy_http_version 1.1; proxy_set_header Host $http_host; proxy_set_header X-Forwarded-Host $http_host; proxy_set_header X-Forwarded-Proto $scheme; }
+  location = /config.js { add_header Cache-Control "no-store, max-age=0"; try_files $uri =404; }
+  location / { try_files $uri $uri/ /index.html; }
 }

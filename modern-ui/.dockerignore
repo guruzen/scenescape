@@ -1,5 +1,7 @@
 node_modules
-npm-debug.log
 dist
 .git
-.DS_Store
+.env*
+tests
+vite.native-tests.config.ts
+*.log

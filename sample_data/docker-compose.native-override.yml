@@ -1,0 +1,117 @@
+# SPDX-License-Identifier: Apache-2.0
+# Compose 2.24.4+; merge LAST, after the base and modern-ui overlays.
+# The service named web is now FastAPI, not the Django manager. Its legacy
+# DNS/TLS endpoint is retained solely for existing tracking-service API clients.
+services:
+  web:
+    image: intel/scenescape-control-api:${VERSION:-2026.2.0}-native.1
+    build:
+      context: ./control-api
+    entrypoint: ["python", "-m", "scenescape_api.cli"]
+    command: ["serve"]
+    user: "1000:1000"
+    working_dir: /app
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    ports: !override []
+    environment: !override
+      API_PORT: "443"
+      API_TLS_CERT: /run/secrets/certs/scenescape-web.crt
+      API_TLS_KEY: /run/secrets/certs/scenescape-web.key
+      DBHOST: pgserver
+      DBPORT: "5432"
+      DBNAME: scenescape
+      DBUSER: scenescape
+      DBPASSWORD: ${DATABASE_PASSWORD:?Database password is required}
+      MEDIA_ROOT: /data/media
+      OIDC_ISSUER: ${SCENESCAPE_PUBLIC_URL:-http://localhost:8088}/auth/realms/scenescape
+      OIDC_JWKS_URL: http://keycloak:8080/auth/realms/scenescape/protocol/openid-connect/certs
+      OIDC_AUDIENCE: scenescape-api
+      OIDC_ALLOWED_ORIGINS: ${SCENESCAPE_PUBLIC_URL:-http://localhost:8088}
+      SERVICE_AUTH_FILES: /run/secrets/controller.auth,/run/secrets/calibration.auth,/run/secrets/browser.auth
+      API_SIGNING_KEY: ${SCENESCAPE_API_SIGNING_KEY:?Run scenescape.sh configure or migrate-native}
+      AUTOCALIBRATION_URL: https://autocalibration.scenescape.intel.com:8443
+      UPSTREAM_CA_FILE: /run/secrets/certs/scenescape-ca.pem
+      HISTORY_SAMPLE_SECONDS: ${HISTORY_SAMPLE_SECONDS:-1}
+      HISTORY_RETENTION_DAYS: ${HISTORY_RETENTION_DAYS:-7}
+      EVENT_RETENTION_DAYS: ${EVENT_RETENTION_DAYS:-90}
+    volumes: !override
+      - vol-media:/data/media
+      - vol-sample-data:/data/samples:ro
+    secrets: !override
+      - source: root-cert
+        target: certs/scenescape-ca.pem
+      - source: web-cert
+        target: certs/scenescape-web.crt
+      - source: native-web-key
+        target: certs/scenescape-web.key
+      - controller.auth
+      - calibration.auth
+      - browser.auth
+    healthcheck:
+      test: ["CMD", "python", "-c", "import ssl,urllib.request; urllib.request.urlopen('https://localhost:443/api/v1/health',context=ssl._create_unverified_context(),timeout=5)"]
+      interval: 10s
+      timeout: 8s
+      retries: 12
+      start_period: 20s
+
+  native-worker:
+    image: intel/scenescape-control-api:${VERSION:-2026.2.0}-native.1
+    entrypoint: ["python", "-m", "scenescape_api.cli"]
+    command: ["worker"]
+    user: "1000:1000"
+    networks: [scenescape]
+    depends_on:
+      web:
+        condition: service_healthy
+      broker:
+        condition: service_started
+    environment:
+      DBHOST: pgserver
+      DBPORT: "5432"
+      DBNAME: scenescape
+      DBUSER: scenescape
+      DBPASSWORD: ${DATABASE_PASSWORD:?Database password is required}
+      MEDIA_ROOT: /data/media
+      MQTT_HOST: broker.scenescape.intel.com
+      MQTT_PORT: "1883"
+      MQTT_CA_FILE: /run/secrets/certs/scenescape-ca.pem
+      MQTT_AUTH_FILE: /run/secrets/browser.auth
+      MQTT_CLIENT_ID: ${COMPOSE_PROJECT_NAME:-scenescape}-native-historian
+      HISTORY_SAMPLE_SECONDS: ${HISTORY_SAMPLE_SECONDS:-1}
+      HISTORY_RETENTION_DAYS: ${HISTORY_RETENTION_DAYS:-7}
+      EVENT_RETENTION_DAYS: ${EVENT_RETENTION_DAYS:-90}
+      AUTOCALIBRATION_URL: https://autocalibration.scenescape.intel.com:8443
+      UPSTREAM_CA_FILE: /run/secrets/certs/scenescape-ca.pem
+    secrets:
+      - source: root-cert
+        target: certs/scenescape-ca.pem
+      - browser.auth
+    volumes:
+      - vol-media:/data/media
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+  modern-ui:
+    image: intel/scenescape-modern-ui:${VERSION:-2026.2.0}-native.1
+    environment:
+      SCENESCAPE_API_UPSTREAM: https://web.scenescape.intel.com:443
+      SCENESCAPE_KEYCLOAK_UPSTREAM: http://keycloak:8080
+      SCENESCAPE_KEYCLOAK_URL: /auth
+      SCENESCAPE_KEYCLOAK_REALM: scenescape
+      SCENESCAPE_KEYCLOAK_CLIENT_ID: scenescape-ui
+      SCENESCAPE_API_BASE_URL: ""
+      SCENESCAPE_API_SSL_VERIFY: "on"
+      SCENESCAPE_API_CA_FILE: /run/secrets/scenescape-ca.pem
+      SCENESCAPE_API_SERVER_NAME: web.scenescape.intel.com
+      SCENESCAPE_APP_TITLE: SceneScape
+    secrets:
+      - source: root-cert
+        target: scenescape-ca.pem
+
+secrets:
+  native-web-key:
+    file: ./.scenescape-runtime/native-web.key

@@ -36,12 +36,10 @@ docker-compose.yml
 kubernetes/setup/
 kubernetes/manager
 media
-# Ignore runtime migrations directory (not Django source migrations)
 /migrations
 **/workspace/migrations
 pvd-mqtt/detect
 sample_data/xREF_*
-# Manually-downloaded raw LiDAR-demo dataset - see docs/user-guide/how-to-guides/run-lidar-intersection-demo.md Prerequisites
 V2X-Seq-SPD-Example.zip
 sample_data/lidar_intersection/V2X-Seq-SPD-Example/
 .test_logs
@@ -50,12 +48,8 @@ test_reports/
 !tests/interface/firefox-profile.tar
 manager/test/geckodriver.tar.gz
 tests/perf_tests/input/*.json
-
-# Host-side vendored third-party sources for Docker builds (see autocalibration/Makefile,
-# mapping/Makefile vendor-deps targets)
 autocalibration/.vendor/
 mapping/.vendor/
-
 model_installer/models
 package.json
 package-lock.json
@@ -70,3 +64,18 @@ kubernetes/scenescape-chart/files/*
 .venv
 test_db.sqlite3
 tests/ui/test_media/Empty.zip
+
+# Native manager: reproducible frontend sources, not generated runtime secrets.
+!modern-ui/package.json
+!modern-ui/package-lock.json
+!modern-ui/vite.config.ts
+!modern-ui/vite.native-tests.config.ts
+!modern-ui/src/**/*.ts
+!modern-ui/tests/**/*.ts
+modern-ui/dist/
+control-api/.venv/
+control-api/.pytest_cache/
+control-api/*.db
+control-api/*.sqlite*
+/backend-tests.xml
+/screenshots/
