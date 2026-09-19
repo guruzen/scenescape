@@ -116,11 +116,11 @@ def _admin_credentials() -> tuple[str, str]:
     return username, password
 
 
-def _admin_token() -> str:
-    username, password = _admin_credentials()
+@lru_cache(maxsize=8)
+def _admin_token_bucket(bucket: int, base_url: str, username: str, password: str) -> str:
     try:
         response = requests.post(
-            f"{_base_url()}/realms/master/protocol/openid-connect/token",
+            f"{base_url}/realms/master/protocol/openid-connect/token",
             data={
                 "grant_type": "password",
                 "client_id": "admin-cli",
@@ -137,6 +137,12 @@ def _admin_token() -> str:
     if not token:
         raise HTTPException(503, "Keycloak administration token was not returned")
     return str(token)
+
+
+def _admin_token() -> str:
+    username, password = _admin_credentials()
+    ttl = max(10, int(os.getenv("KEYCLOAK_ADMIN_TOKEN_CACHE_SECONDS", "30")))
+    return _admin_token_bucket(int(time.monotonic() // ttl), _base_url(), username, password)
 
 
 def _request(method: str, path: str, *, json_body=None, params=None, expected=(200, 201, 204)):
@@ -304,6 +310,8 @@ def create_user(body: dict) -> dict:
     password = str(body.get("password") or "")
     if not username:
         raise HTTPException(400, {"username": ["This field is required."]})
+    if get_service_identity(username) is not None:
+        raise HTTPException(400, {"username": ["This username is reserved for a mounted service identity."]})
     if not password:
         raise HTTPException(400, {"password": ["This field is required."]})
     email = _validate_email(body.get("email", ""))
