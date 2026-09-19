@@ -31,6 +31,10 @@ services:
       OIDC_JWKS_URL: http://keycloak:8080/auth/realms/scenescape/protocol/openid-connect/certs
       OIDC_AUDIENCE: scenescape-api
       OIDC_ALLOWED_ORIGINS: ${SCENESCAPE_PUBLIC_URL:-http://localhost:8088}
+      KEYCLOAK_ADMIN_URL: http://keycloak:8080/auth
+      KEYCLOAK_REALM: scenescape
+      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD before starting native mode}
       SERVICE_AUTH_FILES: /run/secrets/controller.auth,/run/secrets/calibration.auth,/run/secrets/browser.auth
       MQTT_HOST: broker.scenescape.intel.com
       MQTT_PORT: "1883"
