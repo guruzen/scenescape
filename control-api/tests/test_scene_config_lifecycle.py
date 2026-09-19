@@ -389,3 +389,73 @@ def test_legacy_mapping_route_aliases(tmp_path,monkeypatch):
     assert started.status_code==200 and started.json()['request_id']=='alias-r1'
     status=c.get('/scene/generate-mesh-status/alias-scene/?request_id=alias-r1',headers=v2)
     assert status.status_code==200 and status.json()['state']=='complete'
+
+
+def test_asset_validation_matches_2026_2_choices(tmp_path,monkeypatch):
+    c,d,v1,v2,calls=boot(tmp_path,monkeypatch)
+    created=c.post('/api/v2/assets',headers=v2,json={
+        'name':'Vehicle',
+        'project_to_map':False,
+        'rotation_from_velocity':True,
+        'is_static':False,
+        'shift_type':2,
+        'x_size':2.0,'y_size':1.0,'z_size':1.5,
+        'tracking_radius':3.0,
+        'geometric_center':[0,0,0.75],
+        'center_of_mass':[0,0,0.6],
+        'friction_coefficients':[0.6,0.4],
+    })
+    assert created.status_code==200,created.text
+    body=created.json()
+    assert body['project_to_map'] is False
+    assert body['rotation_from_velocity'] is True
+    assert body['is_static'] is False
+    assert body['shift_type']==2
+    assert body['geometric_center']==[0.0,0.0,0.75]
+
+    updated=c.put(
+        f"/api/v2/assets/{body['uid']}?revision={body['revision']}",
+        headers=v2,
+        data={
+            'project_to_map':'true',
+            'rotation_from_velocity':'false',
+            'is_static':'true',
+            'shift_type':'1',
+        },
+    )
+    assert updated.status_code==200,updated.text
+    value=updated.json()
+    assert value['project_to_map'] is True
+    assert value['rotation_from_velocity'] is False
+    assert value['is_static'] is True
+    assert value['shift_type']==1
+
+    assert c.post('/api/v2/assets',headers=v2,json={'name':'Bad shift','shift_type':3}).status_code==400
+    assert c.post('/api/v2/assets',headers=v2,json={'name':'Bad bool','project_to_map':'not-bool'}).status_code==400
+    assert c.post('/api/v2/assets',headers=v2,json={'name':'Bad damping','linear_damping':1.5}).status_code==400
+
+
+def test_native_asset_model_replacement_and_removal(tmp_path,monkeypatch):
+    c,d,v1,v2,calls=boot(tmp_path,monkeypatch)
+    first=c.post('/api/v2/assets',headers=v2,data={'name':'Forklift'},files={'model_3d':('forklift.glb',glb_bytes(),'model/gltf-binary')})
+    assert first.status_code==200,first.text
+    value=first.json()
+    first_path=tmp_path/'media'/Path(value['model_3d']).name
+    assert first_path.is_file()
+
+    replacement=c.put(
+        f"/api/v2/assets/{value['uid']}?revision={value['revision']}",
+        headers=v2,data={'name':'Forklift'},files={'model_3d':('forklift-v2.glb',glb_bytes(),'model/gltf-binary')}
+    )
+    assert replacement.status_code==200,replacement.text
+    second=replacement.json()
+    second_path=tmp_path/'media'/Path(second['model_3d']).name
+    assert second_path.is_file() and not first_path.exists()
+
+    removed=c.put(
+        f"/api/v2/assets/{second['uid']}?revision={second['revision']}",
+        headers=v2,json={'model_3d':None}
+    )
+    assert removed.status_code==200,removed.text
+    assert removed.json().get('model_3d') is None
+    assert not second_path.exists()
