@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import json, os
 from pathlib import Path
 import pytest
@@ -937,3 +940,98 @@ def test_service_and_browser_token_schemes_remain_separate(tmp_path, monkeypatch
     service_token=client.post('/api/v1/auth',data={'username':'svc','password':'pw'}).json()['token']
     assert client.get('/api/v1/scenes',headers={'Authorization':'Token '+service_token}).status_code==200
     assert client.get('/api/v1/scenes',headers={'Authorization':'Bearer '+service_token}).status_code==401
+
+
+def test_native_model_library_lifecycle_and_config_discovery(tmp_path, monkeypatch):
+    models = tmp_path / 'models'
+    configs = models / 'models' / 'model_configs'
+    configs.mkdir(parents=True)
+    (configs / 'custom.json').write_text(json.dumps({'custom': {'params': {'model': 'custom/model.xml'}}}))
+    monkeypatch.setenv('MODEL_ROOT', str(models))
+    monkeypatch.setenv('MODEL_CONFIGS_FOLDER', str(configs))
+    client, _ = boot(tmp_path, monkeypatch)
+    h = headers(client)
+
+    listed = client.get('/api/v2/models', headers=h)
+    assert listed.status_code == 200
+    assert listed.json()['entries'][0]['name'] == 'models'
+
+    discovered = client.get('/api/v2/models/configs', headers=h)
+    assert discovered.status_code == 200
+    assert 'custom.json' in discovered.json()['configs']
+
+    created = client.post('/api/v2/models/directories', headers=h, json={'path': '', 'name': 'operator-model'})
+    assert created.status_code == 200
+
+    uploaded = client.post(
+        '/api/v2/models/files',
+        headers=h,
+        data=[('path', ''), ('relative_paths', 'operator-model/weights.bin')],
+        files=[('files', ('weights.bin', b'weights', 'application/octet-stream'))],
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    assert (models / 'operator-model' / 'weights.bin').read_bytes() == b'weights'
+
+    downloaded = client.get('/api/v2/models/download?path=operator-model%2Fweights.bin', headers=h)
+    assert downloaded.status_code == 200
+    assert downloaded.content == b'weights'
+
+    deleted = client.delete('/api/v2/models?path=operator-model', headers=h)
+    assert deleted.status_code == 200
+    assert not (models / 'operator-model').exists()
+
+
+def test_native_model_zip_extraction_rejects_traversal(tmp_path, monkeypatch):
+    import io
+    import zipfile
+
+    models = tmp_path / 'models'
+    models.mkdir()
+    monkeypatch.setenv('MODEL_ROOT', str(models))
+    monkeypatch.setenv('MODEL_CONFIGS_FOLDER', str(models / 'models' / 'model_configs'))
+    client, _ = boot(tmp_path, monkeypatch)
+    h = headers(client)
+
+    safe = io.BytesIO()
+    with zipfile.ZipFile(safe, 'w') as archive:
+        archive.writestr('nested/model.bin', b'model')
+    response = client.post(
+        '/api/v2/models/extract',
+        headers=h,
+        data={'path': ''},
+        files={'file': ('bundle.zip', safe.getvalue(), 'application/zip')},
+    )
+    assert response.status_code == 200, response.text
+    assert (models / 'bundle' / 'nested' / 'model.bin').read_bytes() == b'model'
+
+    malicious = io.BytesIO()
+    with zipfile.ZipFile(malicious, 'w') as archive:
+        archive.writestr('../escape.bin', b'escape')
+    response = client.post(
+        '/api/v2/models/extract',
+        headers=h,
+        data={'path': ''},
+        files={'file': ('bad.zip', malicious.getvalue(), 'application/zip')},
+    )
+    assert response.status_code == 400
+    assert not (tmp_path / 'escape.bin').exists()
+
+
+def test_nested_model_config_paths_are_supported_and_bounded(tmp_path, monkeypatch):
+    root = tmp_path / 'configs'
+    nested = root / 'tenant'
+    nested.mkdir(parents=True)
+    (nested / 'camera.json').write_text(json.dumps({'person': {'params': {'model': 'person.xml'}}}))
+    monkeypatch.setenv('MODEL_CONFIGS_FOLDER', str(root))
+    monkeypatch.setenv('MODEL_CONFIGS_FALLBACK_FOLDER', str(root))
+
+    from scenescape_api.pipeline_generation import (
+        PipelineGenerationValueError,
+        list_model_configs,
+        load_model_config,
+    )
+
+    assert list_model_configs() == ['tenant/camera.json']
+    assert 'person' in load_model_config('tenant/camera.json')
+    with pytest.raises(PipelineGenerationValueError):
+        load_model_config('../outside.json')
