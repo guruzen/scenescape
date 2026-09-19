@@ -818,3 +818,26 @@ def test_v1_region_tripwire_compatibility(tmp_path, monkeypatch):
 
     renamed=client.post(f"/api/v1/region/{rv['uid']}",headers=h,json={'name':'Region V1 Updated'})
     assert renamed.status_code==200 and renamed.json()['name']=='Region V1 Updated'
+
+
+def test_sensor_telemetry_history(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    assert client.post('/api/v2/scenes',headers=h,json={'uid':'telemetry-scene','name':'Telemetry Scene'}).status_code==200
+    assert client.post('/api/v2/sensors',headers=h,json={
+        'sensor_id':'temperature-1','name':'Temperature','scene':'telemetry-scene','area':'scene'
+    }).status_code==200
+    from scenescape_api.ingest import persist, scene_id_from_topic
+    assert scene_id_from_topic('scenescape/data/sensor/temperature-1')=='temperature-1'
+    with d.sessions()() as db:
+        persist(db,'scenescape/data/sensor/temperature-1',json.dumps({
+            'timestamp':'2026-09-19T10:00:00.000Z','id':'temperature-1','value':21.5
+        }).encode())
+        persist(db,'scenescape/data/sensor/temperature-1',json.dumps({
+            'timestamp':'2026-09-19T10:01:00.000Z','id':'temperature-1','value':22.0
+        }).encode())
+        db.commit()
+    telemetry=client.get('/api/v2/sensors/temperature-1/telemetry?limit=10',headers=h)
+    assert telemetry.status_code==200,telemetry.text
+    rows=telemetry.json()
+    assert [row['value'] for row in rows]==[22.0,21.5]
+    assert rows[0]['sensor_id']=='temperature-1'
