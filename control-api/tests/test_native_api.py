@@ -631,3 +631,190 @@ def test_scene_delete_orphans_sensors_and_cameras(tmp_path, monkeypatch):
     assert orphan_camera.status_code==200 and orphan_camera.json().get('scene') is None
     assert client.get('/api/v2/regions/delete-region',headers=h).status_code==404
     assert client.get('/api/v2/tripwires/delete-trip',headers=h).status_code==404
+
+
+def test_region_2026_2_contract(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    assert client.post('/api/v2/scenes',headers=h,json={'uid':'region-scene','name':'Region Scene'}).status_code==200
+    minimal=client.post('/api/v2/regions',headers=h,json={
+        'uid':'region-min','name':'Region Minimal','scene':'region-scene',
+        'points':[[0,0],[1,0],[1,1],[0,1]],
+    })
+    assert minimal.status_code==200,minimal.text
+    mv=minimal.json()
+    assert mv['uid']=='region-min'
+    assert mv['buffer_size']==0.0 and mv['height']==1.0
+    assert mv['volumetric'] is False and mv['visible'] is False
+
+    full=client.post('/api/v2/regions',headers=h,json={
+        'uid':'region-full','name':'Region Full','scene':'region-scene',
+        'points':[[0,0],[2,0],[2,2],[0,2]],
+        'buffer_size':0.25,'height':2.5,'volumetric':True,'visible':True,
+        'color_ranges':{
+            'sectors':[
+                {'color':'green','color_min':0},
+                {'color':'yellow','color_min':2},
+                {'color':'red','color_min':5},
+            ],
+            'range_max':10,
+        },
+    })
+    assert full.status_code==200,full.text
+    fv=full.json()
+    assert fv['buffer_size']==0.25 and fv['height']==2.5
+    assert fv['volumetric'] is True and fv['visible'] is True
+    assert fv['color_ranges']['range_max']==10
+
+    updated=client.put(
+        f"/api/v2/regions/region-min?revision={mv['revision']}",headers=h,
+        json={
+            'name':'Region Minimal Updated','scene':'region-scene',
+            'points':[[0,0],[3,0],[3,3],[0,3]],
+            'buffer_size':0.5,'height':1.75,'volumetric':True,
+            'color_ranges':{
+                'sectors':[
+                    {'color':'green','color_min':1},
+                    {'color':'yellow','color_min':3},
+                    {'color':'red','color_min':6},
+                ],
+                'range_max':12,
+            },
+        },
+    )
+    assert updated.status_code==200,updated.text
+    uv=updated.json()
+    assert uv['name']=='Region Minimal Updated'
+    assert uv['points'][1]==[3.0,0.0]
+    assert uv['buffer_size']==0.5 and uv['height']==1.75 and uv['volumetric'] is True
+    assert uv['color_ranges']['sectors'][2]['color_min']==6
+
+
+def test_region_validation_matches_tag(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    assert client.post('/api/v2/scenes',headers=h,json={'uid':'region-valid-scene','name':'Region Valid Scene'}).status_code==200
+    assert client.post('/api/v2/regions',headers=h,json={
+        'scene':'region-valid-scene','points':[[0,0],[1,1]]
+    }).status_code==400
+    assert client.post('/api/v2/regions',headers=h,json={
+        'name':'No Scene','points':[[0,0],[1,1]]
+    }).status_code==400
+    assert client.post('/api/v2/regions',headers=h,json={
+        'name':'No Points','scene':'region-valid-scene'
+    }).status_code==400
+    assert client.post('/api/v2/regions',headers=h,json={
+        'name':'Bad Points','scene':'region-valid-scene','points':[[1]]
+    }).status_code==400
+    assert client.post('/api/v2/regions',headers=h,json={
+        'name':'Bad Height','scene':'region-valid-scene','points':[[0,0]],'height':0
+    }).status_code==400
+    assert client.post('/api/v2/regions',headers=h,json={
+        'name':'Bad Buffer','scene':'region-valid-scene','points':[[0,0]],'buffer_size':-1
+    }).status_code==400
+    assert client.post('/api/v2/regions',headers=h,json={
+        'name':'Bad Color','scene':'region-valid-scene','points':[[0,0]],
+        'color_ranges':{'sectors':[{'color':'blue','color_min':0}],'range_max':10},
+    }).status_code==400
+
+    good=client.post('/api/v2/regions',headers=h,json={
+        'uid':'region-visible','name':'Visible','scene':'region-valid-scene','points':[[0,0],[1,0]]
+    }).json()
+    invalid_visible=client.put(
+        f"/api/v2/regions/region-visible?revision={good['revision']}",
+        headers=h,json={'visible':{'invalid':True}},
+    )
+    assert invalid_visible.status_code==400
+
+
+def test_tripwire_2026_2_contract(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    assert client.post('/api/v2/scenes',headers=h,json={'uid':'trip-scene','name':'Trip Scene'}).status_code==200
+    created=client.post('/api/v2/tripwires',headers=h,json={
+        'uid':'trip-min','name':'Tripwire Minimal','scene':'trip-scene',
+        'points':[[0,0],[1,0]],
+    })
+    assert created.status_code==200,created.text
+    value=created.json()
+    assert value['height']==1.0 and value['visible'] is False
+    assert value['points']==[[0.0,0.0],[1.0,0.0]]
+
+    updated=client.put(
+        f"/api/v2/tripwires/trip-min?revision={value['revision']}",
+        headers=h,json={'points':[[1,1],[1,0]],'height':2.25,'visible':True},
+    )
+    assert updated.status_code==200,updated.text
+    uv=updated.json()
+    assert uv['points']==[[1.0,1.0],[1.0,0.0]]
+    assert uv['height']==2.25 and uv['visible'] is True
+
+    assert client.post('/api/v2/tripwires',headers=h,json={
+        'scene':'trip-scene','points':[[0,0],[1,0]]
+    }).status_code==400
+    assert client.post('/api/v2/tripwires',headers=h,json={
+        'name':'No Scene','points':[[0,0],[1,0]]
+    }).status_code==400
+    assert client.post('/api/v2/tripwires',headers=h,json={
+        'name':'No Points','scene':'trip-scene'
+    }).status_code==400
+    assert client.post('/api/v2/tripwires',headers=h,json={
+        'name':'Bad Points','scene':'trip-scene','points':[[0]]
+    }).status_code==400
+
+
+def test_spatial_visibility_updates_skip_config_invalidation(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    import scenescape_api.app as app_module
+    calls=[]
+    monkeypatch.setattr(app_module,'notify_config_change',lambda kind,uid=None: calls.append((kind,uid)) or {'ok':True})
+    assert client.post('/api/v2/scenes',headers=h,json={'uid':'spatial-notify-scene','name':'Spatial Notify Scene'}).status_code==200
+
+    region=client.post('/api/v2/regions',headers=h,json={
+        'uid':'notify-region','name':'Notify Region','scene':'spatial-notify-scene','points':[[0,0],[1,0],[1,1]]
+    }).json()
+    trip=client.post('/api/v2/tripwires',headers=h,json={
+        'uid':'notify-trip','name':'Notify Trip','scene':'spatial-notify-scene','points':[[0,0],[1,1]]
+    }).json()
+    calls.clear()
+    assert client.put(
+        f"/api/v2/regions/notify-region?revision={region['revision']}",headers=h,json={'visible':True}
+    ).status_code==200
+    assert client.put(
+        f"/api/v2/tripwires/notify-trip?revision={trip['revision']}",headers=h,json={'visible':True}
+    ).status_code==200
+    assert calls==[]
+
+    changed=client.put(
+        '/api/v2/regions/notify-region?revision=2',headers=h,json={'height':2}
+    )
+    assert changed.status_code==200
+    assert calls==[('region','notify-region')]
+
+
+def test_v1_region_tripwire_compatibility(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch)
+    admin=headers(client)
+    assert client.post('/api/v2/scenes',headers=admin,json={'uid':'spatial-v1-scene','name':'Spatial V1 Scene'}).status_code==200
+    service=client.post('/api/v1/auth',data={'username':'svc','password':'pw'}).json()['token']
+    h={'Authorization':'Token '+service}
+
+    region=client.post('/api/v1/region',headers=h,json={
+        'name':'Region V1','scene':'spatial-v1-scene','points':[[0,0],[1,0],[1,1]]
+    })
+    assert region.status_code==201,region.text
+    rv=region.json()
+    assert rv['buffer_size']==0.0 and rv['height']==1.0
+    assert rv['volumetric'] is False and rv['visible'] is False
+
+    trip=client.post('/api/v1/tripwire',headers=h,json={
+        'name':'Trip V1','scene':'spatial-v1-scene','points':[[0,0],[1,1]]
+    })
+    assert trip.status_code==201,trip.text
+    tv=trip.json()
+    assert tv['height']==1.0 and tv['visible'] is False
+
+    listed=client.get('/api/v1/regions?scene=spatial-v1-scene',headers=h)
+    assert listed.status_code==200 and listed.json()['count']==1
+    trips=client.get('/api/v1/tripwires?scene=spatial-v1-scene',headers=h)
+    assert trips.status_code==200 and trips.json()['count']==1
+
+    renamed=client.post(f"/api/v1/region/{rv['uid']}",headers=h,json={'name':'Region V1 Updated'})
+    assert renamed.status_code==200 and renamed.json()['name']=='Region V1 Updated'
