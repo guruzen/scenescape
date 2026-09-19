@@ -345,3 +345,19 @@ def test_native_mapping_routes_delegate_and_finalize_notifications(tmp_path,monk
     assert started.status_code==200 and started.json()['request_id']=='r1'
     status=c.get('/api/v2/scenes/mesh-scene/mesh/status?request_id=r1',headers=v2)
     assert status.status_code==200 and status.json()['finalized'] is True
+
+
+def test_generated_mesh_connectivity_guard_matches_2026_2():
+    import numpy as np
+    import trimesh
+    from scenescape_api.mapping_service import _check_mesh_connectivity
+
+    first=trimesh.creation.box(extents=[2.0,2.0,1.0])
+    second=trimesh.creation.box(extents=[2.0,2.0,1.0])
+    second.apply_translation([20.0,0.0,0.0])
+    disconnected=trimesh.util.concatenate([first,second])
+    error=_check_mesh_connectivity(disconnected)
+    assert error is not None and 'spatially separate surfaces' in error
+
+    joined=trimesh.creation.box(extents=[4.0,2.0,1.0])
+    assert _check_mesh_connectivity(joined) is None
