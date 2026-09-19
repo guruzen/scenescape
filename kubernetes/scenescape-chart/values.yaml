@@ -102,6 +102,12 @@ modernUI:
     verifySsl: true
     autoProvisionUsers: true
     adminRole: scenescape-admin
+    # Optional for external Keycloak: existing Secret used by the native
+    # control plane for user/role administration. The Secret is not needed
+    # when keycloak.enabled=true because the embedded bootstrap Secret is reused.
+    adminSecret: ""
+    adminUsernameKey: username
+    adminPasswordKey: password
   resources: {}
 
 # Embedded Keycloak is intended for evaluation/lab deployments. Production
