@@ -913,7 +913,7 @@ def test_native_user_mutation_requires_admin(tmp_path, monkeypatch):
     h={'Authorization':'Bearer '+viewer}
     import scenescape_api.app as app_module
     monkeypatch.setattr(app_module,'keycloak_list_users',lambda:[])
-    assert client.get('/api/v2/users',headers=h).status_code==200
+    assert client.get('/api/v2/users',headers=h).status_code==403
     assert client.post('/api/v2/users',headers=h,json={'username':'x','password':'y'}).status_code==403
     assert client.put('/api/v2/users/x',headers=h,json={'first_name':'x'}).status_code==403
     assert client.delete('/api/v2/users/x',headers=h).status_code==403
