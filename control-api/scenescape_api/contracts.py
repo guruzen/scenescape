@@ -50,6 +50,18 @@ CAMERA_ALLOWED_FIELDS = {
     "camera_pipeline",
 }
 
+SENSOR_ALLOWED_FIELDS = {
+    "uid", "sensor_id", "name", "scene", "area", "points", "radius", "center",
+    "translation", "singleton_type", "color_ranges", "visible", "icon",
+}
+
+SENSOR_DEFAULTS = {
+    "area": "scene",
+    "singleton_type": "environmental",
+    "visible": False,
+    "translation": [None, None, 0.0],
+}
+
 
 ASSET_ALLOWED_FIELDS = {
     "uid", "name", "x_size", "y_size", "z_size", "tracking_radius",
@@ -373,6 +385,158 @@ def normalize_scene(db, body: dict, *, uid: str | None, creating: bool, legacy: 
     return data, resolved_uid
 
 
+def _sensor_points(value: Any) -> list[list[float]]:
+    if not isinstance(value, list):
+        _bad("points", "Points must be a list.")
+    result = []
+    for index, point in enumerate(value):
+        if not isinstance(point, (list, tuple)) or len(point) != 2:
+            _bad("points", f"Each point must be a list of 2 coordinates, got {point} at index {index}.")
+        result.append([_number("points", point[0]), _number("points", point[1])])
+    return result
+
+
+def _sensor_color_ranges(value: Any) -> dict:
+    if not isinstance(value, dict):
+        _bad("color_ranges", "Invalid JSON format")
+    if "sectors" not in value:
+        _bad("color_ranges", "Missing sectors field")
+    if "range_max" not in value:
+        _bad("color_ranges", "Missing range_max field")
+    sectors = value["sectors"]
+    if not isinstance(sectors, list):
+        _bad("color_ranges", "Invalid sectors value")
+    normalized = []
+    for sector in sectors:
+        if not isinstance(sector, dict):
+            _bad("color_ranges", "Invalid sector value")
+        if "color" not in sector:
+            _bad("color_ranges", "Missing color field")
+        color = str(sector["color"])
+        if color not in {"green", "yellow", "red"}:
+            _bad("color_ranges", "Invalid color value")
+        if "color_min" not in sector:
+            _bad("color_ranges", "Missing color_min field")
+        normalized.append({"color": color, "color_min": _number("color_ranges", sector["color_min"])})
+    return {"sectors": normalized, "range_max": _number("color_ranges", value["range_max"])}
+
+
+def normalize_sensor(db, body: dict, *, uid: str | None, creating: bool, legacy: bool) -> tuple[dict, str | None]:
+    if not isinstance(body, dict) or (creating and not body):
+        _bad("body", "Request body is required.")
+    data = deepcopy(body)
+    resolved_uid = uid
+    if not legacy:
+        if creating and data.get("uid") not in (None, ""):
+            resolved_uid = str(data.pop("uid"))
+        else:
+            data.pop("uid", None)
+        data.pop("kind", None)
+        data.pop("revision", None)
+    else:
+        data.pop("uid", None)
+
+    unknown = set(data) - (SENSOR_ALLOWED_FIELDS - {"uid"})
+    if unknown:
+        _bad(sorted(unknown)[0], "Unknown field.")
+
+    # translation is a serializer-computed read-only field in 2026.2.
+    data.pop("translation", None)
+
+    if creating and "name" not in data:
+        _bad("name", "This field is required.")
+    if "name" in data:
+        name = str(data["name"])
+        if not name.strip():
+            _bad("name", "This field may not be blank.")
+        if len(name) > 150:
+            _bad("name", "Ensure this field has no more than 150 characters.")
+        if _name_conflict(db, "sensor", name, exclude_uid=uid if not creating else None):
+            existing = next(
+                (row for row in db.scalars(select(Resource).where(Resource.kind == "sensor")).all()
+                 if str((row.payload or {}).get("name") or "") == name and
+                 (creating or row.uid != str(uid))),
+                None,
+            )
+            if existing and (existing.payload or {}).get("scene"):
+                _bad("name", f"A sensor with the name '{name}' already exists.")
+            _bad("name", f"orphaned sensor with the name '{name}' already exists.")
+        data["name"] = name
+
+    sensor_id = data.pop("sensor_id", None)
+    if sensor_id not in (None, ""):
+        sensor_id = str(sensor_id)
+        if len(sensor_id) > 20:
+            _bad("sensor_id", "Ensure this field has no more than 20 characters.")
+        resolved_uid = sensor_id
+    elif creating and resolved_uid is None:
+        resolved_uid = str(data.get("name") or "")
+
+    if creating and resolved_uid and _existing(db, "sensor", resolved_uid) is not None:
+        _bad("sensor_id", f"A sensor with ID '{resolved_uid}' already exists.")
+
+    if "scene" in data:
+        if data["scene"] in (None, ""):
+            data["scene"] = None
+        else:
+            scene_uid = str(data["scene"])
+            if not _scene_exists(db, scene_uid):
+                _bad("scene", "Scene with given UUID does not exist.")
+            data["scene"] = scene_uid
+
+    if "area" in data and data["area"] is not None:
+        area = str(data["area"])
+        if area not in {"scene", "circle", "poly"}:
+            _bad("area", f'invalid area: "{area}"')
+        data["area"] = area
+
+    effective_area = data.get("area")
+    if effective_area is None and not creating:
+        existing = _existing(db, "sensor", uid)
+        effective_area = (existing.payload or {}).get("area") if existing else None
+    if effective_area is None:
+        effective_area = "scene"
+
+    if "center" in data and data["center"] is not None:
+        center = _numeric_list("center", data["center"], 2)
+        data["center"] = center
+        data["translation"] = [center[0], center[1], 0.0]
+    if "radius" in data and data["radius"] is not None:
+        data["radius"] = _number("radius", data["radius"])
+    if "points" in data and data["points"] is not None:
+        data["points"] = _sensor_points(data["points"])
+    if "color_ranges" in data and data["color_ranges"] is not None:
+        data["color_ranges"] = _sensor_color_ranges(data["color_ranges"])
+    if "singleton_type" in data and data["singleton_type"] is not None:
+        data["singleton_type"] = _choice("singleton_type", data["singleton_type"], {"environmental", "attribute"})
+    if "visible" in data:
+        data["visible"] = bool(data["visible"])
+    if "icon" in data and data["icon"] not in (None, ""):
+        data["icon"] = str(data["icon"])
+
+    if effective_area == "circle":
+        existing = _existing(db, "sensor", uid) if not creating else None
+        current = existing.payload or {} if existing else {}
+        if data.get("radius") is None and current.get("radius") is None:
+            _bad("radius", "required")
+        if data.get("center") is None and current.get("center") is None:
+            _bad("center", "required")
+    elif effective_area == "poly":
+        existing = _existing(db, "sensor", uid) if not creating else None
+        current = existing.payload or {} if existing else {}
+        if data.get("points") is None and current.get("points") is None:
+            _bad("points", "required")
+
+    if creating:
+        merged = deepcopy(SENSOR_DEFAULTS)
+        merged.update(data)
+        merged["sensor_id"] = str(resolved_uid)
+        data = merged
+    elif resolved_uid:
+        data["sensor_id"] = str(resolved_uid)
+    return data, resolved_uid
+
+
 def normalize_camera(db, body: dict, *, uid: str | None, creating: bool, legacy: bool) -> tuple[dict, str | None]:
     if not isinstance(body, dict) or not body:
         _bad("body", "Request body is required.")
@@ -466,6 +630,8 @@ def normalize_resource(db, kind: str, body: dict, *, uid: str | None = None, cre
         return normalize_scene(db, body, uid=uid, creating=creating, legacy=legacy)
     if kind == "camera":
         return normalize_camera(db, body, uid=uid, creating=creating, legacy=legacy)
+    if kind == "sensor":
+        return normalize_sensor(db, body, uid=uid, creating=creating, legacy=legacy)
     if kind == "asset":
         return normalize_asset(db, body, uid=uid, creating=creating, legacy=legacy)
     if not isinstance(body, dict):
