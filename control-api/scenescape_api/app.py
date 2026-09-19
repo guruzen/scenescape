@@ -537,7 +537,8 @@ def legacy_update(thing: str, uid: str, body: dict, p=Depends(service_principal)
         row = upsert(db, kind, resolved_uid or uid, body, p, current.revision)
     db.commit()
     value = _legacy_scene(db, row) if kind == "scene" else _legacy_clean(row)
-    notify_config_change(kind, row.uid)
+    if not (kind == "sensor" and set(body.keys()) == {"visible"}):
+        notify_config_change(kind, row.uid)
     if kind == "camera":
         notify_camera_change(value, "save", previous)
     return value
@@ -1222,8 +1223,9 @@ def update_any(
         body, resolved_uid = normalize_resource(db, kind, body, uid=uid, creating=False, legacy=False)
         row = upsert(db, kind, resolved_uid or uid, body, p, revision)
     db.commit()
-    value = to_dict(row)
-    notify_config_change(kind, row.uid)
+    value = _sensor_value(to_dict(row), native=True) if kind == "sensor" else to_dict(row)
+    if not (kind == "sensor" and set(body.keys()) == {"visible"}):
+        notify_config_change(kind, row.uid)
     if kind == "camera":
         notify_camera_change(value, "save", previous)
     return value
