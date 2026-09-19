@@ -104,6 +104,7 @@ help:
 	@echo "  build-core        (default) Build secrets, core images (excluding mapping, cluster_analytics, and tracker), and install models"
 	@echo "  build-all                   Build secrets, all images, and install models"
 	@echo "  build-core-images           Build core microservice images (excluding mapping, cluster_analytics, and tracker) in parallel"
+	@echo "  build-native-images         Build FastAPI control-api and React modern-ui images for native mode"
 	@echo "  build-all-images            Build all microservice images in parallel"
 	@echo "  build-core-lidar            Build secrets, core images with the LiDAR-intersection demo patches applied, and install models"
 	@echo "  init-secrets                Generate secrets and certificates"
@@ -216,6 +217,11 @@ endef
 .PHONY: build-all-images
 build-all-images: $(BUILD_DIR)
 	$(call parallel-build, $(IMAGE_FOLDERS))
+
+.PHONY: build-native-images
+build-native-images:
+	docker build -t intel/scenescape-control-api:latest ./control-api
+	docker build -t intel/scenescape-modern-ui:latest ./modern-ui
 
 # Parallel wrapper for core images (excluding mapping and cluster_analytics)
 .PHONY: build-core-images
