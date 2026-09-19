@@ -190,10 +190,10 @@ function CameraFeeds({ cameras }: { cameras: Row[] }) {
   return <div className="camera-feed-grid">{cameras.map((camera) => <CameraFeed key={rowId(camera)} camera={camera}/>)}</div>
 }
 
-function SceneWorkspace({ scene, onBack, isAdmin }: { scene: Row; onBack: () => void; isAdmin: boolean }) {
+function SceneWorkspace({ scene, onBack, isAdmin, initialTab = 'Live 2D' }: { scene: Row; onBack: () => void; isAdmin: boolean; initialTab?: string }) {
   const [bundle, setBundle] = useState<Bundle | null>(null)
   const [live, setLive] = useState<Row>({ objects: [], stale: true })
-  const [tab, setTab] = useState('Live 2D')
+  const [tab, setTab] = useState(initialTab)
   const [history, setHistory] = useState<Row[]>([])
   const [trends, setTrends] = useState<Row[]>([])
   const [message, setMessage] = useState('')
@@ -267,11 +267,12 @@ function Inventory({ kind, label, isAdmin }: { kind: 'scenes'|'cameras'|'sensors
   </>
 }
 
-function Zones({ isAdmin }: { isAdmin: boolean }) {
+function Zones({ goTo }: { goTo: (path: string) => void }) {
   const [regions, setRegions] = useState<Row[]>([])
   const [tripwires, setTripwires] = useState<Row[]>([])
   useEffect(() => { void apiFetch<Row[]>('/api/v2/regions').then(setRegions); void apiFetch<Row[]>('/api/v2/tripwires').then(setTripwires) }, [])
-  return <><Header kicker="Configuration · control plane" title="Zones & tripwires"/><div className="metric-grid compact"><div className="metric"><span>Regions</span><strong>{regions.length}</strong><small>Native scene-level areas</small></div><div className="metric"><span>Tripwires</span><strong>{tripwires.length}</strong><small>Native directional boundaries</small></div><div className="metric"><span>Authoring</span><strong className="small-value ok">Native</strong><small>Open a scene → Geometry</small></div></div><div className="workspace-grid"><Inventory kind="regions" label="Regions" isAdmin={isAdmin}/><Inventory kind="tripwires" label="Tripwires" isAdmin={isAdmin}/></div></>
+  const rows=[...regions.map((row)=>({...row,_kind:'Region'})),...tripwires.map((row)=>({...row,_kind:'Tripwire'}))]
+  return <><Header kicker="Configuration · control plane" title="Zones & tripwires"/><div className="metric-grid compact"><div className="metric"><span>Regions</span><strong>{regions.length}</strong><small>Polygon / volumetric occupancy areas</small></div><div className="metric"><span>Tripwires</span><strong>{tripwires.length}</strong><small>Directional crossing boundaries</small></div><div className="metric"><span>Authoring</span><strong className="small-value ok">Visual</strong><small>Scene map vertex editor</small></div></div><section className="panel table-wrap"><table><thead><tr><th>Type</th><th>Name</th><th>Scene</th><th>Geometry</th><th>State</th><th></th></tr></thead><tbody>{rows.map((row)=><tr key={`${row._kind}-${rowId(row)}`}><td>{row._kind}</td><td><b>{rowName(row)}</b></td><td><code>{String(row.scene||'—')}</code></td><td>{(row.points||[]).length} points · {Number(row.height||1).toFixed(2)} m</td><td>{row.visible?'Visible':'Hidden'}{row._kind==='Region'&&row.volumetric?' · volumetric':''}</td><td>{row.scene&&<button className="text-button" onClick={()=>goTo(`scene/${row.scene}/geometry`)}>Open editor</button>}</td></tr>)}</tbody></table>{!rows.length&&<div className="table-empty">No regions or tripwires configured.</div>}</section></>
 }
 
 function Incidents() {
@@ -319,10 +320,10 @@ function App() {
   if (!auth.ready) return <div className="center-state"><div className="spinner"/><h1>Securing SceneScape</h1><p>Establishing your Keycloak session…</p></div>
   if (!auth.authenticated) return <div className="center-state"><h1>Identity service unavailable</h1><p>Verify the Keycloak realm/client configuration.</p><button className="btn btn-primary" onClick={() => void auth.login()}>Try sign in again</button></div>
 
-  const sceneMatch = path.match(/^scene\/(.+)$/)
+  const sceneMatch = path.match(/^scene\/([^/]+)(?:\/(geometry))?$/)
   const activeScene = sceneMatch ? scenes.find((scene) => rowId(scene) === sceneMatch[1]) : undefined
   let page: ReactNode
-  if (sceneMatch && activeScene) page = <SceneWorkspace scene={activeScene} onBack={() => go('live')} isAdmin={auth.isAdmin}/>
+  if (sceneMatch && activeScene) page = <SceneWorkspace scene={activeScene} onBack={() => go('live')} isAdmin={auth.isAdmin} initialTab={sceneMatch[2] === 'geometry' ? 'Geometry' : 'Live 2D'}/>
   else if (path === 'live') page = <><Header kicker="Operations · data plane" title="Live scenes"><button className="btn" onClick={refresh}>Refresh</button></Header><div className="card-grid">{scenes.map((scene) => <section className="panel scene-card" key={rowId(scene)}><div className="mini-scene"><div className="floor-shape"/><span className="track track-a"/><span className="track track-b"/></div><h2>{rowName(scene)}</h2><code>{rowId(scene)}</code><div className="scene-meta"><span>{scene.map ? 'Map configured' : 'No map'}</span><span>{scene.scale ? `${scene.scale} px/m` : 'Scale unknown'}</span></div><button className="btn btn-primary full" onClick={() => go(`scene/${rowId(scene)}`)}>Open native 2D / 3D scene</button></section>)}</div>{!scenes.length && <div className="empty-state"><h2>No native scenes yet</h2><p>Run <code>./scenescape.sh recover-legacy-data</code> to copy existing Django configuration, or <code>./scenescape.sh seed-native-data</code> for the upstream Retail sample.</p></div>}</>
   else if (path === 'incidents') page = <Incidents/>
   else if (path === 'history') page = <SceneAnalytics scenes={scenes} mode="history"/>
@@ -331,7 +332,7 @@ function App() {
   else if (path === 'scenes') page = <SceneInventory isAdmin={auth.isAdmin}/>
   else if (path === 'cameras') page = <CameraInventory isAdmin={auth.isAdmin}/>
   else if (path === 'sensors') page = <SensorInventory isAdmin={auth.isAdmin}/>
-  else if (path === 'zones') page = <Zones isAdmin={auth.isAdmin}/>
+  else if (path === 'zones') page = <Zones goTo={go}/>
   else if (path === 'settings') page = <><Header kicker="Administration" title="Access & native migration"/><section className="panel settings-list"><div><b>Signed in as</b><span>{auth.displayName}{auth.email ? ` · ${auth.email}` : ''}</span></div><div><b>Roles</b><span>{auth.roles.filter((role) => role.startsWith('scenescape-')).join(', ') || 'authenticated'}</span></div><div><b>Browser backend</b><span>FastAPI /api/v2/* only; no Django page fallback.</span></div><div><b>Recover existing data</b><code>./scenescape.sh recover-legacy-data</code></div><div><b>Load upstream sample</b><code>./scenescape.sh seed-native-data</code></div></section></>
   else page = <><Header kicker="Operations · data plane" title="Shift overview"><button className="btn" onClick={refresh}>Refresh</button></Header>{apiError && <div className="error-box">{apiError}</div>}<div className="metric-grid"><button className="metric actionable" onClick={() => go('live')}><span>Active scenes</span><strong>{overview?.counts.scenes ?? scenes.length}</strong><small>Open native scene workspace →</small></button><button className="metric actionable" onClick={() => go('cameras')}><span>Camera inputs</span><strong>{overview?.counts.cameras ?? 0}</strong><small>Inspect native configuration →</small></button><button className="metric actionable" onClick={() => go('zones')}><span>Spatial rules</span><strong>{(overview?.counts.regions ?? 0) + (overview?.counts.tripwires ?? 0)}</strong><small>Regions + tripwires →</small></button><button className="metric actionable" onClick={() => go('incidents')}><span>Incidents</span><strong>{overview?.counts.incidents ?? 0}</strong><small>Durable operator workflow →</small></button></div><div className="workspace-grid"><section className="panel scene-panel"><div className="panel-title"><div><h2>Native live scene workspace</h2><p>2D maps, live objects, geometry, calibration and WebGL 3D without Django navigation.</p></div><button className="btn" onClick={() => go('live')}>All scenes</button></div><div className="scene-canvas"><div className="floor-shape"/><div className="zone-shape"/><span className="track track-a"/><span className="track track-b"/><span className="tripwire-shape"/><div className="coverage-note">{scenes.length ? `${scenes.length} scene(s) available in native configuration` : 'No native scene data yet — recover or seed it from Administration'}</div></div></section><section className="panel incident-panel"><div className="panel-title"><div><h2>Operator attention</h2><p>Current native runtime state.</p></div></div><div className="attention-card"><b>MQTT historian</b><span>{overview?.health.mqtt || 'Unknown'} · {(overview?.counts.observations ?? 0)} retained observations</span></div><div className="attention-card"><b>Keycloak session</b><span>{auth.displayName} · {auth.isAdmin ? 'Administrator' : 'Operator'}</span></div><div className="attention-card"><b>Native configuration</b><span>{scenes.length ? 'Scene data available' : 'Recover existing legacy data or load the Retail sample'}</span></div><button className="btn btn-primary full" onClick={() => go('health')}>Open health workspace</button></section></div><section className="panel"><div className="panel-title"><div><h2>Configured scenes</h2><p>All actions remain inside the React/FastAPI application.</p></div></div><div className="scene-list">{scenes.slice(0, 8).map((scene) => <div className="scene-row" key={rowId(scene)}><div><b>{rowName(scene)}</b><span>{rowId(scene)}</span></div><button className="btn" onClick={() => go(`scene/${rowId(scene)}`)}>Open native scene</button></div>)}{!scenes.length && <div className="table-empty">No scenes imported into native tables yet.</div>}</div></section></>
 
