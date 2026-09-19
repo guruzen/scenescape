@@ -21,7 +21,7 @@ from .database import Event, Heartbeat, Incident, Observation, Resource, session
 from .hierarchy import cascade_scene_links, child_to_dict, create_child_link, resolve_child_link, transform_dict, update_child_link
 from .intrinsics import calculate_camera_intrinsics
 from .markers import marker_to_dict, normalize_marker, resolve_marker
-from .media_files import delete_media, media_path, save_upload, store_bytes
+from .media_files import delete_media, save_upload, store_bytes
 from .scene_config import apply_uploaded_map_semantics
 from .scene_import_native import import_scene_archive
 from .mapping_service import mapping_health, mesh_generation_status, start_mesh_generation
@@ -567,8 +567,9 @@ def native_geospatial_snapshot(body: dict, p=Depends(current_principal)):
 def _archive_media(zip_file, scene: dict, seen: set[str]):
     map_value = str(scene.get("map") or "")
     if map_value and map_value not in seen:
-        target = media_path(map_value)
-        if target is not None and target.is_file():
+        relative = map_value[len("/media/"):] if map_value.startswith("/media/") else map_value
+        target = _media_target(relative)
+        if target is not None:
             seen.add(map_value)
             safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(scene.get("name") or "scene"))
             zip_file.writestr(f"{safe_name}{target.suffix.lower()}", target.read_bytes())
