@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -385,6 +388,26 @@ def normalize_scene(db, body: dict, *, uid: str | None, creating: bool, legacy: 
     for field in ("map_zoom", "inlier_threshold"):
         if field in data and data[field] is not None:
             data[field] = _positive(field, data[field], allow_zero=True)
+    for field in ("apriltag_size",):
+        if field in data and data[field] is not None:
+            data[field] = _positive(field, data[field])
+    for field in ("number_of_localizations", "minimum_number_of_matches"):
+        if field in data and data[field] is not None:
+            value = data[field]
+            if isinstance(value, bool):
+                _bad(field, "A valid integer is required.")
+            try:
+                number = int(value)
+            except (TypeError, ValueError):
+                _bad(field, "A valid integer is required.")
+            if number < 0:
+                _bad(field, "Ensure this value is greater than or equal to 0.")
+            data[field] = number
+    for field in ("local_feature", "matcher"):
+        if field in data and data[field] is not None and not isinstance(data[field], dict):
+            _bad(field, "Must be a JSON object.")
+    if "global_feature" in data and data["global_feature"] is not None:
+        data["global_feature"] = str(data["global_feature"])
     if "map_corners_lla" in data and data["map_corners_lla"] is not None:
         data["map_corners_lla"] = _map_corners(data["map_corners_lla"])
     if data.get("output_lla") is True:
