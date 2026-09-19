@@ -29,6 +29,12 @@ export default function ThreeScene({
   showTrackedObjects = true,
   showSpatial = true,
   showFloor = true,
+  cameras = [],
+  projectCameraFrames = false,
+  cameraOpacity = 0.8,
+  selectedCameraId = '',
+  useSelectedCameraView = false,
+  lightIntensity = 1,
 }: {
   mapPath?: string
   objects: Row[]
@@ -49,12 +55,20 @@ export default function ThreeScene({
   showTrackedObjects?: boolean
   showSpatial?: boolean
   showFloor?: boolean
+  cameras?: Row[]
+  projectCameraFrames?: boolean
+  cameraOpacity?: number
+  selectedCameraId?: string
+  useSelectedCameraView?: boolean
+  lightIntensity?: number
 }) {
   const host = useRef<HTMLDivElement | null>(null)
   const surface = useRef<HTMLDivElement | null>(null)
   const objectGroup = useRef<THREE.Group | null>(null)
   const calibrationGroup = useRef<THREE.Group | null>(null)
   const spatialGroup = useRef<THREE.Group | null>(null)
+  const cameraGroup = useRef<THREE.Group | null>(null)
+  const cameraViewRef = useRef<Record<string, THREE.PerspectiveCamera>>({})
   const onPickRef = useRef(onPick)
   const assetPrototypes = useRef<Record<string, THREE.Object3D>>({})
   const [assets, setAssets] = useState<Row[]>([])
@@ -137,8 +151,9 @@ export default function ThreeScene({
     renderer.domElement.className = 'three-canvas'
     renderSurface.replaceChildren(renderer.domElement)
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 1.8))
-    const sun = new THREE.DirectionalLight(0xffffff, 2.2)
+    const hemisphere = new THREE.HemisphereLight(0xffffff, 0x334455, 1.8 * lightIntensity)
+    scene.add(hemisphere)
+    const sun = new THREE.DirectionalLight(0xffffff, 2.2 * lightIntensity)
     sun.position.set(10, -8, 14)
     scene.add(sun)
     const grid = new THREE.GridHelper(20, 20, 0x3a6168, 0x244047)
@@ -154,6 +169,9 @@ export default function ThreeScene({
     const spatial = new THREE.Group()
     spatialGroup.current = spatial
     scene.add(spatial)
+    const cameraVisuals = new THREE.Group()
+    cameraGroup.current = cameraVisuals
+    scene.add(cameraVisuals)
     const pickTargets: THREE.Object3D[] = []
 
     const fit = (object: THREE.Object3D) => {
@@ -245,7 +263,14 @@ export default function ThreeScene({
 
     const loop = () => {
       controls.update()
-      renderer.render(scene, camera)
+      const activeCamera = useSelectedCameraView && selectedCameraId && cameraViewRef.current[selectedCameraId]
+        ? cameraViewRef.current[selectedCameraId]
+        : camera
+      if (activeCamera instanceof THREE.PerspectiveCamera) {
+        activeCamera.aspect = Math.max(1, container.clientWidth) / Math.max(260, container.clientHeight)
+        activeCamera.updateProjectionMatrix()
+      }
+      renderer.render(scene, activeCamera)
       frame = requestAnimationFrame(loop)
     }
     loop()
@@ -262,6 +287,8 @@ export default function ThreeScene({
       objectGroup.current = null
       calibrationGroup.current = null
       spatialGroup.current = null
+      cameraGroup.current = null
+      cameraViewRef.current = {}
     }
   }, [
     mapPath,
@@ -271,6 +298,9 @@ export default function ThreeScene({
     meshScale?.[0], meshScale?.[1], meshScale?.[2],
     mediaOverrideUrl,
     showFloor,
+    selectedCameraId,
+    useSelectedCameraView,
+    lightIntensity,
   ])
 
   useEffect(() => {
@@ -469,6 +499,96 @@ export default function ThreeScene({
       }
     }
   }, [regions, tripwires, sensors, childRegions, childTripwires, childSensors, mapPath, showSpatial])
+
+
+  useEffect(() => {
+    const group = cameraGroup.current
+    if (!group) return
+    while (group.children.length) {
+      const child = group.children.pop()
+      if (!child) continue
+      child.traverse((node) => {
+        if (node instanceof THREE.Mesh || node instanceof THREE.LineSegments) {
+          node.geometry?.dispose?.()
+          const material = (node as THREE.Mesh).material
+          if (Array.isArray(material)) material.forEach((item) => item.dispose())
+          else material?.dispose?.()
+        }
+      })
+    }
+    cameraViewRef.current = {}
+
+    let active = true
+    const objectUrls: string[] = []
+    const build = async () => {
+      for (const cameraData of cameras) {
+        if (!active) return
+        const id = String(cameraData.uid ?? cameraData.id ?? '')
+        if (!id) continue
+        const resolution = Array.isArray(cameraData.resolution) ? cameraData.resolution : [640, 480]
+        const intrinsics = cameraData.intrinsics || {}
+        const fy = Number(intrinsics.fy || 570)
+        const height = Math.max(1, Number(resolution[1] || 480))
+        const vfov = THREE.MathUtils.radToDeg(2 * Math.atan(height / (2 * Math.max(fy, 1))))
+        const view = new THREE.PerspectiveCamera(vfov, Math.max(1, Number(resolution[0] || 640)) / height, 0.05, 50)
+        view.up.set(0, 0, 1)
+        const translation = Array.isArray(cameraData.translation) ? cameraData.translation : [0, 0, 0]
+        const rotation = Array.isArray(cameraData.rotation) ? cameraData.rotation : [0, 0, 0]
+        view.position.set(Number(translation[0] || 0), Number(translation[1] || 0), Number(translation[2] || 0))
+        view.rotation.set(
+          THREE.MathUtils.degToRad(Number(rotation[0] || 0)),
+          THREE.MathUtils.degToRad(Number(rotation[1] || 0)),
+          THREE.MathUtils.degToRad(Number(rotation[2] || 0)),
+          'XYZ',
+        )
+        cameraViewRef.current[id] = view
+
+        const rig = new THREE.Group()
+        rig.name = 'camera-rig-' + id
+        rig.add(view)
+        const helper = new THREE.CameraHelper(view)
+        helper.material.transparent = true
+        helper.material.opacity = selectedCameraId === id ? 1 : 0.55
+        rig.add(helper)
+
+        const marker = new THREE.Mesh(
+          new THREE.BoxGeometry(0.18, 0.12, 0.12),
+          new THREE.MeshStandardMaterial({ color: selectedCameraId === id ? 0xffb454 : 0x4ed1ce }),
+        )
+        marker.position.copy(view.position)
+        marker.rotation.copy(view.rotation)
+        rig.add(marker)
+
+        if (projectCameraFrames) {
+          try {
+            const url = await apiObjectUrl('/api/v2/cameras/' + encodeURIComponent(id) + '/snapshot?t=' + Date.now())
+            if (!active) { URL.revokeObjectURL(url); return }
+            objectUrls.push(url)
+            const texture = await new THREE.TextureLoader().loadAsync(url)
+            if (!active) return
+            texture.colorSpace = THREE.SRGBColorSpace
+            const distance = 1.25
+            const planeHeight = 2 * Math.tan(THREE.MathUtils.degToRad(vfov / 2)) * distance
+            const planeWidth = planeHeight * view.aspect
+            const plane = new THREE.Mesh(
+              new THREE.PlaneGeometry(planeWidth, planeHeight),
+              new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: Math.max(0, Math.min(1, cameraOpacity)), side: THREE.DoubleSide, depthWrite: false }),
+            )
+            plane.position.set(0, 0, -distance)
+            view.add(plane)
+          } catch {
+            // Offline cameras retain their frustum but do not receive a projected frame.
+          }
+        }
+        group.add(rig)
+      }
+    }
+    void build()
+    return () => {
+      active = false
+      objectUrls.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [cameras, projectCameraFrames, cameraOpacity, selectedCameraId, mapPath])
 
   useEffect(() => {
     const group = calibrationGroup.current
