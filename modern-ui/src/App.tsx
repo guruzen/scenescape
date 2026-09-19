@@ -187,7 +187,8 @@ function SceneWorkspace({ scene, onBack }: { scene: Row; onBack: () => void }) {
     const camera = bundle.cameras[0]
     if (!camera) { setMessage('No camera is configured for this scene.'); return }
     try {
-      await apiFetch(`/api/v2/cameras/${rowId(camera)}?revision=${camera.revision}`, { method: 'PUT', body: JSON.stringify(JSON.parse(pose)) })
+      const poseUpdate = { name: rowName(camera), ...JSON.parse(pose) }
+      await apiFetch(`/api/v2/cameras/${rowId(camera)}?revision=${camera.revision}`, { method: 'PUT', body: JSON.stringify(poseUpdate) })
       setMessage('Camera pose saved.'); loadBundle()
     } catch (e) { setMessage(String(e)) }
   }

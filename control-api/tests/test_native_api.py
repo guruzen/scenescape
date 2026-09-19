@@ -13,6 +13,8 @@ def boot(tmp_path, monkeypatch):
     if d._engine is not None: d._engine.dispose()
     d._engine=None; d._Session=None
     import scenescape_api.app as a
+    monkeypatch.setattr(a,'notify_config_change',lambda kind,uid=None: {'ok':True})
+    monkeypatch.setattr(a,'notify_camera_change',lambda camera,action,previous=None: {'ok':True})
     d.Base.metadata.create_all(d.get_engine())
     return TestClient(a.app), d
 
