@@ -383,3 +383,193 @@ def test_camera_pipeline_preview_uses_tagged_model_config(tmp_path, monkeypatch)
     assert 'rtspsrc location=rtsp://camera.example/live' in pipeline
     assert 'gvadetect ' in pipeline
     assert 'sscape_post_inference_data_publish name=datapublisher' in pipeline
+
+
+def test_singleton_sensor_2026_2_contract(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    assert client.post('/api/v2/scenes',headers=h,json={'uid':'sensor-scene','name':'Sensor Scene'}).status_code==200
+
+    circle=client.post('/api/v2/sensors',headers=h,json={
+        'sensor_id':'sensor-circle','name':'Circle Sensor','scene':'sensor-scene',
+        'area':'circle','radius':2.5,'center':[3.81,4.59],
+    })
+    assert circle.status_code==200,circle.text
+    value=circle.json()
+    assert value['uid']=='sensor-circle'
+    assert value['sensor_id']=='sensor-circle'
+    assert value['area']=='circle'
+    assert value['center']==pytest.approx([3.81,4.59])
+    assert value['translation']==pytest.approx([3.81,4.59,0.0])
+    assert value['singleton_type']=='environmental'
+    assert value['visible'] is False
+
+    polygon=client.post('/api/v2/sensors',headers=h,json={
+        'sensor_id':'sensor-poly','name':'Polygon Sensor','scene':'sensor-scene',
+        'area':'poly','points':[[1,1],[2,2],[3,1]],'singleton_type':'attribute',
+        'color_ranges':{
+            'sectors':[
+                {'color':'green','color_min':0},
+                {'color':'yellow','color_min':2},
+                {'color':'red','color_min':5},
+            ],
+            'range_max':10,
+        },
+    })
+    assert polygon.status_code==200,polygon.text
+    pv=polygon.json()
+    assert pv['points']==[[1.0,1.0],[2.0,2.0],[3.0,1.0]]
+    assert pv['translation']==[None,None,0.0]
+    assert pv['singleton_type']=='attribute'
+    assert pv['color_ranges']['range_max']==10
+
+    scene_sensor=client.post('/api/v2/sensors',headers=h,json={
+        'sensor_id':'sensor-scene-wide','name':'Scene Sensor','area':'scene',
+    })
+    assert scene_sensor.status_code==200,scene_sensor.text
+    assert scene_sensor.json().get('scene') is None
+
+    visible=client.put(
+        f"/api/v2/sensors/sensor-circle?revision={value['revision']}",
+        headers=h,json={'visible':True},
+    )
+    assert visible.status_code==200,visible.text
+    assert visible.json()['visible'] is True
+    assert visible.json()['radius']==2.5
+    assert visible.json()['center']==pytest.approx([3.81,4.59])
+
+    bundle=client.get('/api/v2/scenes/sensor-scene/bundle',headers=h)
+    assert bundle.status_code==200
+    assert {item['uid'] for item in bundle.json()['sensors']}=={'sensor-circle','sensor-poly'}
+
+
+def test_singleton_sensor_validation_matches_tag(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    assert client.post('/api/v2/scenes',headers=h,json={'uid':'sensor-valid-scene','name':'Sensor Valid Scene'}).status_code==200
+
+    assert client.post('/api/v2/sensors',headers=h,json={
+        'name':'bad-area','area':'triangle'
+    }).status_code==400
+    assert client.post('/api/v2/sensors',headers=h,json={
+        'name':'circle-no-radius','area':'circle','center':[1,2]
+    }).status_code==400
+    assert client.post('/api/v2/sensors',headers=h,json={
+        'name':'circle-bad-center','area':'circle','radius':1,'center':[1]
+    }).status_code==400
+    assert client.post('/api/v2/sensors',headers=h,json={
+        'name':'poly-no-points','area':'poly'
+    }).status_code==400
+    assert client.post('/api/v2/sensors',headers=h,json={
+        'name':'poly-bad-points','area':'poly','points':[[1]]
+    }).status_code==400
+    assert client.post('/api/v2/sensors',headers=h,json={
+        'name':'bad-scene','scene':'missing-scene'
+    }).status_code==400
+    assert client.post('/api/v2/sensors',headers=h,json={
+        'name':'bad-ranges','color_ranges':{}
+    }).status_code==400
+    assert client.post('/api/v2/sensors',headers=h,json={
+        'name':'bad-colors',
+        'color_ranges':{
+            'sectors':[{'color':'blue','color_min':0}],
+            'range_max':10,
+        },
+    }).status_code==400
+
+    good=client.post('/api/v2/sensors',headers=h,json={
+        'sensor_id':'unique-sensor','name':'Unique Sensor','scene':'sensor-valid-scene',
+    })
+    assert good.status_code==200
+    duplicate_name=client.post('/api/v2/sensors',headers=h,json={
+        'sensor_id':'unique-sensor-2','name':'Unique Sensor','scene':'sensor-valid-scene',
+    })
+    assert duplicate_name.status_code==400
+    duplicate_id=client.post('/api/v2/sensors',headers=h,json={
+        'sensor_id':'unique-sensor','name':'Another Sensor','scene':'sensor-valid-scene',
+    })
+    assert duplicate_id.status_code==400
+
+
+def test_singleton_sensor_id_rename_and_readonly_translation(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    assert client.post('/api/v2/scenes',headers=h,json={'uid':'sensor-rename-scene','name':'Rename Scene'}).status_code==200
+    created=client.post('/api/v2/sensors',headers=h,json={
+        'sensor_id':'sensor-old','name':'Renamable Sensor','scene':'sensor-rename-scene',
+        'area':'circle','radius':1.5,'center':[2,3],'translation':[99,98,97],
+    })
+    assert created.status_code==200,created.text
+    cv=created.json()
+    assert cv['translation']==[2.0,3.0,0.0]
+    renamed=client.put(
+        f"/api/v2/sensors/sensor-old?revision={cv['revision']}",
+        headers=h,json={'sensor_id':'sensor-new','name':'Renamable Sensor'},
+    )
+    assert renamed.status_code==200,renamed.text
+    rv=renamed.json()
+    assert rv['uid']=='sensor-new' and rv['sensor_id']=='sensor-new'
+    assert client.get('/api/v2/sensors/sensor-old',headers=h).status_code==404
+    assert client.get('/api/v2/sensors/sensor-new',headers=h).status_code==200
+
+    taken=client.post('/api/v2/sensors',headers=h,json={
+        'sensor_id':'sensor-taken','name':'Taken Sensor'
+    })
+    assert taken.status_code==200
+    collision=client.put(
+        f"/api/v2/sensors/sensor-new?revision={rv['revision']}",
+        headers=h,json={'sensor_id':'sensor-taken'},
+    )
+    assert collision.status_code==400
+
+
+def test_v1_singleton_sensor_compatibility(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch)
+    service=client.post('/api/v1/auth',data={'username':'svc','password':'pw'})
+    h={'Authorization':'Token '+service.json()['token']}
+    admin=headers(client)
+    assert client.post('/api/v2/scenes',headers=admin,json={'uid':'sensor-v1-scene','name':'Sensor V1 Scene'}).status_code==200
+
+    created=client.post('/api/v1/sensor',headers=h,json={
+        'sensor_id':'sensor-v1','name':'Sensor V1','scene':'sensor-v1-scene',
+        'area':'circle','radius':2,'center':[4,5],
+    })
+    assert created.status_code==201,created.text
+    body=created.json()
+    assert body['uid']=='sensor-v1' and body['translation']==[4.0,5.0,0.0]
+
+    listed=client.get('/api/v1/sensors?scene=sensor-v1-scene',headers=h)
+    assert listed.status_code==200
+    assert listed.json()['count']==1
+    assert listed.json()['results'][0]['uid']=='sensor-v1'
+
+    updated=client.post('/api/v1/sensor/sensor-v1',headers=h,json={
+        'area':'poly','points':[[0,0],[1,0],[1,1]],
+    })
+    assert updated.status_code==200,updated.text
+    assert updated.json()['points']==[[0.0,0.0],[1.0,0.0],[1.0,1.0]]
+
+
+def test_singleton_sensor_icon_lifecycle(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    created=client.post('/api/v2/sensors',headers=h,json={
+        'sensor_id':'sensor-icon','name':'Sensor Icon','area':'scene'
+    })
+    assert created.status_code==200
+    revision=created.json()['revision']
+    # Valid 1x1 PNG.
+    png=__import__('base64').b64decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlQfKsAAAAASUVORK5CYII='
+    )
+    uploaded=client.post(
+        f'/api/v2/sensors/sensor-icon/icon?revision={revision}',headers=h,
+        files={'icon':('sensor.png',png,'image/png')},
+    )
+    assert uploaded.status_code==200,uploaded.text
+    icon=uploaded.json()['icon']
+    assert icon.startswith('/media/')
+    assert (tmp_path/'media'/Path(icon).name).is_file()
+
+    removed=client.delete(
+        f"/api/v2/sensors/sensor-icon/icon?revision={uploaded.json()['revision']}",headers=h
+    )
+    assert removed.status_code==200,removed.text
+    assert removed.json().get('icon') is None
+    assert not (tmp_path/'media'/Path(icon).name).exists()
