@@ -1,14 +1,264 @@
-import {useEffect,useMemo,useState} from 'react'
-import {apiFetch} from './api/client'
-import {useAuth} from './auth/AuthProvider'
-type Row=Record<string,any>; type Theme='light'|'light-air'|'dark'|'dark-command'
-const themes:Theme[]=['light','light-air','dark','dark-command']
-const savedTheme=()=>{const s=localStorage.getItem('scenescape-theme');return themes.includes(s as Theme)?s as Theme:'light'}
-const hash=()=>location.hash.replace(/^#\/?/,'')||'overview'; const go=(v:string)=>{location.hash=`#/${v}`}
-const nameOf=(r:Row)=>String(r.name??r.title??r.uid??'Unnamed'); const idOf=(r:Row)=>String(r.uid??r.id??'')
-function Header({title}:{title:string}){return <div className="page-header"><h1>{title}</h1></div>}
-function SceneView({scene,onBack}:{scene:Row,onBack:()=>void}){const [obs,setObs]=useState<Row>({objects:[]});const [tab,setTab]=useState('2D');const [tripwires,setTripwires]=useState<Row[]>([]);const [tripName,setTripName]=useState('');const [points,setPoints]=useState<number[][]>([]);const [pose,setPose]=useState('{"translation":[0,0,0],"rotation":[0,0,0],"scale":[1,1,1]}');const [error,setError]=useState('');const [history,setHistory]=useState<Row[]>([]);const [trends,setTrends]=useState<Row[]>([]);useEffect(()=>{let active=true;const load=()=>void apiFetch<Row>(`/api/v2/scenes/${idOf(scene)}/live`).then(v=>active&&setObs(v)).catch(()=>{});load();const t=setInterval(load,1000);void apiFetch<Row[]>('/api/v2/tripwires').then(x=>setTripwires(x.filter(t=>t.scene===idOf(scene))));return()=>{active=false;clearInterval(t)}},[scene]);const saveTrip=async()=>{if(points.length<2)return;const item=await apiFetch<Row>('/api/v2/tripwires',{method:'POST',body:JSON.stringify({name:tripName||'Tripwire',scene:idOf(scene),points})});setTripwires(v=>[...v,item]);setTripName('');setPoints([])};const savePose=async()=>{setError('');try{const cameras=await apiFetch<Row[]>('/api/v2/cameras');const c=cameras.find(x=>x.scene===idOf(scene));if(!c)throw new Error('No camera configured');await apiFetch(`/api/v2/cameras/${idOf(c)}?revision=${c.revision}`,{method:'PUT',body:JSON.stringify(JSON.parse(pose))})}catch(e){setError(String(e))}};const loadHistory=()=>void apiFetch<Row[]>(`/api/v2/scenes/${idOf(scene)}/history`).then(setHistory);const loadTrends=()=>void apiFetch<Row[]>(`/api/v2/scenes/${idOf(scene)}/trends`).then(setTrends);return <><button className="btn" onClick={onBack}>Back</button><Header title={nameOf(scene)}/><div className="tabs">{['2D','3D','Geometry','Camera calibration','History & replay','Trends & analytics'].map(x=><button key={x} className="btn" onClick={()=>setTab(x)}>{x}</button>)}</div>{tab==='2D'&&<svg className="native-svg scene-svg" viewBox="0 0 100 70">{(obs.objects??[]).map((o:Row,i:number)=><circle key={o.id??i} cx={(o.translation?.[0]??i*2)*10} cy={(o.translation?.[1]??i*2)*10} r="2"/>)}</svg>}{tab==='3D'&&<div className="three-view error-box">WebGL is unavailable in this verified fallback. The native route remains active.</div>}{tab==='Geometry'&&<div className="geometry-editor"><button className="btn" onClick={()=>{setTripName('');setPoints([])}}>New tripwire</button><label>Name<input aria-label="Name" value={tripName} onChange={e=>setTripName(e.target.value)}/></label><svg className="native-svg scene-svg" viewBox="0 0 100 70" onClick={e=>{const b=(e.currentTarget as SVGSVGElement).getBoundingClientRect();setPoints(p=>[...p,[((e.clientX-b.left)/b.width)*10,((e.clientY-b.top)/b.height)*7]])}}>{points.map((p,i)=><circle key={i} cx={p[0]*10} cy={p[1]*10} r="1.5"/>)}</svg><button className="btn" onClick={()=>void saveTrip()}>Save to scene</button><div>{tripwires.map(t=><button className="btn" key={idOf(t)}>{nameOf(t)}</button>)}</div></div>}{tab==='Camera calibration'&&<div className="calibration-workspace"><label>Camera pose: translation, rotation, scale<textarea aria-label="Camera pose: translation, rotation, scale" value={pose} onChange={e=>setPose(e.target.value)}/></label><button className="btn" onClick={()=>void savePose()}>Save camera pose</button>{error&&<div className="error-box">{error}</div>}</div>}{tab==='History & replay'&&<div><button className="btn" onClick={loadHistory}>Load history</button>{history.length>0&&<><input type="range" min="0" max={Math.max(0,history.length-1)}/><div>{history.length} persisted samples</div></>}</div>}{tab==='Trends & analytics'&&<div><button className="btn" onClick={loadTrends}>Apply range</button><div className="table-wrap"><table><tbody>{trends.map((r,i)=><tr key={i}><td>{r.bucket}</td><td>{r.average_objects}</td><td>{r.samples}</td></tr>)}</tbody></table></div></div>}</>}
-function Inventory({title,kind}:{title:string,kind:string}){const [rows,setRows]=useState<Row[]>([]);const [q,setQ]=useState('');useEffect(()=>{void apiFetch<Row[]>(`/api/v2/${kind}`).then(setRows)},[kind]);const out=useMemo(()=>rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q.toLowerCase())),[rows,q]);return <><Header title={title}/><input placeholder={`Search ${title}`} value={q} onChange={e=>setQ(e.target.value)}/>{out.length?<div className="table-wrap"><table><tbody>{out.map(r=><tr key={idOf(r)}><td>{nameOf(r)}</td><td>{idOf(r)}</td></tr>)}</tbody></table></div>:<div>No matching resources</div>}</>}
-function Incidents(){const [rows,setRows]=useState<Row[]>([]);const [selected,setSelected]=useState<Row|null>(null);const [status,setStatus]=useState('new');const [note,setNote]=useState('');const load=()=>void apiFetch<Row[]>('/api/v2/incidents').then(setRows);useEffect(load,[]);const open=(r:Row)=>{setSelected(r);setStatus(r.status)};const save=async()=>{if(!selected)return;const r=await apiFetch<Row>(`/api/v2/incidents/${selected.id}/action`,{method:'POST',body:JSON.stringify({status,note})});setSelected({...selected,...r});load()};return <><Header title="Incidents"/>{selected?<div className="incident-detail"><label>Status<select aria-label="Status" value={status} onChange={e=>setStatus(e.target.value)}><option>new</option><option>acknowledged</option><option>investigating</option><option>resolved</option></select></label><label>Note<textarea aria-label="Note" value={note} onChange={e=>setNote(e.target.value)}/></label><button className="btn" onClick={()=>void save()}>Save action</button><p>{selected.status}</p></div>:rows.map(r=><div className="panel" key={r.id}><b>{r.title}</b><button className="btn" onClick={()=>open(r)}>Open incident</button></div>)}</>}
-export default function App(){const auth=useAuth();const [route,setRoute]=useState(hash());const [theme,setTheme]=useState<Theme>(savedTheme());const [scenes,setScenes]=useState<Row[]>([]);useEffect(()=>{const f=()=>setRoute(hash());addEventListener('hashchange',f);return()=>removeEventListener('hashchange',f)},[]);useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('scenescape-theme',theme)},[theme]);useEffect(()=>{if(auth.authenticated)void apiFetch<Row[]>('/api/v2/scenes').then(setScenes)},[auth.authenticated]);if(!auth.ready)return <div>Securing SceneScape</div>;if(!auth.authenticated)return <button onClick={()=>void auth.login()}>Try sign in again</button>;const match=route.match(/^scene\/(.+)$/);if(match){const s=scenes.find(x=>idOf(x)===match[1]);if(s)return <Shell theme={theme} setTheme={setTheme} auth={auth}><SceneView scene={s} onBack={()=>go('overview')}/></Shell>}let page:React.ReactNode;if(route==='incidents')page=<Incidents/>;else if(route==='scenes')page=<Inventory title="Sites, floors & scenes" kind="scenes"/>;else if(route==='cameras')page=<Inventory title="Cameras" kind="cameras"/>;else if(route==='sensors')page=<Inventory title="Sensors" kind="sensors"/>;else page=<><Header title="Shift overview"/><div className="card-grid">{scenes.map(s=><section className="panel" key={idOf(s)}><h2>{nameOf(s)}</h2><button className="btn" onClick={()=>go(`scene/${idOf(s)}`)}>Open live view</button></section>)}</div></>;return <Shell theme={theme} setTheme={setTheme} auth={auth}>{page}</Shell>}
-function Shell({children,theme,setTheme,auth}:{children:React.ReactNode;theme:Theme;setTheme:(t:Theme)=>void;auth:any}){return <div className="app-shell"><aside><b>SceneScape</b><button onClick={()=>go('overview')}>Shift overview</button><button onClick={()=>go('incidents')}>Incidents</button><button onClick={()=>go('scenes')}>Sites, floors & scenes</button><button onClick={()=>go('cameras')}>Cameras</button><button onClick={()=>go('sensors')}>Sensors</button></aside><div className="content-shell"><header><select aria-label="Visual theme" value={theme} onChange={e=>setTheme(e.target.value as Theme)}>{themes.map(t=><option key={t} value={t}>{t}</option>)}</select><span>{auth.displayName}</span></header><main>{children}</main></div></div>}
+import { useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
+import { apiFetch, apiObjectUrl } from './api/client'
+import { useAuth } from './auth/AuthProvider'
+import ThreeScene from './native/ThreeScene'
+
+type Row = Record<string, any>
+type Theme = 'light' | 'light-air' | 'dark' | 'dark-command'
+type Overview = { generated_at: string; counts: Record<string, number>; health: Record<string, string | null> }
+type Bundle = { scene: Row; cameras: Row[]; sensors: Row[]; regions: Row[]; tripwires: Row[]; children: Row[]; markers: Row[] }
+
+const operations = [
+  ['overview', 'Shift overview'], ['live', 'Live scenes'], ['incidents', 'Incidents'],
+  ['history', 'History & replay'], ['trends', 'Trends & analytics'], ['health', 'Feed & service health'],
+] as const
+const configuration = [
+  ['scenes', 'Sites, floors & scenes'], ['cameras', 'Cameras'], ['sensors', 'Sensors'], ['zones', 'Zones & tripwires'],
+] as const
+const themes: Array<{ value: Theme; label: string }> = [
+  { value: 'light', label: 'Light' }, { value: 'light-air', label: 'Light Air' },
+  { value: 'dark', label: 'Dark' }, { value: 'dark-command', label: 'Dark Command' },
+]
+
+const route = () => window.location.hash.replace(/^#\/?/, '') || 'overview'
+const go = (value: string) => { window.location.hash = `#/${value}` }
+const rowId = (row: Row) => String(row.uid ?? row.id ?? row.uuid ?? row.sensor_id ?? '')
+const rowName = (row: Row) => String(row.name ?? row.title ?? row.sensor_id ?? row.uid ?? row.id ?? 'Unnamed')
+const text = (value: unknown) => value === null || value === undefined || value === '' ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value)
+const initialTheme = (): Theme => {
+  const saved = localStorage.getItem('scenescape-theme')
+  if (themes.some((theme) => theme.value === saved)) return saved as Theme
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+const editablePayload = (row: Row) => {
+  const copy = { ...row }
+  delete copy.kind
+  delete copy.revision
+  return copy
+}
+
+function Header({ title, kicker, children }: { title: string; kicker: string; children?: ReactNode }) {
+  return <div className="page-header"><div><div className="kicker">{kicker}</div><h1>{title}</h1></div><div className="header-actions">{children}</div></div>
+}
+
+function Map2D({ bundle, live, onPoint }: { bundle: Bundle; live: Row; onPoint?: (point: number[]) => void }) {
+  const scene = bundle.scene
+  const [mapUrl, setMapUrl] = useState('')
+  const [size, setSize] = useState<[number, number]>([1000, 700])
+  const mapPath = String(scene.thumbnail || scene.map || '')
+  const scale = Math.max(1, Number(scene.scale || 100))
+
+  useEffect(() => {
+    let alive = true
+    let url = ''
+    if (!mapPath.startsWith('/media/')) { setMapUrl(''); return }
+    void apiObjectUrl(mapPath).then((value) => {
+      if (!alive) { URL.revokeObjectURL(value); return }
+      url = value
+      setMapUrl(value)
+      const image = new Image()
+      image.onload = () => alive && setSize([Math.max(1, image.naturalWidth), Math.max(1, image.naturalHeight)])
+      image.src = value
+    }).catch(() => setMapUrl(''))
+    return () => { alive = false; if (url) URL.revokeObjectURL(url) }
+  }, [mapPath])
+
+  const xy = (point: any): [number, number] => {
+    const x = Number(point?.[0] || 0) * scale
+    const y = size[1] - Number(point?.[1] || 0) * scale
+    return [x, y]
+  }
+  const points = (rows: Row[]) => rows.map((row) => (row.points || []).map((p: any) => xy(p).join(',')).join(' '))
+  const regionPoints = points(bundle.regions)
+  const tripPoints = points(bundle.tripwires)
+
+  return <div className="map-frame">
+    <svg className="native-map" viewBox={`0 0 ${size[0]} ${size[1]}`} onClick={(event) => {
+      if (!onPoint) return
+      const rect = event.currentTarget.getBoundingClientRect()
+      const px = ((event.clientX - rect.left) / rect.width) * size[0]
+      const py = ((event.clientY - rect.top) / rect.height) * size[1]
+      onPoint([px / scale, (size[1] - py) / scale])
+    }}>
+      {mapUrl && <image href={mapUrl} x="0" y="0" width={size[0]} height={size[1]} preserveAspectRatio="none" />}
+      {bundle.regions.map((row, i) => regionPoints[i] && <polygon key={rowId(row) || i} points={regionPoints[i]} className="region-shape" />)}
+      {bundle.tripwires.map((row, i) => tripPoints[i] && <polyline key={rowId(row) || i} points={tripPoints[i]} className="tripwire-line" />)}
+      {bundle.cameras.map((camera, i) => {
+        const [x, y] = xy(camera.translation || [i + 1, i + 1])
+        return <g key={rowId(camera) || i}><circle cx={x} cy={y} r="8" className="camera-dot"/><text x={x + 11} y={y - 7} className="map-label">{rowName(camera)}</text></g>
+      })}
+      {(live.objects || []).map((object: Row, i: number) => {
+        const [x, y] = xy(object.translation || [i + 1, i + 1])
+        return <g key={String(object.id ?? i)}><circle cx={x} cy={y} r="7" className="track-dot"/><text x={x + 10} y={y + 4} className="map-label">{String(object.category || object.id || 'object')}</text></g>
+      })}
+    </svg>
+    {!mapUrl && <div className="map-watermark">No protected scene map is available; geometry and live coordinates are still shown.</div>}
+  </div>
+}
+
+function SceneWorkspace({ scene, onBack }: { scene: Row; onBack: () => void }) {
+  const [bundle, setBundle] = useState<Bundle | null>(null)
+  const [live, setLive] = useState<Row>({ objects: [], stale: true })
+  const [tab, setTab] = useState('Live 2D')
+  const [tripName, setTripName] = useState('')
+  const [drawn, setDrawn] = useState<number[][]>([])
+  const [pose, setPose] = useState('')
+  const [history, setHistory] = useState<Row[]>([])
+  const [trends, setTrends] = useState<Row[]>([])
+  const [message, setMessage] = useState('')
+  const id = rowId(scene)
+
+  const loadBundle = () => void apiFetch<Bundle>(`/api/v2/scenes/${id}/bundle`).then((value) => {
+    setBundle(value)
+    const camera = value.cameras[0]
+    if (camera) setPose(JSON.stringify({ translation: camera.translation ?? [0,0,0], rotation: camera.rotation ?? [0,0,0], scale: camera.scale ?? [1,1,1] }, null, 2))
+  }).catch((e) => setMessage(String(e)))
+
+  useEffect(() => {
+    loadBundle()
+    let active = true
+    const refresh = () => void apiFetch<Row>(`/api/v2/scenes/${id}/live`).then((value) => active && setLive(value)).catch(() => {})
+    refresh()
+    const timer = window.setInterval(refresh, 1000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [id])
+
+  if (!bundle) return <><button className="btn" onClick={onBack}>← Back to scenes</button><div className="center-panel">Loading native scene workspace…{message && <div className="error-box">{message}</div>}</div></>
+  const mapPath = String(bundle.scene.thumbnail || bundle.scene.map || '')
+
+  const saveTripwire = async () => {
+    if (drawn.length < 2) { setMessage('Click at least two points on the map.'); return }
+    await apiFetch('/api/v2/tripwires', { method: 'POST', body: JSON.stringify({ name: tripName || 'Tripwire', scene: id, points: drawn }) })
+    setDrawn([]); setTripName(''); setMessage('Tripwire saved.'); loadBundle()
+  }
+  const savePose = async () => {
+    const camera = bundle.cameras[0]
+    if (!camera) { setMessage('No camera is configured for this scene.'); return }
+    try {
+      await apiFetch(`/api/v2/cameras/${rowId(camera)}?revision=${camera.revision}`, { method: 'PUT', body: JSON.stringify(JSON.parse(pose)) })
+      setMessage('Camera pose saved.'); loadBundle()
+    } catch (e) { setMessage(String(e)) }
+  }
+
+  return <>
+    <Header kicker="Operations · native scene workspace" title={rowName(bundle.scene)}>
+      <button className="btn" onClick={onBack}>← All scenes</button>
+      <span className={live.stale ? 'status-pill warning-pill' : 'status-pill ok-pill'}>{live.stale ? 'No live feed' : `${(live.objects || []).length} live objects`}</span>
+    </Header>
+    <div className="scene-summary">
+      <div><span>Scene ID</span><b>{id}</b></div><div><span>Cameras</span><b>{bundle.cameras.length}</b></div><div><span>Sensors</span><b>{bundle.sensors.length}</b></div><div><span>Spatial rules</span><b>{bundle.regions.length + bundle.tripwires.length}</b></div>
+    </div>
+    <div className="tabs">{['Live 2D','Live 3D','Geometry','Camera calibration','History & replay','Trends & analytics'].map((name) => <button key={name} className={tab === name ? 'btn active-tab' : 'btn'} onClick={() => setTab(name)}>{name}</button>)}</div>
+    {message && <div className="notice-box">{message}</div>}
+    {tab === 'Live 2D' && <Map2D bundle={bundle} live={live}/>} 
+    {tab === 'Live 3D' && <ThreeScene mapPath={mapPath} objects={live.objects || []} scale={Number(bundle.scene.scale || 100)}/>} 
+    {tab === 'Geometry' && <div className="workspace-grid"><section className="panel"><div className="panel-title"><div><h2>Draw tripwire</h2><p>Click points directly on the native scene map.</p></div></div><div className="form-row"><label>Name<input value={tripName} onChange={(e) => setTripName(e.target.value)} /></label><button className="btn" onClick={() => setDrawn([])}>Clear points</button><button className="btn btn-primary" onClick={() => void saveTripwire()}>Save to scene</button></div><Map2D bundle={bundle} live={live} onPoint={(point) => setDrawn((old) => [...old, point])}/><div className="point-strip">{drawn.map((point, i) => <code key={i}>{point.map((v) => v.toFixed(2)).join(', ')}</code>)}</div></section><section className="panel"><div className="panel-title"><div><h2>Configured geometry</h2><p>Persisted through FastAPI.</p></div></div><div className="stack-list">{bundle.regions.map((r) => <div key={rowId(r)}><b>{rowName(r)}</b><span>Region · {(r.points || []).length} points</span></div>)}{bundle.tripwires.map((r) => <div key={rowId(r)}><b>{rowName(r)}</b><span>Tripwire · {(r.points || []).length} points</span></div>)}</div></section></div>}
+    {tab === 'Camera calibration' && <section className="panel editor-panel"><div className="panel-title"><div><h2>Native camera pose</h2><p>{bundle.cameras[0] ? rowName(bundle.cameras[0]) : 'No camera configured'}</p></div></div><textarea aria-label="Camera pose: translation, rotation, scale" value={pose} onChange={(e) => setPose(e.target.value)} /><div className="editor-actions"><button className="btn btn-primary" onClick={() => void savePose()}>Save camera pose</button></div></section>}
+    {tab === 'History & replay' && <section className="panel history-panel"><div className="panel-title"><div><h2>Persisted observations</h2><p>Metadata replay from the native historian.</p></div><button className="btn btn-primary" onClick={() => void apiFetch<Row[]>(`/api/v2/scenes/${id}/history`).then(setHistory)}>Load history</button></div>{history.length > 0 ? <><input type="range" min="0" max={history.length - 1}/><div className="history-list">{history.slice(-12).map((row) => <div key={row.id}><b>{row.timestamp}</b><span>{(row.payload?.objects || []).length} objects</span></div>)}</div></> : <div className="table-empty">No retained samples loaded yet.</div>}</section>}
+    {tab === 'Trends & analytics' && <section className="panel"><div className="panel-title"><div><h2>24-hour object trend</h2><p>Calculated from retained observations, not synthetic data.</p></div><button className="btn btn-primary" onClick={() => void apiFetch<Row[]>(`/api/v2/scenes/${id}/trends`).then(setTrends)}>Apply range</button></div><div className="table-wrap"><table><thead><tr><th>Hour</th><th>Average objects</th><th>Samples</th></tr></thead><tbody>{trends.map((row) => <tr key={row.bucket}><td>{row.bucket}</td><td>{row.average_objects}</td><td>{row.samples}</td></tr>)}</tbody></table>{!trends.length && <div className="table-empty">No trend samples loaded yet.</div>}</div></section>}
+  </>
+}
+
+function Inventory({ kind, label, isAdmin }: { kind: 'scenes'|'cameras'|'sensors'|'regions'|'tripwires'; label: string; isAdmin: boolean }) {
+  const [rows, setRows] = useState<Row[]>([])
+  const [query, setQuery] = useState('')
+  const [selected, setSelected] = useState<Row | null>(null)
+  const [editor, setEditor] = useState('{}')
+  const [error, setError] = useState('')
+  const load = () => void apiFetch<Row[]>(`/api/v2/${kind}`).then(setRows).catch((e) => setError(String(e)))
+  useEffect(load, [kind])
+  const filtered = useMemo(() => rows.filter((row) => JSON.stringify(row).toLowerCase().includes(query.toLowerCase())), [rows, query])
+  const open = (row: Row | null) => { setSelected(row); setEditor(JSON.stringify(row ? editablePayload(row) : { name: '', ...(kind !== 'scenes' ? { scene: '' } : {}) }, null, 2)); setError('') }
+  const save = async () => {
+    try {
+      const body = JSON.parse(editor)
+      if (selected) await apiFetch(`/api/v2/${kind}/${rowId(selected)}?revision=${selected.revision}`, { method: 'PUT', body: JSON.stringify(body) })
+      else await apiFetch(`/api/v2/${kind}`, { method: 'POST', body: JSON.stringify(body) })
+      open(null); setSelected(null); load()
+    } catch (e) { setError(String(e)) }
+  }
+  const remove = async () => {
+    if (!selected || !window.confirm(`Delete ${rowName(selected)} from native configuration?`)) return
+    try { await apiFetch(`/api/v2/${kind}/${rowId(selected)}`, { method: 'DELETE' }); setSelected(null); load() } catch (e) { setError(String(e)) }
+  }
+  return <>
+    <Header kicker="Configuration · control plane" title={label}>{isAdmin && <button className="btn btn-primary" onClick={() => open(null)}>Add native resource</button>}</Header>
+    <div className="toolbar"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${label}`} /><span className="muted">{filtered.length} configured</span></div>
+    {error && <div className="error-box">{error}</div>}
+    <div className="config-grid"><section className="panel table-wrap"><table><thead><tr><th>Name</th><th>Identifier</th><th>Scene / context</th><th></th></tr></thead><tbody>{filtered.map((row) => <tr key={rowId(row) || rowName(row)}><td><b>{rowName(row)}</b></td><td><code>{rowId(row) || '—'}</code></td><td>{text(row.scene ?? row.scene_id ?? row.parent)}</td><td>{kind === 'scenes' ? <button className="text-button" onClick={() => go(`scene/${rowId(row)}`)}>Open</button> : isAdmin ? <button className="text-button" onClick={() => open(row)}>Edit</button> : null}</td></tr>)}</tbody></table>{!filtered.length && <div className="table-empty">No matching resources</div>}</section>{isAdmin && (selected || editor !== '{}') && <section className="panel editor-panel"><div className="panel-title"><div><h2>{selected ? `Edit ${rowName(selected)}` : `New ${label}`}</h2><p>Native JSON editor with revision protection.</p></div></div><textarea value={editor} onChange={(e) => setEditor(e.target.value)} /><div className="editor-actions"><button className="btn" onClick={() => { setSelected(null); setEditor('{}') }}>Close</button>{selected && <button className="btn danger-button" onClick={() => void remove()}>Delete</button>}<button className="btn btn-primary" onClick={() => void save()}>Save</button></div></section>}</div>
+  </>
+}
+
+function Zones({ isAdmin }: { isAdmin: boolean }) {
+  const [regions, setRegions] = useState<Row[]>([])
+  const [tripwires, setTripwires] = useState<Row[]>([])
+  useEffect(() => { void apiFetch<Row[]>('/api/v2/regions').then(setRegions); void apiFetch<Row[]>('/api/v2/tripwires').then(setTripwires) }, [])
+  return <><Header kicker="Configuration · control plane" title="Zones & tripwires"/><div className="metric-grid compact"><div className="metric"><span>Regions</span><strong>{regions.length}</strong><small>Native scene-level areas</small></div><div className="metric"><span>Tripwires</span><strong>{tripwires.length}</strong><small>Native directional boundaries</small></div><div className="metric"><span>Authoring</span><strong className="small-value ok">Native</strong><small>Open a scene → Geometry</small></div></div><div className="workspace-grid"><Inventory kind="regions" label="Regions" isAdmin={isAdmin}/><Inventory kind="tripwires" label="Tripwires" isAdmin={isAdmin}/></div></>
+}
+
+function Incidents() {
+  const [rows, setRows] = useState<Row[]>([])
+  const [selected, setSelected] = useState<Row | null>(null)
+  const [status, setStatus] = useState('new')
+  const [note, setNote] = useState('')
+  const [assignee, setAssignee] = useState('')
+  const load = () => void apiFetch<Row[]>('/api/v2/incidents').then(setRows)
+  useEffect(load, [])
+  const open = (row: Row) => { setSelected(row); setStatus(row.status); setAssignee(row.assignee || ''); setNote('') }
+  const save = async () => {
+    if (!selected) return
+    const value = await apiFetch<Row>(`/api/v2/incidents/${selected.id}/action`, { method: 'POST', body: JSON.stringify({ status, note, assignee }) })
+    setSelected({ ...selected, ...value }); load()
+  }
+  return <><Header kicker="Operations · data plane" title="Incidents"/><div className="incident-layout"><section className="panel incident-list">{rows.map((row) => <button key={row.id} onClick={() => open(row)} className={selected?.id === row.id ? 'incident-row active' : 'incident-row'}><b>{row.title}</b><span>{row.status} · {row.scene_id || 'global'}</span></button>)}{!rows.length && <div className="table-empty">No analytics incidents have been retained yet.</div>}</section>{selected && <section className="panel incident-detail"><div className="panel-title"><div><h2>{selected.title}</h2><p>Incident #{selected.id}</p></div></div><label>Status<select value={status} onChange={(e) => setStatus(e.target.value)}><option>new</option><option>acknowledged</option><option>investigating</option><option>resolved</option><option>reopened</option></select></label><label>Assignee<input value={assignee} onChange={(e) => setAssignee(e.target.value)}/></label><label>Note<textarea value={note} onChange={(e) => setNote(e.target.value)}/></label><button className="btn btn-primary" onClick={() => void save()}>Save action</button><div className="audit-list">{(selected.audit || []).slice().reverse().map((entry: Row, i: number) => <div key={i}><b>{entry.status || entry.action}</b><span>{entry.at} · {entry.by || 'system'}</span></div>)}</div></section>}</div></>
+}
+
+function SceneAnalytics({ scenes, mode }: { scenes: Row[]; mode: 'history'|'trends' }) {
+  const [sceneId, setSceneId] = useState('')
+  const [rows, setRows] = useState<Row[]>([])
+  useEffect(() => { if (!sceneId && scenes[0]) setSceneId(rowId(scenes[0])) }, [scenes])
+  const load = () => sceneId && void apiFetch<Row[]>(`/api/v2/scenes/${sceneId}/${mode}`).then(setRows)
+  return <><Header kicker="Operations · data plane" title={mode === 'history' ? 'History & replay' : 'Trends & analytics'}><select value={sceneId} onChange={(e) => setSceneId(e.target.value)}>{scenes.map((scene) => <option key={rowId(scene)} value={rowId(scene)}>{rowName(scene)}</option>)}</select><button className="btn btn-primary" onClick={load}>Load</button></Header><section className="panel table-wrap"><table><thead><tr>{mode === 'history' ? <><th>Timestamp</th><th>Objects</th><th>Sample ID</th></> : <><th>Hour</th><th>Average objects</th><th>Samples</th></>}</tr></thead><tbody>{rows.map((row) => mode === 'history' ? <tr key={row.id}><td>{row.timestamp}</td><td>{(row.payload?.objects || []).length}</td><td>{row.id}</td></tr> : <tr key={row.bucket}><td>{row.bucket}</td><td>{row.average_objects}</td><td>{row.samples}</td></tr>)}</tbody></table>{!rows.length && <div className="table-empty">Load a scene to inspect retained native data.</div>}</section></>
+}
+
+function App() {
+  const auth = useAuth()
+  const [path, setPath] = useState(route())
+  const [theme, setTheme] = useState<Theme>(initialTheme)
+  const [overview, setOverview] = useState<Overview | null>(null)
+  const [scenes, setScenes] = useState<Row[]>([])
+  const [apiError, setApiError] = useState('')
+
+  const refresh = () => {
+    setApiError('')
+    void apiFetch<Overview>('/api/v2/overview').then(setOverview).catch((e) => setApiError(String(e)))
+    void apiFetch<Row[]>('/api/v2/scenes').then(setScenes).catch((e) => setApiError(String(e)))
+  }
+  useEffect(() => { const listener = () => setPath(route()); addEventListener('hashchange', listener); return () => removeEventListener('hashchange', listener) }, [])
+  useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('scenescape-theme', theme) }, [theme])
+  useEffect(() => { if (auth.authenticated) refresh() }, [auth.authenticated])
+
+  if (!auth.ready) return <div className="center-state"><div className="spinner"/><h1>Securing SceneScape</h1><p>Establishing your Keycloak session…</p></div>
+  if (!auth.authenticated) return <div className="center-state"><h1>Identity service unavailable</h1><p>Verify the Keycloak realm/client configuration.</p><button className="btn btn-primary" onClick={() => void auth.login()}>Try sign in again</button></div>
+
+  const sceneMatch = path.match(/^scene\/(.+)$/)
+  const activeScene = sceneMatch ? scenes.find((scene) => rowId(scene) === sceneMatch[1]) : undefined
+  let page: ReactNode
+  if (sceneMatch && activeScene) page = <SceneWorkspace scene={activeScene} onBack={() => go('live')}/>
+  else if (path === 'live') page = <><Header kicker="Operations · data plane" title="Live scenes"><button className="btn" onClick={refresh}>Refresh</button></Header><div className="card-grid">{scenes.map((scene) => <section className="panel scene-card" key={rowId(scene)}><div className="mini-scene"><div className="floor-shape"/><span className="track track-a"/><span className="track track-b"/></div><h2>{rowName(scene)}</h2><code>{rowId(scene)}</code><div className="scene-meta"><span>{scene.map ? 'Map configured' : 'No map'}</span><span>{scene.scale ? `${scene.scale} px/m` : 'Scale unknown'}</span></div><button className="btn btn-primary full" onClick={() => go(`scene/${rowId(scene)}`)}>Open native 2D / 3D scene</button></section>)}</div>{!scenes.length && <div className="empty-state"><h2>No native scenes yet</h2><p>Run <code>./scenescape.sh recover-legacy-data</code> to copy existing Django configuration, or <code>./scenescape.sh seed-native-data</code> for the upstream Retail sample.</p></div>}</>
+  else if (path === 'incidents') page = <Incidents/>
+  else if (path === 'history') page = <SceneAnalytics scenes={scenes} mode="history"/>
+  else if (path === 'trends') page = <SceneAnalytics scenes={scenes} mode="trends"/>
+  else if (path === 'health') page = <><Header kicker="Operations · data plane" title="Feed & service health"><button className="btn" onClick={refresh}>Refresh</button></Header><div className="metric-grid compact"><div className="metric"><span>Native API</span><strong className="small-value ok">Connected</strong><small>FastAPI /api/v2</small></div><div className="metric"><span>Database</span><strong className="small-value ok">{overview?.health.database || 'Unknown'}</strong><small>PostgreSQL/native tables</small></div><div className="metric"><span>MQTT historian</span><strong className="small-value">{overview?.health.mqtt || 'Unknown'}</strong><small>Last observation: {overview?.health.last_observation || 'none'}</small></div></div></>
+  else if (path === 'scenes') page = <Inventory kind="scenes" label="Sites, floors & scenes" isAdmin={auth.isAdmin}/>
+  else if (path === 'cameras') page = <Inventory kind="cameras" label="Cameras" isAdmin={auth.isAdmin}/>
+  else if (path === 'sensors') page = <Inventory kind="sensors" label="Sensors" isAdmin={auth.isAdmin}/>
+  else if (path === 'zones') page = <Zones isAdmin={auth.isAdmin}/>
+  else if (path === 'settings') page = <><Header kicker="Administration" title="Access & native migration"/><section className="panel settings-list"><div><b>Signed in as</b><span>{auth.displayName}{auth.email ? ` · ${auth.email}` : ''}</span></div><div><b>Roles</b><span>{auth.roles.filter((role) => role.startsWith('scenescape-')).join(', ') || 'authenticated'}</span></div><div><b>Browser backend</b><span>FastAPI /api/v2/* only; no Django page fallback.</span></div><div><b>Recover existing data</b><code>./scenescape.sh recover-legacy-data</code></div><div><b>Load upstream sample</b><code>./scenescape.sh seed-native-data</code></div></section></>
+  else page = <><Header kicker="Operations · data plane" title="Shift overview"><button className="btn" onClick={refresh}>Refresh</button></Header>{apiError && <div className="error-box">{apiError}</div>}<div className="metric-grid"><button className="metric actionable" onClick={() => go('live')}><span>Active scenes</span><strong>{overview?.counts.scenes ?? scenes.length}</strong><small>Open native scene workspace →</small></button><button className="metric actionable" onClick={() => go('cameras')}><span>Camera inputs</span><strong>{overview?.counts.cameras ?? 0}</strong><small>Inspect native configuration →</small></button><button className="metric actionable" onClick={() => go('zones')}><span>Spatial rules</span><strong>{(overview?.counts.regions ?? 0) + (overview?.counts.tripwires ?? 0)}</strong><small>Regions + tripwires →</small></button><button className="metric actionable" onClick={() => go('incidents')}><span>Incidents</span><strong>{overview?.counts.incidents ?? 0}</strong><small>Durable operator workflow →</small></button></div><div className="workspace-grid"><section className="panel scene-panel"><div className="panel-title"><div><h2>Native live scene workspace</h2><p>2D maps, live objects, geometry, calibration and WebGL 3D without Django navigation.</p></div><button className="btn" onClick={() => go('live')}>All scenes</button></div><div className="scene-canvas"><div className="floor-shape"/><div className="zone-shape"/><span className="track track-a"/><span className="track track-b"/><span className="tripwire-shape"/><div className="coverage-note">{scenes.length ? `${scenes.length} scene(s) available in native configuration` : 'No native scene data yet — recover or seed it from Administration'}</div></div></section><section className="panel incident-panel"><div className="panel-title"><div><h2>Operator attention</h2><p>Current native runtime state.</p></div></div><div className="attention-card"><b>MQTT historian</b><span>{overview?.health.mqtt || 'Unknown'} · {(overview?.counts.observations ?? 0)} retained observations</span></div><div className="attention-card"><b>Keycloak session</b><span>{auth.displayName} · {auth.isAdmin ? 'Administrator' : 'Operator'}</span></div><div className="attention-card"><b>Native configuration</b><span>{scenes.length ? 'Scene data available' : 'Recover existing legacy data or load the Retail sample'}</span></div><button className="btn btn-primary full" onClick={() => go('health')}>Open health workspace</button></section></div><section className="panel"><div className="panel-title"><div><h2>Configured scenes</h2><p>All actions remain inside the React/FastAPI application.</p></div></div><div className="scene-list">{scenes.slice(0, 8).map((scene) => <div className="scene-row" key={rowId(scene)}><div><b>{rowName(scene)}</b><span>{rowId(scene)}</span></div><button className="btn" onClick={() => go(`scene/${rowId(scene)}`)}>Open native scene</button></div>)}{!scenes.length && <div className="table-empty">No scenes imported into native tables yet.</div>}</div></section></>
+
+  return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark">S</div><div><b>SceneScape</b><span>Native operations console</span></div></div><div className="nav-label">Operations · data plane</div>{operations.map(([key, label]) => <button key={key} className={path === key ? 'nav-item active' : 'nav-item'} onClick={() => go(key)}>{label}</button>)}<div className="nav-label">Configuration · control plane</div>{configuration.map(([key, label]) => <button key={key} className={path === key ? 'nav-item active' : 'nav-item'} onClick={() => go(key)}>{label}</button>)}<div className="nav-label">Administration</div><button className={path === 'settings' ? 'nav-item active' : 'nav-item'} onClick={() => go('settings')}>Access & migration</button></aside><div className="content-shell"><header className="topbar"><div className="environment"><span className="status-dot"/>SceneScape 2026.2.0 · Native</div><div className="top-actions"><label className="theme-picker"><span>Theme</span><select aria-label="Visual theme" value={theme} onChange={(e) => setTheme(e.target.value as Theme)}>{themes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><div className="identity"><b>{auth.displayName}</b><span>{auth.isAdmin ? 'Administrator' : 'Operator'}</span></div><button className="btn" onClick={() => void auth.logout()}>Sign out</button></div></header><main>{page}</main></div></div>
+}
+
+export default App

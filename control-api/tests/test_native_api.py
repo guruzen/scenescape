@@ -65,3 +65,51 @@ def test_legacy_import_rolls_back_on_bad_snapshot(tmp_path, monkeypatch):
     with d.sessions()() as db:
         from scenescape_api.resources import list_resources
         assert list_resources(db,'scene')==[]
+
+def test_nested_scene_sample_imports_scene_and_cameras(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch)
+    from scenescape_api.migrate_legacy import migrate
+    migrate({
+        'uid':'scene-retail','name':'Retail','map':'/media/floor.png','scale':100,
+        'cameras':[{'uid':'camera1','name':'camera1','translation':[1,2,3]}],
+        'regions':[{'uid':'region1','name':'Zone','points':[[1,1],[2,1],[2,2]]}],
+        'tripwires':[{'uid':'trip1','name':'Door','points':[[1,1],[2,2]]}],
+    })
+    h=headers(client)
+    scenes=client.get('/api/v2/scenes',headers=h).json()
+    cameras=client.get('/api/v2/cameras',headers=h).json()
+    assert [x['uid'] for x in scenes]==['scene-retail']
+    assert cameras[0]['scene']=='scene-retail'
+    bundle=client.get('/api/v2/scenes/scene-retail/bundle',headers=h).json()
+    assert bundle['scene']['name']=='Retail'
+    assert bundle['cameras'][0]['uid']=='camera1'
+    assert bundle['regions'][0]['uid']=='region1'
+    assert bundle['tripwires'][0]['uid']=='trip1'
+
+
+def test_native_resource_delete_requires_admin_and_deletes(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    created=client.post('/api/v2/sensors',headers=h,json={'uid':'s1','name':'Sensor 1'}); assert created.status_code==200
+    deleted=client.delete('/api/v2/sensors/s1',headers=h); assert deleted.status_code==200
+    assert client.get('/api/v2/sensors/s1',headers=h).status_code==404
+
+
+def test_calibrationmarkers_legacy_spelling_is_imported(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch)
+    from scenescape_api.migrate_legacy import migrate
+    migrate({'scenes':[{'uid':'s1','name':'Scene'}], 'calibrationmarkers':[{'marker_id':'m1','scene':'s1','apriltag_id':12}]})
+    h=headers(client)
+    markers=client.get('/api/v2/markers',headers=h).json()
+    assert len(markers)==1 and markers[0]['marker_id']=='m1'
+
+def test_viewer_scene_scope_filters_resources(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); admin=headers(client)
+    for uid in ('a','b'):
+        assert client.post('/api/v2/scenes',headers=admin,json={'uid':uid,'name':uid.upper()}).status_code==200
+        assert client.post('/api/v2/cameras',headers=admin,json={'uid':'cam-'+uid,'name':'Cam '+uid,'scene':uid}).status_code==200
+    import time, jwt
+    viewer=jwt.encode({'sub':'viewer','name':'Viewer','roles':['scenescape-viewer'],'scenes':['a'],'iat':int(time.time()),'exp':int(time.time())+300,'aud':'scenescape-api'},'test-signing-key-abcdefghijklmnopqrstuvwxyz',algorithm='HS256')
+    h={'Authorization':'Bearer '+viewer}
+    scenes=client.get('/api/v2/scenes',headers=h).json(); assert [x['uid'] for x in scenes]==['a']
+    cameras=client.get('/api/v2/cameras',headers=h).json(); assert [x['uid'] for x in cameras]==['cam-a']
+    assert client.get('/api/v2/scenes/b/bundle',headers=h).status_code==403

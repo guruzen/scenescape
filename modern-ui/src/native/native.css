@@ -1,1 +1,3 @@
 .geometry-editor,.calibration-workspace{display:grid;gap:10px}.three-view{min-height:260px;display:grid;place-items:center}.geometry-editor .native-svg{cursor:crosshair}
+
+.three-surface{position:absolute;inset:0}
