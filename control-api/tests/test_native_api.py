@@ -601,3 +601,33 @@ def test_singleton_sensor_rejects_blank_explicit_id(tmp_path, monkeypatch):
     client,d=boot(tmp_path,monkeypatch); h=headers(client)
     r=client.post('/api/v2/sensors',headers=h,json={'sensor_id':'','name':'Blank ID Sensor'})
     assert r.status_code==400
+
+
+def test_scene_delete_orphans_sensors_and_cameras(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    scene=client.post('/api/v2/scenes',headers=h,json={'uid':'delete-scene','name':'Delete Scene'})
+    assert scene.status_code==200
+    cam=client.post('/api/v2/cameras',headers=h,json={'uid':'delete-cam','name':'Delete Camera','scene':'delete-scene'})
+    assert cam.status_code==200
+    sensor=client.post('/api/v2/sensors',headers=h,json={
+        'sensor_id':'delete-sensor','name':'Delete Sensor','scene':'delete-scene',
+        'area':'poly','points':[[0,0],[1,0],[1,1]],
+    })
+    assert sensor.status_code==200
+    region=client.post('/api/v2/regions',headers=h,json={
+        'uid':'delete-region','name':'Delete Region','scene':'delete-scene','points':[[0,0],[1,0],[1,1]]
+    })
+    assert region.status_code==200
+    trip=client.post('/api/v2/tripwires',headers=h,json={
+        'uid':'delete-trip','name':'Delete Trip','scene':'delete-scene','points':[[0,0],[1,1]]
+    })
+    assert trip.status_code==200
+
+    deleted=client.delete('/api/v2/scenes/delete-scene',headers=h)
+    assert deleted.status_code==200
+    orphan_sensor=client.get('/api/v2/sensors/delete-sensor',headers=h)
+    orphan_camera=client.get('/api/v2/cameras/delete-cam',headers=h)
+    assert orphan_sensor.status_code==200 and orphan_sensor.json().get('scene') is None
+    assert orphan_camera.status_code==200 and orphan_camera.json().get('scene') is None
+    assert client.get('/api/v2/regions/delete-region',headers=h).status_code==404
+    assert client.get('/api/v2/tripwires/delete-trip',headers=h).status_code==404
