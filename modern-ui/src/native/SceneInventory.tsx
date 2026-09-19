@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, useMemo, useState } from 'react'
 import { apiBlob, apiFetch } from '../api/client'
 import GeospatialMap from './GeospatialMap'
@@ -24,6 +27,16 @@ const defaultScene = {
   mesh_rotation: [0, 0, 0],
   mesh_scale: [1, 1, 1],
   trs_matrix: null,
+  regulated_rate: 30,
+  external_update_rate: 30,
+  camera_calibration: 'Manual',
+  apriltag_size: 0.162,
+  number_of_localizations: 50,
+  global_feature: 'netvlad',
+  local_feature: { sift: {} },
+  matcher: { 'NN-ratio': {} },
+  minimum_number_of_matches: 20,
+  inlier_threshold: 0.5,
 }
 
 function parseJson(label: string, raw: string, fallback: unknown) {
@@ -38,6 +51,8 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
   const [draft, setDraft] = useState<Row>({ ...defaultScene })
   const [corners, setCorners] = useState('null')
   const [trs, setTrs] = useState('null')
+  const [localFeature, setLocalFeature] = useState('{"sift":{}}')
+  const [matcher, setMatcher] = useState('{"NN-ratio":{}}')
   const [translation, setTranslation] = useState('[0,0,0]')
   const [rotation, setRotation] = useState('[0,0,0]')
   const [meshScale, setMeshScale] = useState('[1,1,1]')
@@ -59,6 +74,8 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
     setDraft(value)
     setCorners(jsonText(value.map_corners_lla, null))
     setTrs(jsonText(value.trs_matrix, null))
+    setLocalFeature(jsonText(value.local_feature, { sift: {} }))
+    setMatcher(jsonText(value.matcher, { 'NN-ratio': {} }))
     setTranslation(jsonText(value.mesh_translation, [0,0,0]))
     setRotation(jsonText(value.mesh_rotation, [0,0,0]))
     setMeshScale(jsonText(value.mesh_scale, [1,1,1]))
@@ -94,6 +111,16 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
         mesh_rotation: parseJson('Mesh rotation', rotation, [0,0,0]),
         mesh_scale: parseJson('Mesh scale', meshScale, [1,1,1]),
         trs_matrix: parseJson('TRS matrix', trs, null),
+        regulated_rate: Number(draft.regulated_rate ?? 30),
+        external_update_rate: Number(draft.external_update_rate ?? 30),
+        camera_calibration: String(draft.camera_calibration || 'Manual'),
+        apriltag_size: draft.apriltag_size === null || draft.apriltag_size === '' ? null : Number(draft.apriltag_size),
+        number_of_localizations: draft.number_of_localizations === null || draft.number_of_localizations === '' ? null : Number(draft.number_of_localizations),
+        global_feature: String(draft.global_feature ?? ''),
+        local_feature: parseJson('Local feature', localFeature, { sift: {} }),
+        matcher: parseJson('Matcher', matcher, { 'NN-ratio': {} }),
+        minimum_number_of_matches: draft.minimum_number_of_matches === null || draft.minimum_number_of_matches === '' ? null : Number(draft.minimum_number_of_matches),
+        inlier_threshold: draft.inlier_threshold === null || draft.inlier_threshold === '' ? null : Number(draft.inlier_threshold),
       }
       if (body.scale === null) delete body.scale
       if (body.map_center_lat === null) delete body.map_center_lat
@@ -122,6 +149,8 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
       setDraft(saved)
       setCorners(jsonText(saved.map_corners_lla, null))
       setTrs(jsonText(saved.trs_matrix, null))
+      setLocalFeature(jsonText(saved.local_feature, { sift: {} }))
+      setMatcher(jsonText(saved.matcher, { 'NN-ratio': {} }))
       setTranslation(jsonText(saved.mesh_translation, [0,0,0]))
       setRotation(jsonText(saved.mesh_rotation, [0,0,0]))
       setMeshScale(jsonText(saved.mesh_scale, [1,1,1]))
@@ -315,6 +344,18 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
             }}
           />
           </div>}
+          <div className="scene-subsection"><h3>Advanced tracking & calibration</h3><div className="scene-form-grid">
+            <label>Regulate rate (Hz)<input type="number" min="0.001" step="any" value={draft.regulated_rate ?? 30} onChange={(e)=>field('regulated_rate',numberOrNull(e.target.value))}/></label>
+            <label>Max external update rate (Hz)<input type="number" min="0.001" step="any" value={draft.external_update_rate ?? 30} onChange={(e)=>field('external_update_rate',numberOrNull(e.target.value))}/></label>
+            <label>Calibration type<select value={String(draft.camera_calibration || 'Manual')} onChange={(e)=>field('camera_calibration',e.target.value)}><option value="Manual">Manual</option><option value="AprilTag">AprilTag</option><option value="Markerless">Markerless</option></select></label>
+            <label>AprilTag size (m)<input type="number" step="any" value={draft.apriltag_size ?? ''} onChange={(e)=>field('apriltag_size',numberOrNull(e.target.value))}/></label>
+            <label>Number of localizations<input type="number" step="1" value={draft.number_of_localizations ?? ''} onChange={(e)=>field('number_of_localizations',numberOrNull(e.target.value))}/></label>
+            <label>Global feature algorithm<input value={String(draft.global_feature ?? '')} onChange={(e)=>field('global_feature',e.target.value)}/></label>
+            <label>Minimum number of matches<input type="number" step="1" value={draft.minimum_number_of_matches ?? ''} onChange={(e)=>field('minimum_number_of_matches',numberOrNull(e.target.value))}/></label>
+            <label>Feature match confidence threshold<input type="number" min="0" step="any" value={draft.inlier_threshold ?? ''} onChange={(e)=>field('inlier_threshold',numberOrNull(e.target.value))}/></label>
+            <label className="wide">Local feature configuration<textarea value={localFeature} onChange={(e)=>setLocalFeature(e.target.value)} placeholder='{"sift":{}}'/></label>
+            <label className="wide">Matcher configuration<textarea value={matcher} onChange={(e)=>setMatcher(e.target.value)} placeholder='{"NN-ratio":{}}'/></label>
+          </div></div>
           <div className="scene-subsection"><h3>Map transform</h3><div className="scene-form-grid">
             <label>Translation [x,y,z]<input value={translation} onChange={(e)=>setTranslation(e.target.value)}/></label>
             <label>Rotation° [x,y,z]<input value={rotation} onChange={(e)=>setRotation(e.target.value)}/></label>
