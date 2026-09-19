@@ -26,6 +26,8 @@ def scene_id_from_topic(topic: str) -> str:
         return parts[3]
     if len(parts) >= 4 and parts[:3] == ["scenescape", "data", "scene"]:
         return parts[3]
+    if len(parts) >= 4 and parts[:3] == ["scenescape", "data", "sensor"]:
+        return parts[3]
     if len(parts) >= 4 and parts[:2] == ["scenescape", "event"]:
         return parts[3]
     return ""
