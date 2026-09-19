@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { MouseEvent } from 'react'
 import { apiFetch } from '../api/client'
 import ThreeScene from './ThreeScene'
 
@@ -119,7 +120,7 @@ export default function CameraCalibration({
     }
   }
 
-  const addCameraPoint = (event: React.MouseEvent<HTMLDivElement>) => {
+  const addCameraPoint = (event: MouseEvent<HTMLDivElement>) => {
     if (!frame?.image) return
     const image = event.currentTarget.querySelector('img')
     if (!image) return
@@ -233,9 +234,11 @@ export default function CameraCalibration({
         setFrame(source)
       }
       setMessage('Auto-calibrating camera…')
+      const image = String(source?.image || '')
+      if (!image) throw new Error('Calibration frame did not contain an image.')
       await apiFetch(`/api/v2/autocalibration/cameras/${encodeURIComponent(idOf(camera))}/calibration`, {
         method: 'POST',
-        body: JSON.stringify({ image: source.image, intrinsics: matrixFromIntrinsics(intrinsics) }),
+        body: JSON.stringify({ image, intrinsics: matrixFromIntrinsics(intrinsics) }),
       })
       let result: Row = {}
       for (let i = 0; i < 90; i += 1) {
@@ -315,8 +318,8 @@ export default function CameraCalibration({
     <div className="calibration-panes">
       <section className="panel">
         <div className="panel-title"><div><h2>Camera image</h2><p>Double-click image points in order.</p></div><span className="status-pill">{cameraPoints.length} points</span></div>
-        <div className="camera-cal-frame" onDoubleClick={addCameraPoint}>
-          {frame?.image ? <><img src={`data:image/jpeg;base64,${frame.image}`} alt={nameOf(camera)} onLoad={(e)=>setImageSize([e.currentTarget.naturalWidth,e.currentTarget.naturalHeight])}/><svg viewBox={`0 0 ${imageSize[0]} ${imageSize[1]}`} preserveAspectRatio="none">{cameraPoints.map((point,index)=><g key={index}><circle cx={point[0]} cy={point[1]} r="8" className="calibration-point"/><text x={point[0]+10} y={point[1]-10} className="map-label">{index+1}</text></g>)}</svg></> : <div className="camera-feed-placeholder">Refresh the calibration frame to begin.</div>}
+        <div className="camera-cal-frame">
+          {frame?.image ? <div className="camera-cal-image" onDoubleClick={addCameraPoint}><img src={`data:image/jpeg;base64,${frame.image}`} alt={nameOf(camera)} onLoad={(e)=>setImageSize([e.currentTarget.naturalWidth,e.currentTarget.naturalHeight])}/><svg viewBox={`0 0 ${imageSize[0]} ${imageSize[1]}`} preserveAspectRatio="none">{cameraPoints.map((point,index)=><g key={index}><circle cx={point[0]} cy={point[1]} r="8" className="calibration-point"/><text x={point[0]+10} y={point[1]-10} className="map-label">{index+1}</text></g>)}</svg></div> : <div className="camera-feed-placeholder">Refresh the calibration frame to begin.</div>}
         </div>
       </section>
       <section className="panel">
