@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { MouseEvent } from 'react'
 import { apiFetch, apiObjectUrl } from '../api/client'
 
 type Row = Record<string, any>
@@ -39,7 +40,7 @@ function SensorMapEditor({
     Array.isArray(sensor.translation)?sensor.translation.slice(0,2):null
   )
   const svgPoints=points.map((point)=>xy(point).join(',')).join(' ')
-  const click=(event:React.MouseEvent<SVGSVGElement>)=>{
+  const click=(event:MouseEvent<SVGSVGElement>)=>{
     const rect=event.currentTarget.getBoundingClientRect()
     const px=((event.clientX-rect.left)/Math.max(rect.width,1))*size[0]
     const py=((event.clientY-rect.top)/Math.max(rect.height,1))*size[1]
