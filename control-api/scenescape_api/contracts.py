@@ -20,7 +20,6 @@ SCENE_ALLOWED_FIELDS = {
     "map_zoom", "map_center_lat", "map_center_lng", "map_bearing",
 }
 
-# Serializer/model defaults exposed by the 2026.2.0 REST contract.
 SCENE_DEFAULTS = {
     "map_type": "map_upload",
     "use_tracker": True,
@@ -51,6 +50,30 @@ CAMERA_ALLOWED_FIELDS = {
     "camera_pipeline",
 }
 
+
+ASSET_ALLOWED_FIELDS = {
+    "uid", "name", "x_size", "y_size", "z_size", "tracking_radius",
+    "shift_type", "mark_color", "model_3d", "scale", "project_to_map",
+    "rotation_from_velocity", "rotation_x", "rotation_y", "rotation_z",
+    "translation_x", "translation_y", "translation_z", "x_buffer_size",
+    "y_buffer_size", "z_buffer_size", "geometric_center", "mass",
+    "center_of_mass", "is_static", "ttl", "linear_damping",
+    "angular_damping", "coefficient_of_restitution", "friction_coefficients",
+}
+
+ASSET_DEFAULTS = {
+    "x_size": 1.0, "y_size": 1.0, "z_size": 1.0,
+    "x_buffer_size": 0.0, "y_buffer_size": 0.0, "z_buffer_size": 0.0,
+    "tracking_radius": 2.0, "shift_type": 1, "mark_color": "#888888",
+    "scale": 1.0, "project_to_map": False, "rotation_from_velocity": False,
+    "rotation_x": 0.0, "rotation_y": 0.0, "rotation_z": 0.0,
+    "translation_x": 0.0, "translation_y": 0.0, "translation_z": 0.0,
+    "geometric_center": [0.0, 0.0, 0.0], "mass": 1.0,
+    "center_of_mass": [0.0, 0.0, 0.0], "is_static": False, "ttl": 0.0,
+    "linear_damping": 0.05, "angular_damping": 0.05,
+    "coefficient_of_restitution": 0.5, "friction_coefficients": [0.5, 0.4],
+}
+
 CAMERA_DEFAULTS = {
     "intrinsics": {"fx": 570.0, "fy": 570.0, "cx": 320.0, "cy": 240.0},
     "transform_type": "3d-2d point correspondence",
@@ -72,6 +95,12 @@ SCENE_CHOICES = {
 CAMERA_CHOICES = {
     "transform_type": {"matrix", "euler", "quaternion", "3d-2d point correspondence"},
     "cv_subsystem": {"AUTO", "GPU", "CPU"},
+}
+
+CALIBRATION_FIELDS = {
+    "camera_calibration", "matcher", "number_of_localizations", "global_feature",
+    "local_feature", "minimum_number_of_matches", "scale", "apriltag_size",
+    "inlier_threshold",
 }
 
 
@@ -179,7 +208,6 @@ def _distortion(value: Any) -> dict[str, float]:
     result: dict[str, float] = {}
     for key, item in value.items():
         if key not in allowed:
-            # 2026.2's helper effectively ignores unknown distortion coefficients.
             continue
         try:
             result[key] = float(item)
@@ -200,13 +228,98 @@ def _resolution(value: Any) -> list[int]:
     return [width, height]
 
 
+def _number(field: str, value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        _bad(field, "A valid number is required.")
+
+
+def _bounded(field: str, value: Any, low: float | None = None, high: float | None = None) -> float:
+    number = _number(field, value)
+    if low is not None and number < low:
+        _bad(field, f"Ensure this value is greater than or equal to {low}.")
+    if high is not None and number > high:
+        _bad(field, f"Ensure this value is less than or equal to {high}.")
+    return number
+
+
+def _numeric_list(field: str, value: Any, length: int) -> list[float]:
+    if not isinstance(value, (list, tuple)) or len(value) != length:
+        _bad(field, f"Must contain exactly {length} numeric values.")
+    return [_number(field, item) for item in value]
+
+
+def normalize_asset(db, body: dict, *, uid: str | None, creating: bool, legacy: bool) -> tuple[dict, str | None]:
+    if not isinstance(body, dict) or (not body and creating):
+        _bad("body", "Request body is required.")
+    data = deepcopy(body)
+    resolved_uid = uid
+    # Asset3DSerializer exposes uid read-only; DRF ignores it on input. Native
+    # metadata may also round-trip through the React JSON editor.
+    data.pop("uid", None)
+    if not legacy:
+        data.pop("kind", None)
+        data.pop("revision", None)
+    data = {key: value for key, value in data.items() if key in ASSET_ALLOWED_FIELDS - {"uid"}}
+    existing = _existing(db, "asset", uid) if not creating else None
+
+    if creating and "name" not in data:
+        _bad("name", "This field is required.")
+    if "name" in data:
+        name = str(data["name"])
+        if not name.strip():
+            _bad("name", "This field may not be blank.")
+        if len(name) > 150:
+            _bad("name", "Ensure this field has no more than 150 characters.")
+        if _name_conflict(db, "asset", name, exclude_uid=uid if not creating else None):
+            _bad("name", f"An object library with the name '{name}' already exists.")
+        data["name"] = name
+
+    for field in ("x_size", "y_size", "z_size", "mass", "ttl"):
+        if field in data and data[field] is not None:
+            data[field] = _bounded(field, data[field], 0.0)
+    for field in ("linear_damping", "angular_damping", "coefficient_of_restitution"):
+        if field in data and data[field] is not None:
+            data[field] = _bounded(field, data[field], 0.0, 1.0)
+    for field in (
+        "tracking_radius", "scale", "rotation_x", "rotation_y", "rotation_z",
+        "translation_x", "translation_y", "translation_z", "x_buffer_size",
+        "y_buffer_size", "z_buffer_size",
+    ):
+        if field in data and data[field] is not None:
+            data[field] = _number(field, data[field])
+    if "shift_type" in data and data["shift_type"] is not None:
+        try:
+            data["shift_type"] = int(data["shift_type"])
+        except (TypeError, ValueError):
+            _bad("shift_type", "A valid integer is required.")
+    for field in ("geometric_center", "center_of_mass"):
+        if field in data and data[field] is not None:
+            data[field] = _numeric_list(field, data[field], 3)
+    if "friction_coefficients" in data and data["friction_coefficients"] is not None:
+        data["friction_coefficients"] = _numeric_list("friction_coefficients", data["friction_coefficients"], 2)
+    for field in ("project_to_map", "rotation_from_velocity", "is_static"):
+        if field in data and data[field] is not None:
+            data[field] = bool(data[field])
+    if "mark_color" in data and data["mark_color"] is not None:
+        data["mark_color"] = str(data["mark_color"])
+    if "model_3d" in data and data["model_3d"] not in (None, ""):
+        data["model_3d"] = str(data["model_3d"])
+
+    if creating:
+        merged = deepcopy(ASSET_DEFAULTS)
+        merged.update(data)
+        data = merged
+    elif existing is None:
+        raise HTTPException(404, "Resource not found")
+    return data, resolved_uid
+
 def normalize_scene(db, body: dict, *, uid: str | None, creating: bool, legacy: bool) -> tuple[dict, str | None]:
     if not isinstance(body, dict) or not body:
         _bad("body", "Request body is required.")
     data = deepcopy(body)
     resolved_uid = uid
-
-    # Native v2 responses include metadata that the JSON editor may send back.
     if not legacy:
         if creating and data.get("uid") not in (None, ""):
             resolved_uid = str(data.pop("uid"))
@@ -216,14 +329,10 @@ def normalize_scene(db, body: dict, *, uid: str | None, creating: bool, legacy: 
         data.pop("revision", None)
     elif "uid" in data:
         _bad("uid", "This field is read-only.")
-
     unknown = set(data) - (SCENE_ALLOWED_FIELDS - {"uid"})
     if unknown:
-        field = sorted(unknown)[0]
-        _bad(field, "Unknown field.")
-
+        _bad(sorted(unknown)[0], "Unknown field.")
     existing = _existing(db, "scene", uid) if not creating else None
-
     if creating and "name" not in data:
         _bad("name", "This field is required.")
     if "name" in data:
@@ -235,35 +344,32 @@ def normalize_scene(db, body: dict, *, uid: str | None, creating: bool, legacy: 
         if _name_conflict(db, "scene", name, exclude_uid=uid if not creating else None):
             _bad("name", f'A scene with the name "{name}" already exists.')
         data["name"] = name
-
     for field in ("mesh_translation", "mesh_rotation", "mesh_scale"):
         if field in data:
             data[field] = _vec3(field, data[field])
-
     for field, choices in SCENE_CHOICES.items():
         if field in data and data[field] is not None:
             data[field] = _choice(field, data[field], choices)
-
     for field in ("scale", "regulated_rate", "external_update_rate"):
         if field in data and data[field] is not None:
             data[field] = _positive(field, data[field])
     for field in ("map_zoom", "inlier_threshold"):
         if field in data and data[field] is not None:
             data[field] = _positive(field, data[field], allow_zero=True)
-
     if "map_corners_lla" in data and data["map_corners_lla"] is not None:
         data["map_corners_lla"] = _map_corners(data["map_corners_lla"])
-
     if data.get("output_lla") is True:
         existing_corners = (existing.payload or {}).get("map_corners_lla") if existing else None
         if data.get("map_corners_lla") is None and existing_corners is None:
             _bad("map_corners_lla", "This field must be set when enabling output_lla.")
-
+    if existing:
+        previous = existing.payload or {}
+        if any(field in data and data.get(field) != previous.get(field) for field in CALIBRATION_FIELDS):
+            data["map_processed"] = None
     if creating:
         merged = deepcopy(SCENE_DEFAULTS)
         merged.update(data)
         data = merged
-
     return data, resolved_uid
 
 
@@ -272,7 +378,6 @@ def normalize_camera(db, body: dict, *, uid: str | None, creating: bool, legacy:
         _bad("body", "Request body is required.")
     data = deepcopy(body)
     resolved_uid = uid
-
     if not legacy:
         if creating and data.get("uid") not in (None, ""):
             resolved_uid = str(data.pop("uid"))
@@ -281,13 +386,8 @@ def normalize_camera(db, body: dict, *, uid: str | None, creating: bool, legacy:
         data.pop("kind", None)
         data.pop("revision", None)
     else:
-        # CamSerializer exposes uid read-only but accepts sensor_id for explicit IDs.
         data.pop("uid", None)
-
-    # DRF ignores unknown camera keys because the serializer does not explicitly
-    # reject them. Keep that behavior by retaining only declared API fields.
     data = {key: value for key, value in data.items() if key in CAMERA_ALLOWED_FIELDS - {"uid"}}
-
     if "name" not in data:
         _bad("name", "This field is required.")
     name = str(data["name"])
@@ -298,40 +398,32 @@ def normalize_camera(db, body: dict, *, uid: str | None, creating: bool, legacy:
     if creating and _name_conflict(db, "camera", name):
         _bad("name", f'A camera with the name "{name}" already exists.')
     data["name"] = name
-
     sensor_id = data.pop("sensor_id", None)
     if creating and resolved_uid is None:
         resolved_uid = str(sensor_id if sensor_id not in (None, "") else name.replace(" ", "_"))
-
     if "scene" in data and data["scene"] not in (None, ""):
         scene_uid = str(data["scene"])
         if not _scene_exists(db, scene_uid):
             _bad("scene", "Scene with given UUID does not exist.")
         data["scene"] = scene_uid
-
     if "intrinsics" in data and data["intrinsics"] is not None:
         data["intrinsics"] = _intrinsics(data["intrinsics"])
     if "distortion" in data and data["distortion"] is not None:
         data["distortion"] = _distortion(data["distortion"])
     if "resolution" in data and data["resolution"] is not None:
         data["resolution"] = _resolution(data["resolution"])
-
     for field in ("translation", "rotation", "scale"):
         if field in data and data[field] is not None:
             data[field] = _vec3(field, data[field])
-
     for field, choices in CAMERA_CHOICES.items():
         if field in data and data[field] is not None:
             data[field] = _choice(field, data[field], choices)
-
     if data.get("use_camera_pipeline") is True and not data.get("camera_pipeline"):
         _bad("camera_pipeline", "camera_pipeline cannot be empty when use_camera_pipeline is true.")
-
     if creating:
         merged = deepcopy(CAMERA_DEFAULTS)
         merged.update(data)
         data = merged
-
     return data, resolved_uid
 
 
@@ -340,6 +432,8 @@ def normalize_resource(db, kind: str, body: dict, *, uid: str | None = None, cre
         return normalize_scene(db, body, uid=uid, creating=creating, legacy=legacy)
     if kind == "camera":
         return normalize_camera(db, body, uid=uid, creating=creating, legacy=legacy)
+    if kind == "asset":
+        return normalize_asset(db, body, uid=uid, creating=creating, legacy=legacy)
     if not isinstance(body, dict):
         raise HTTPException(400, "Resource payload must be an object")
     data = deepcopy(body)

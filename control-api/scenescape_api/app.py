@@ -4,16 +4,23 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, Response, StreamingResponse
 from sqlalchemy import func, or_, select
 
 from .auth import Principal, current_principal, issue_token, service_principal, verify_service
+from .asset_service import cleanup_replaced_asset_media, create_asset, delete_asset, update_asset
 from .camera_io import CameraSnapshotError, fetch_camera_snapshot
 from .contracts import normalize_resource
 from .mqtt_commands import notify_camera_change, notify_config_change
 from .database import Event, Heartbeat, Incident, Observation, Resource, sessions
 from .hierarchy import cascade_scene_links, child_to_dict, create_child_link, resolve_child_link, transform_dict, update_child_link
+from .intrinsics import calculate_camera_intrinsics
+from .markers import marker_to_dict, normalize_marker, resolve_marker
+from .media_files import delete_media, save_upload
+from .scene_config import apply_uploaded_map_semantics
+from .scene_import_native import import_scene_archive
+from .scene_service import cleanup_scene_media, create_scene, delete_scene, delete_scene_media, update_scene
 from .resources import ALIASES, delete_resource, get_resource, list_resources, to_dict, upsert
 
 app = FastAPI(title="SceneScape Native Control API", version="0.2")
@@ -47,9 +54,6 @@ def _age_seconds(value: datetime) -> float:
 
 
 def _scene_observation_clause(scene_id: str):
-    # Older native-worker builds incorrectly used payload["id"] (often a camera
-    # id) as Observation.scene_id. The MQTT topic has always carried the
-    # authoritative scene UUID, so include it for backward-compatible reads.
     return or_(
         Observation.scene_id == scene_id,
         Observation.topic == f"scenescape/regulated/scene/{scene_id}",
@@ -88,11 +92,20 @@ LEGACY_V1 = {
 }
 
 
+def _nonnull(value: dict):
+    # manager.serializers.NonNullSerializer: omit null values and empty
+    # list/tuple values while retaining false/zero/empty-string scalars.
+    return {
+        key: item for key, item in value.items()
+        if (item is not None and not isinstance(item, (list, tuple))) or item
+    }
+
+
 def _legacy_clean(row):
     value = to_dict(row) if isinstance(row, Resource) else dict(row)
     value.pop("kind", None)
     value.pop("revision", None)
-    return value
+    return _nonnull(value)
 
 
 def _legacy_rows(db, kind):
@@ -126,7 +139,6 @@ def _legacy_scene(db, row, seen=None):
     seen = set(seen or ())
     seen.add(scene_id)
 
-    # SceneSerializer exposes the incoming local link as parent + transform.
     for link_row in _legacy_rows(db, "child"):
         payload = link_row.payload or {}
         if str(payload.get("child_type") or "local") == "local" and str(payload.get("child") or "") == scene_id:
@@ -159,7 +171,9 @@ def _legacy_scene(db, row, seen=None):
         child_scene["link"] = link
         children.append(child_scene)
     scene["children"] = children
-    return scene
+    if scene.get("trs_matrix") is None or scene.get("output_lla") is False:
+        scene.pop("trs_matrix", None)
+    return _nonnull(scene)
 
 
 @app.get("/api/v1/scenes")
@@ -184,7 +198,11 @@ def legacy_children(request: Request, p=Depends(service_principal), db=Depends(d
 def legacy_list(request: Request, p=Depends(service_principal), db=Depends(db_dep)):
     plural = request.url.path.rstrip("/").rsplit("/", 1)[-1]
     kind = LEGACY_V1[plural]
-    rows = _legacy_filter(_legacy_rows(db, kind), request)
+    if kind == "marker":
+        source = [marker_to_dict(row) for row in _legacy_rows(db, kind)]
+    else:
+        source = _legacy_rows(db, kind)
+    rows = _legacy_filter(source, request)
     return {"count": len(rows), "next": None, "previous": None, "results": rows}
 
 
@@ -194,16 +212,189 @@ def legacy_database_ready(db=Depends(db_dep)):
     return {"databaseReady": True}
 
 
+
+
+def _decode_form_value(value):
+    if not isinstance(value, str):
+        return value
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return value
+
+
+async def _scene_request_payload(request: Request):
+    content_type = request.headers.get("content-type", "").lower()
+    uploads = {}
+    if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
+        form = await request.form()
+        body = {}
+        for key, value in form.multi_items():
+            if hasattr(value, "filename") and hasattr(value, "read"):
+                uploads[key] = value
+            else:
+                body[key] = _decode_form_value(value)
+        return body, uploads
+    try:
+        body = await request.json()
+    except Exception as exc:
+        raise HTTPException(400, "Invalid JSON body") from exc
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Resource payload must be an object")
+    return body, uploads
+
+
+async def _apply_scene_uploads(body: dict, uploads: dict, existing: dict | None = None):
+    uploaded_map = False
+    uploaded_polycam = False
+    created = []
+    if "map" in uploads:
+        body["map"] = await save_upload(uploads["map"], kind="scene-map")
+        created.append(body["map"]); uploaded_map = True
+    if "polycam_data" in uploads:
+        body["polycam_data"] = await save_upload(uploads["polycam_data"], kind="polycam")
+        created.append(body["polycam_data"]); uploaded_polycam = True
+    if "thumbnail" in uploads:
+        body["thumbnail"] = await save_upload(uploads["thumbnail"], kind="thumbnail")
+        created.append(body["thumbnail"])
+    apply_uploaded_map_semantics(existing, body, uploaded_map=uploaded_map, uploaded_polycam=uploaded_polycam)
+    if uploaded_map or uploaded_polycam:
+        for field in ("map", "polycam_data", "thumbnail"):
+            value = body.get(field)
+            if value and value not in created:
+                created.append(value)
+    return created
+
+
+async def _apply_asset_uploads(body: dict, uploads: dict, existing: dict | None = None):
+    unknown = set(uploads) - {"model_3d"}
+    if unknown:
+        raise HTTPException(400, {sorted(unknown)[0]: ["Unknown file field."]})
+    created = []
+    if "model_3d" in uploads:
+        body["model_3d"] = await save_upload(uploads["model_3d"], kind="asset-model")
+        created.append(body["model_3d"])
+    return created
+
+
+@app.post("/api/v1/calculateintrinsics")
+def legacy_calculate_intrinsics(body: dict, p=Depends(service_principal)):
+    return calculate_camera_intrinsics(body)
+
+
+@app.post("/api/v1/import-scene/")
+async def legacy_import_scene(zipFile: UploadFile = File(...), p=Depends(service_principal), db=Depends(db_dep)):
+    raw = await zipFile.read(int(os.getenv("MAX_UPLOAD_BYTES", str(512 * 1024 * 1024))) + 1)
+    await zipFile.close()
+    before = {row.uid for row in _legacy_rows(db, "scene")}
+    result = import_scene_archive(db, raw, p)
+    after = {row.uid for row in _legacy_rows(db, "scene")}
+    for scene_uid in sorted(after - before):
+        notify_config_change("scene", scene_uid)
+    return Response(content=json.dumps(result, default=str), media_type="application/json", status_code=201)
+
+
+@app.post("/api/v1/scene")
+async def legacy_scene_create(request: Request, p=Depends(service_principal), db=Depends(db_dep)):
+    body, uploads = await _scene_request_payload(request)
+    created = []
+    try:
+        created = await _apply_scene_uploads(body, uploads)
+        row, notify = create_scene(db, body, p, legacy=True)
+        db.commit()
+    except Exception:
+        db.rollback()
+        for value in created:
+            delete_media(value)
+        raise
+    value = _legacy_scene(db, row)
+    if notify:
+        notify_config_change("scene", row.uid)
+    return Response(content=json.dumps(value), media_type="application/json", status_code=201)
+
+
+@app.post("/api/v1/scene/{uid}")
+@app.put("/api/v1/scene/{uid}")
+async def legacy_scene_update(uid: str, request: Request, p=Depends(service_principal), db=Depends(db_dep)):
+    current = get_resource(db, "scene", uid)
+    before = dict(current.payload or {})
+    body, uploads = await _scene_request_payload(request)
+    created = []
+    try:
+        created = await _apply_scene_uploads(body, uploads, before)
+        row, notify, before = update_scene(db, uid, body, p, legacy=True, expected_revision=current.revision)
+        db.commit()
+    except Exception:
+        db.rollback()
+        for value in created:
+            if value not in set(before.get(field) for field in ("map", "thumbnail", "polycam_data")):
+                delete_media(value)
+        raise
+    cleanup_scene_media(before, row.payload or {})
+    value = _legacy_scene(db, row)
+    if notify:
+        notify_config_change("scene", row.uid)
+    return value
+
+
+@app.post("/api/v1/asset")
+async def legacy_asset_create(request: Request, p=Depends(service_principal), db=Depends(db_dep)):
+    body, uploads = await _scene_request_payload(request)
+    created = []
+    try:
+        created = await _apply_asset_uploads(body, uploads)
+        row = create_asset(db, body, p, legacy=True)
+        db.commit()
+    except Exception:
+        db.rollback()
+        for value in created:
+            delete_media(value)
+        raise
+    value = _legacy_clean(row)
+    notify_config_change("asset", row.uid)
+    return Response(content=json.dumps(value), media_type="application/json", status_code=201)
+
+
+@app.post("/api/v1/asset/{uid}")
+@app.put("/api/v1/asset/{uid}")
+async def legacy_asset_update(uid: str, request: Request, p=Depends(service_principal), db=Depends(db_dep)):
+    current = get_resource(db, "asset", uid)
+    before = dict(current.payload or {})
+    body, uploads = await _scene_request_payload(request)
+    created = []
+    try:
+        created = await _apply_asset_uploads(body, uploads, before)
+        row, before = update_asset(db, uid, body, p, legacy=True, expected_revision=current.revision)
+        db.commit()
+    except Exception:
+        db.rollback()
+        for value in created:
+            if value != before.get("model_3d"):
+                delete_media(value)
+        raise
+    cleanup_replaced_asset_media(before, row.payload or {})
+    value = _legacy_clean(row)
+    notify_config_change("asset", row.uid)
+    return value
+
+
 @app.get("/api/v1/{thing}/{uid}")
 def legacy_get(thing: str, uid: str, p=Depends(service_principal), db=Depends(db_dep)):
     kind = LEGACY_V1.get(thing)
     if not kind:
         raise HTTPException(404)
-    row = resolve_child_link(db, uid) if kind == "child" else get_resource(db, kind, uid)
+    if kind == "child":
+        row = resolve_child_link(db, uid)
+    elif kind == "marker":
+        row = resolve_marker(db, uid)
+    else:
+        row = get_resource(db, kind, uid)
     if kind == "scene":
         return _legacy_scene(db, row)
     if kind == "child":
         return child_to_dict(db, row)
+    if kind == "marker":
+        return marker_to_dict(row)
     return _legacy_clean(row)
 
 
@@ -221,6 +412,12 @@ def legacy_update(thing: str, uid: str, body: dict, p=Depends(service_principal)
         if notify:
             notify_config_change(kind, row.uid)
         return value
+    if kind == "marker":
+        current = resolve_marker(db, uid)
+        payload, marker_id = normalize_marker(db, body, row=current, creating=False)
+        row = upsert(db, "marker", current.uid, payload, p, current.revision)
+        db.commit(); notify_config_change(kind, row.uid)
+        return marker_to_dict(row)
 
     current = get_resource(db, kind, uid)
     previous = _legacy_clean(current) if kind == "camera" else None
@@ -245,6 +442,11 @@ def legacy_create(thing: str, body: dict, p=Depends(service_principal), db=Depen
         value = child_to_dict(db, row)
         notify_config_change(kind, row.uid)
         return Response(content=json.dumps(value), media_type="application/json", status_code=201)
+    if kind == "marker":
+        payload, marker_id = normalize_marker(db, body, creating=True)
+        row = upsert(db, "marker", marker_id, payload, p)
+        db.commit(); notify_config_change(kind, row.uid)
+        return Response(content=json.dumps(marker_to_dict(row)), media_type="application/json", status_code=201)
 
     body, resolved_uid = normalize_resource(db, kind, body, uid=None, creating=True, legacy=True)
     row = upsert(db, kind, resolved_uid, body, p)
@@ -269,16 +471,114 @@ def legacy_delete(thing: str, uid: str, p=Depends(service_principal), db=Depends
         notify_config_change(kind, link_uid)
         return {"pk": link_uid}
 
+    if kind == "marker":
+        current = resolve_marker(db, uid)
+        marker_id = marker_to_dict(current)["marker_id"]
+        db.delete(current); db.commit(); notify_config_change(kind, current.uid)
+        return {"marker_id": marker_id}
     current = get_resource(db, kind, uid)
     previous = _legacy_clean(current) if kind == "camera" else None
+    media_values = []
+    asset_media = ""
     if kind == "scene":
-        cascade_scene_links(db, uid)
-    result = delete_resource(db, kind, uid)
+        result, media_values = delete_scene(db, uid)
+    elif kind == "asset":
+        result, asset_media = delete_asset(db, uid)
+    else:
+        result = delete_resource(db, kind, uid)
     db.commit()
+    if media_values:
+        delete_scene_media(media_values)
+    if asset_media:
+        delete_media(asset_media)
     notify_config_change(kind, uid)
     if kind == "camera" and previous is not None:
         notify_camera_change(previous, "delete")
     return result
+
+
+
+
+@app.post("/api/v2/scenes/{scene_id}/files")
+async def native_scene_files(scene_id: str, request: Request, p=Depends(current_principal), db=Depends(db_dep)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    current = get_resource(db, "scene", scene_id)
+    before = dict(current.payload or {})
+    body, uploads = await _scene_request_payload(request)
+    if not uploads:
+        raise HTTPException(400, "At least one map, polycam_data or thumbnail file is required")
+    created = []
+    try:
+        created = await _apply_scene_uploads(body, uploads, before)
+        row, notify, before = update_scene(db, scene_id, body, p, legacy=False, expected_revision=current.revision)
+        db.commit()
+    except Exception:
+        db.rollback()
+        for value in created:
+            if value not in set(before.get(field) for field in ("map", "thumbnail", "polycam_data")):
+                delete_media(value)
+        raise
+    cleanup_scene_media(before, row.payload or {})
+    if notify:
+        notify_config_change("scene", row.uid)
+    return to_dict(row)
+
+
+@app.post("/api/v2/scenes/import")
+async def native_import_scene(zipFile: UploadFile = File(...), p=Depends(current_principal), db=Depends(db_dep)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    raw = await zipFile.read(int(os.getenv("MAX_UPLOAD_BYTES", str(512 * 1024 * 1024))) + 1)
+    await zipFile.close()
+    before = {row.uid for row in _legacy_rows(db, "scene")}
+    result = import_scene_archive(db, raw, p)
+    after = {row.uid for row in _legacy_rows(db, "scene")}
+    for scene_uid in sorted(after - before):
+        notify_config_change("scene", scene_uid)
+    return result
+
+
+@app.post("/api/v2/assets")
+async def native_asset_create(request: Request, p=Depends(current_principal), db=Depends(db_dep)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    body, uploads = await _scene_request_payload(request)
+    created = []
+    try:
+        created = await _apply_asset_uploads(body, uploads)
+        row = create_asset(db, body, p, legacy=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        for value in created:
+            delete_media(value)
+        raise
+    notify_config_change("asset", row.uid)
+    return to_dict(row)
+
+
+@app.put("/api/v2/assets/{uid}")
+async def native_asset_update(uid: str, request: Request, revision: int | None = Query(default=None), p=Depends(current_principal), db=Depends(db_dep)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    current = get_resource(db, "asset", uid)
+    before = dict(current.payload or {})
+    body, uploads = await _scene_request_payload(request)
+    created = []
+    try:
+        created = await _apply_asset_uploads(body, uploads, before)
+        row, before = update_asset(db, uid, body, p, legacy=False, expected_revision=revision)
+        db.commit()
+    except Exception:
+        db.rollback()
+        for value in created:
+            if value != before.get("model_3d"):
+                delete_media(value)
+        raise
+    cleanup_replaced_asset_media(before, row.payload or {})
+    notify_config_change("asset", row.uid)
+    return to_dict(row)
 
 
 @app.get("/api/v2/overview")
@@ -312,6 +612,8 @@ def scene_bundle(scene_id: str, p=Depends(current_principal), db=Depends(db_dep)
         rows = db.scalars(select(Resource).where(Resource.kind == kind).order_by(Resource.id)).all()
         if plural == "children":
             result[plural] = [child_to_dict(db, row, native=True) for row in rows if _scene_matches(row, scene_id)]
+        elif plural == "markers":
+            result[plural] = [marker_to_dict(row, native=True) for row in rows if _scene_matches(row, scene_id)]
         else:
             result[plural] = [to_dict(row) for row in rows if _scene_matches(row, scene_id)]
     return result
@@ -448,6 +750,9 @@ def list_any(plural: str, p=Depends(current_principal), db=Depends(db_dep)):
     if kind == "child":
         db_rows = db.scalars(select(Resource).where(Resource.kind == "child").order_by(Resource.id)).all()
         rows = [child_to_dict(db, row, native=True) for row in db_rows]
+    elif kind == "marker":
+        db_rows = db.scalars(select(Resource).where(Resource.kind == "marker").order_by(Resource.id)).all()
+        rows = [marker_to_dict(row, native=True) for row in db_rows]
     else:
         rows = list_resources(db, kind)
     if p.is_admin or "*" in p.scene_scopes:
@@ -462,6 +767,8 @@ def get_any(plural: str, uid: str, p=Depends(current_principal), db=Depends(db_d
     kind = _kind(plural)
     if kind == "child":
         row = child_to_dict(db, resolve_child_link(db, uid), native=True)
+    elif kind == "marker":
+        row = marker_to_dict(resolve_marker(db, uid), native=True)
     else:
         row = to_dict(get_resource(db, kind, uid))
     if not (p.is_admin or "*" in p.scene_scopes):
@@ -481,6 +788,16 @@ def create_any(plural: str, body: dict, p=Depends(current_principal), db=Depends
         value = child_to_dict(db, row, native=True)
         notify_config_change(kind, row.uid)
         return value
+    if kind == "scene":
+        row, notify = create_scene(db, body, p, legacy=False)
+        db.commit(); value = to_dict(row)
+        if notify: notify_config_change(kind, row.uid)
+        return value
+    if kind == "marker":
+        payload, marker_id = normalize_marker(db, body, creating=True)
+        row = upsert(db, kind, marker_id, payload, p)
+        db.commit(); notify_config_change(kind, row.uid)
+        return marker_to_dict(row, native=True)
 
     body, resolved_uid = normalize_resource(db, kind, body, uid=None, creating=True, legacy=False)
     row = upsert(db, kind, resolved_uid, body, p)
@@ -512,6 +829,17 @@ def update_any(
         if notify:
             notify_config_change(kind, row.uid)
         return value
+    if kind == "scene":
+        row, notify, before = update_scene(db, uid, body, p, legacy=False, expected_revision=revision)
+        db.commit(); cleanup_scene_media(before, row.payload or {}); value = to_dict(row)
+        if notify: notify_config_change(kind, row.uid)
+        return value
+    if kind == "marker":
+        current = resolve_marker(db, uid)
+        payload, marker_id = normalize_marker(db, body, row=current, creating=False)
+        row = upsert(db, kind, current.uid, payload, p, revision)
+        db.commit(); notify_config_change(kind, row.uid)
+        return marker_to_dict(row, native=True)
 
     current = get_resource(db, kind, uid)
     previous = to_dict(current) if kind == "camera" else None
@@ -538,12 +866,25 @@ def delete_any(plural: str, uid: str, p=Depends(current_principal), db=Depends(d
         notify_config_change(kind, link_uid)
         return {"deleted": True, "uid": link_uid, "kind": kind}
 
+    if kind == "marker":
+        current = resolve_marker(db, uid); marker_id = marker_to_dict(current)["marker_id"]
+        db.delete(current); db.commit(); notify_config_change(kind, current.uid)
+        return {"deleted": True, "uid": marker_id, "kind": kind}
     current = get_resource(db, kind, uid)
     previous = to_dict(current) if kind == "camera" else None
+    media_values = []
+    asset_media = ""
     if kind == "scene":
-        cascade_scene_links(db, uid)
-    result = delete_resource(db, kind, uid)
+        result, media_values = delete_scene(db, uid)
+    elif kind == "asset":
+        result, asset_media = delete_asset(db, uid)
+    else:
+        result = delete_resource(db, kind, uid)
     db.commit()
+    if media_values:
+        delete_scene_media(media_values)
+    if asset_media:
+        delete_media(asset_media)
     notify_config_change(kind, uid)
     if kind == "camera" and previous is not None:
         notify_camera_change(previous, "delete")
@@ -573,7 +914,7 @@ def media(path: str, p=Depends(current_principal), db=Depends(db_dep)):
     if not (p.is_admin or "*" in p.scene_scopes):
         request_path = "/media/" + path.lstrip("/")
         scenes = db.scalars(select(Resource).where(Resource.kind == "scene")).all()
-        owning = [row.uid for row in scenes if request_path in {str((row.payload or {}).get("map") or ""), str((row.payload or {}).get("thumbnail") or "")} ]
+        owning = [row.uid for row in scenes if request_path in {str((row.payload or {}).get("map") or ""), str((row.payload or {}).get("thumbnail") or ""), str((row.payload or {}).get("polycam_data") or "")} ]
         if owning and not any(scene_id in p.scene_scopes for scene_id in owning):
             raise HTTPException(403, "Media is outside token scope")
     return FileResponse(target)
