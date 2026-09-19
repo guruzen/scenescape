@@ -310,3 +310,38 @@ def test_polycam_data_without_raw_glb_preserves_existing_map(tmp_path,monkeypatc
     assert value['camera_calibration']=='Manual'
     assert value['thumbnail']!=old_thumb
     assert not (tmp_path/'media'/Path(old_thumb).name).exists()
+
+
+def test_native_scene_export_contains_json_and_map(tmp_path,monkeypatch):
+    c,d,v1,v2,calls=boot(tmp_path,monkeypatch)
+    created=c.post('/api/v2/scenes',headers=v2,json={'uid':'export-scene','name':'Export Scene','scale':100})
+    assert created.status_code==200,created.text
+    uploaded=c.post('/api/v2/scenes/export-scene/files',headers=v2,data={},files={'map':('floor.png',png_bytes(),'image/png')})
+    assert uploaded.status_code==200,uploaded.text
+    exported=c.get('/api/v2/scenes/export-scene/export',headers=v2)
+    assert exported.status_code==200
+    assert exported.headers['content-type'].startswith('application/zip')
+    with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
+        names=archive.namelist()
+        assert any(name.endswith('.json') for name in names)
+        assert any(name.endswith('.png') for name in names)
+        scene=json.loads(archive.read(next(name for name in names if name.endswith('.json'))))
+        assert scene['uid']=='export-scene' and scene['map'].startswith('/media/')
+
+
+def test_native_mapping_routes_delegate_and_finalize_notifications(tmp_path,monkeypatch):
+    c,d,v1,v2,calls=boot(tmp_path,monkeypatch)
+    assert c.post('/api/v2/scenes',headers=v2,json={'uid':'mesh-scene','name':'Mesh'}).status_code==200
+    import scenescape_api.app as app_module
+    monkeypatch.setattr(app_module,'mapping_health',lambda:{'available':True,'ready':True})
+    monkeypatch.setattr(app_module,'start_mesh_generation',lambda db,scene_id,p,mesh_type='mesh',video=None:{'success':True,'request_id':'r1'})
+    monkeypatch.setattr(app_module,'mesh_generation_status',lambda db,scene_id,request_id,p:{
+        'success':True,'state':'complete','finalized':True,
+        '_before_scene':{'name':'Mesh'},'_after_scene':{'name':'Mesh','map':'/media/generated.glb'},
+        '_changed_cameras':[]
+    })
+    assert c.get('/api/v2/mapping/health',headers=v2).json()['ready'] is True
+    started=c.post('/api/v2/scenes/mesh-scene/mesh',headers=v2,data={'mesh_type':'mesh'})
+    assert started.status_code==200 and started.json()['request_id']=='r1'
+    status=c.get('/api/v2/scenes/mesh-scene/mesh/status?request_id=r1',headers=v2)
+    assert status.status_code==200 and status.json()['finalized'] is True
