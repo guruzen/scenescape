@@ -30,3 +30,14 @@
 @media(max-width:1200px){.sensor-lifecycle-layout,.sensor-editor-grid{grid-template-columns:1fr}.sensor-map-column{border-left:0;border-top:1px solid rgb(var(--line))}}
 
 .sensor-map-icon{pointer-events:none}
+
+.spatial-workspace{display:grid;grid-template-columns:minmax(250px,.38fr) minmax(760px,1.62fr);gap:14px}
+.spatial-list-panel{overflow:hidden}.spatial-kind-tabs{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid rgb(var(--line))}.spatial-new{margin:12px;width:calc(100% - 24px)}
+.spatial-editor-panel{overflow:visible}.spatial-editor-grid{display:grid;grid-template-columns:minmax(330px,.72fr) minmax(480px,1.28fr);border-top:1px solid rgb(var(--line))}
+.spatial-settings{min-width:0}.spatial-map-column{border-left:1px solid rgb(var(--line));background:rgb(var(--soft));min-width:0}
+.spatial-map-frame{position:relative;min-height:560px;background:#071014;overflow:hidden}.spatial-map-frame svg{display:block;width:100%;min-height:560px;cursor:crosshair;touch-action:none}
+.spatial-existing-region{fill:rgba(97,135,255,.07);stroke:rgba(97,135,255,.5);stroke-width:2;vector-effect:non-scaling-stroke}.spatial-existing-tripwire{fill:none;stroke:rgba(255,120,89,.55);stroke-width:3;vector-effect:non-scaling-stroke}
+.spatial-draft-region{fill:rgba(78,209,206,.14);stroke:rgba(78,209,206,1);stroke-width:3;vector-effect:non-scaling-stroke}.spatial-draft-tripwire{fill:none;stroke:rgba(255,180,84,1);stroke-width:4;vector-effect:non-scaling-stroke}.trip-arrow-head{fill:#ffb454}
+.spatial-vertex{fill:#ffb454;stroke:#fff;stroke-width:2;vector-effect:non-scaling-stroke;cursor:grab}.spatial-vertex:active{cursor:grabbing}
+.spatial-point-list{display:grid;gap:7px;padding:12px 16px}.spatial-point-list>div{display:grid;grid-template-columns:28px 1fr 1fr auto;gap:7px;align-items:center}.spatial-point-list input{min-width:0}.spatial-message{margin:0 16px 14px}
+@media(max-width:1250px){.spatial-workspace,.spatial-editor-grid{grid-template-columns:1fr}.spatial-map-column{border-left:0;border-top:1px solid rgb(var(--line))}}
