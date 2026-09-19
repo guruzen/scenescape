@@ -440,6 +440,11 @@ def legacy_update(thing: str, uid: str, body: dict, p=Depends(service_principal)
     return value
 
 
+@app.post("/api/v1/save-geospatial-snapshot/")
+async def legacy_geospatial_snapshot(request: Request, p=Depends(current_principal)):
+    return await native_geospatial_snapshot(request, p)
+
+
 @app.post("/api/v1/{thing}")
 def legacy_create(thing: str, body: dict, p=Depends(service_principal), db=Depends(db_dep)):
     kind = LEGACY_V1.get(thing)
@@ -548,7 +553,6 @@ async def native_import_scene(zipFile: UploadFile = File(...), p=Depends(current
     return result
 
 
-@app.post("/api/v1/save-geospatial-snapshot/")
 @app.post("/api/v2/geospatial/snapshot")
 async def native_geospatial_snapshot(request: Request, p=Depends(current_principal)):
     if not p.is_admin:
