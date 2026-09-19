@@ -1,0 +1,301 @@
+{{- if .Values.native.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-web-dep
+  labels:
+    app: {{ .Release.Name }}-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-web
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-web
+        {{ include "releaseLabels" . | indent 8 }}
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-for-postgres
+          image: {{ .Values.pgserver.repository }}/{{ .Values.pgserver.image }}:{{ .Values.pgserver.tag }}
+          imagePullPolicy: {{ .Values.pgserver.pullPolicy }}
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-db
+                  key: DATABASE_PASSWORD
+          command: ["sh","-c"]
+          args:
+            - |
+              until pg_isready -h pgserver.{{ .Release.Namespace }}.svc.cluster.local -U scenescape -d scenescape; do sleep 2; done
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+        - name: native-schema
+          image: "{{ .Values.native.image.repository }}:{{ default .Chart.AppVersion .Values.native.image.tag }}"
+          imagePullPolicy: {{ .Values.native.image.pullPolicy }}
+          args: ["migrate"]
+          env:
+            - name: DBHOST
+              value: pgserver.{{ .Release.Namespace }}.svc.cluster.local
+            - name: DBPORT
+              value: "5432"
+            - name: DBNAME
+              value: scenescape
+            - name: DBUSER
+              value: scenescape
+            - name: DBPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-db
+                  key: DATABASE_PASSWORD
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      {{- if .Values.native.migrateLegacy }}
+        - name: import-legacy-snapshot
+          image: "{{ .Values.native.image.repository }}:{{ default .Chart.AppVersion .Values.native.image.tag }}"
+          imagePullPolicy: {{ .Values.native.image.pullPolicy }}
+          command: ["sh","-c"]
+          args:
+            - |
+              set -eu
+              snapshot=/workspace/migrations/native-snapshot.json
+              marker=/workspace/migrations/native-import-complete
+              if [ -f "$marker" ]; then
+                echo "Native legacy snapshot was already imported; leaving native rows unchanged."
+                exit 0
+              fi
+              if [ ! -s "$snapshot" ]; then
+                echo "Expected legacy snapshot is missing or empty: $snapshot" >&2
+                exit 1
+              fi
+              python -m scenescape_api.migrate_legacy < "$snapshot"
+              touch "$marker"
+          env:
+            - name: DBHOST
+              value: pgserver.{{ .Release.Namespace }}.svc.cluster.local
+            - name: DBPORT
+              value: "5432"
+            - name: DBNAME
+              value: scenescape
+            - name: DBUSER
+              value: scenescape
+            - name: DBPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-db
+                  key: DATABASE_PASSWORD
+          volumeMounts:
+            - mountPath: /workspace/migrations
+              name: migrations-storage
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      {{- end }}
+      containers:
+        - name: {{ .Release.Name }}-web
+          image: "{{ .Values.native.image.repository }}:{{ default .Chart.AppVersion .Values.native.image.tag }}"
+          imagePullPolicy: {{ .Values.native.image.pullPolicy }}
+          args: ["serve"]
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: API_PORT
+              value: "443"
+            - name: API_TLS_CERT
+              value: /run/secrets/certs/scenescape-web.crt
+            - name: API_TLS_KEY
+              value: /run/secrets/certs/scenescape-web.key
+            - name: DBHOST
+              value: pgserver.{{ .Release.Namespace }}.svc.cluster.local
+            - name: DBPORT
+              value: "5432"
+            - name: DBNAME
+              value: scenescape
+            - name: DBUSER
+              value: scenescape
+            - name: DBPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-db
+                  key: DATABASE_PASSWORD
+            - name: MEDIA_ROOT
+              value: /data/media
+            - name: MEDIA_FALLBACK_ROOT
+              value: /data/samples
+            - name: MODEL_CONFIGS_FOLDER
+              value: /app/model_configs
+            - name: SERVICE_AUTH_FILES
+              value: /run/secrets/controller.auth,/run/secrets/calibration.auth,/run/secrets/browser.auth
+            - name: MQTT_HOST
+              value: broker.{{ .Release.Namespace }}.svc.cluster.local
+            - name: MQTT_PORT
+              value: "1883"
+            - name: MQTT_CA_FILE
+              value: /run/secrets/certs/scenescape-ca.pem
+            - name: MQTT_AUTH_FILE
+              value: /run/secrets/browser.auth
+            - name: API_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ if .Values.native.existingSecret }}{{ .Values.native.existingSecret }}{{ else }}{{ .Release.Name }}-native-api{{ end }}
+                  key: {{ .Values.native.signingKeyKey }}
+            - name: OIDC_AUDIENCE
+              value: scenescape-api
+            - name: HISTORY_SAMPLE_SECONDS
+              value: {{ .Values.native.historySampleSeconds | quote }}
+            - name: HISTORY_RETENTION_DAYS
+              value: {{ .Values.native.historyRetentionDays | quote }}
+            - name: EVENT_RETENTION_DAYS
+              value: {{ .Values.native.eventRetentionDays | quote }}
+            - name: AUTOCALIBRATION_URL
+              value: https://autocalibration.{{ .Release.Namespace }}.svc.cluster.local:8443
+            - name: UPSTREAM_CA_FILE
+              value: /run/secrets/certs/scenescape-ca.pem
+            {{- if .Values.mapping.enabled }}
+            - name: MAPPING_SERVICE_URL
+              value: https://mapping.{{ .Release.Namespace }}.svc.cluster.local:8444/v1
+            {{- end }}
+            {{- if .Values.keycloak.enabled }}
+            - name: OIDC_ISSUER
+              value: "https://{{ .Values.certdomain }}/auth/realms/{{ .Values.modernUI.auth.realm }}"
+            - name: OIDC_JWKS_URL
+              value: "http://keycloak.{{ .Release.Namespace }}.svc.cluster.local:8080/auth/realms/{{ .Values.modernUI.auth.realm }}/protocol/openid-connect/certs"
+            - name: KEYCLOAK_ADMIN_URL
+              value: "http://keycloak.{{ .Release.Namespace }}.svc.cluster.local:8080/auth"
+            - name: KEYCLOAK_REALM
+              value: {{ .Values.modernUI.auth.realm | quote }}
+            - name: KEYCLOAK_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ if .Values.keycloak.existingSecret }}{{ .Values.keycloak.existingSecret }}{{ else }}{{ .Release.Name }}-keycloak-bootstrap{{ end }}
+                  key: username
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ if .Values.keycloak.existingSecret }}{{ .Values.keycloak.existingSecret }}{{ else }}{{ .Release.Name }}-keycloak-bootstrap{{ end }}
+                  key: password
+            {{- else }}
+            - name: OIDC_ISSUER
+              value: {{ required "modernUI.auth.issuerUrl is required in native mode with external Keycloak" .Values.modernUI.auth.issuerUrl | quote }}
+            - name: OIDC_JWKS_URL
+              value: {{ default (printf "%s/protocol/openid-connect/certs" (trimSuffix "/" .Values.modernUI.auth.issuerUrl)) .Values.modernUI.auth.jwksUrl | quote }}
+            {{- if .Values.modernUI.auth.adminSecret }}
+            - name: KEYCLOAK_ADMIN_URL
+              value: {{ required "modernUI.auth.keycloakUrl is required when external Keycloak administration is enabled" .Values.modernUI.auth.keycloakUrl | quote }}
+            - name: KEYCLOAK_REALM
+              value: {{ .Values.modernUI.auth.realm | quote }}
+            - name: KEYCLOAK_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.modernUI.auth.adminSecret | quote }}
+                  key: {{ .Values.modernUI.auth.adminUsernameKey | quote }}
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.modernUI.auth.adminSecret | quote }}
+                  key: {{ .Values.modernUI.auth.adminPasswordKey | quote }}
+            {{- end }}
+            {{- end }}
+            {{ include "proxy_envs" . | indent 12 }}
+          ports:
+            - name: https
+              containerPort: 443
+              protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import ssl,urllib.request; r=urllib.request.urlopen('https://localhost:443/api/v1/health',context=ssl._create_unverified_context(),timeout=5); raise SystemExit(0 if r.status==200 else 1)"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 8
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import ssl,urllib.request; r=urllib.request.urlopen('https://localhost:443/api/v1/health',context=ssl._create_unverified_context(),timeout=5); raise SystemExit(0 if r.status==200 else 1)"
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 8
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          resources:
+            {{- toYaml .Values.native.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: /run/secrets/certs/scenescape-ca.pem
+              subPath: scenescape-ca.pem
+              name: certs
+              readOnly: true
+            - mountPath: /run/secrets/certs/scenescape-web.crt
+              subPath: scenescape-web.crt
+              name: certs
+              readOnly: true
+            - mountPath: /run/secrets/certs/scenescape-web.key
+              subPath: scenescape-web.key
+              name: certs
+              readOnly: true
+            - mountPath: /run/secrets/browser.auth
+              subPath: browser.auth
+              name: browser-auth
+              readOnly: true
+            - mountPath: /run/secrets/controller.auth
+              subPath: controller.auth
+              name: controller-auth
+              readOnly: true
+            - mountPath: /run/secrets/calibration.auth
+              subPath: calibration.auth
+              name: calibration-auth
+              readOnly: true
+            - mountPath: /data/media
+              name: media-storage
+            - mountPath: /data/samples
+              name: sample-data-storage
+              readOnly: true
+            - mountPath: /workspace/migrations
+              name: migrations-storage
+      volumes:
+        {{- include "certs_volume" . | nindent 8 }}
+        - name: browser-auth
+          secret:
+            secretName: {{ .Release.Name }}-browser.auth
+        - name: controller-auth
+          secret:
+            secretName: {{ .Release.Name }}-controller.auth
+        - name: calibration-auth
+          secret:
+            secretName: {{ .Release.Name }}-calibration.auth
+        - name: media-storage
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-media-pvc
+        - name: sample-data-storage
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-sample-data-pvc
+        - name: migrations-storage
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-migrations-pvc
+{{- end }}
