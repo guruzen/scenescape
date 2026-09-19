@@ -15,10 +15,10 @@ spec:
         app: {{ .Release.Name }}-native-migration
     spec:
       restartPolicy: Never
-      {{- with .Values.imagePullSecrets }}
+      {{ with .Values.imagePullSecrets }}
       imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{ toYaml . | nindent 8 }}
+      {{ end }}
       containers:
         - name: export-legacy
           image: {{ .Values.repository }}/{{ .Values.web.image }}:{{ .Chart.AppVersion }}
@@ -126,4 +126,4 @@ spec:
         - name: migrations-storage
           persistentVolumeClaim:
             claimName: {{ .Release.Name }}-migrations-pvc
-{{- end }}
+{{ end }}
