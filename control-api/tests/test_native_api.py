@@ -573,3 +573,31 @@ def test_singleton_sensor_icon_lifecycle(tmp_path, monkeypatch):
     assert removed.status_code==200,removed.text
     assert removed.json().get('icon') is None
     assert not (tmp_path/'media'/Path(icon).name).exists()
+
+
+def test_singleton_sensor_visibility_update_skips_config_invalidation(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    import scenescape_api.app as app_module
+    calls=[]
+    monkeypatch.setattr(app_module,'notify_config_change',lambda kind,uid=None: calls.append((kind,uid)) or {'ok':True})
+    created=client.post('/api/v2/sensors',headers=h,json={'sensor_id':'sensor-visible','name':'Visible Sensor'})
+    assert created.status_code==200
+    calls.clear()
+    visible=client.put(
+        f"/api/v2/sensors/sensor-visible?revision={created.json()['revision']}",
+        headers=h,json={'visible':True},
+    )
+    assert visible.status_code==200 and visible.json()['visible'] is True
+    assert calls==[]
+    renamed=client.put(
+        f"/api/v2/sensors/sensor-visible?revision={visible.json()['revision']}",
+        headers=h,json={'name':'Visible Sensor 2'},
+    )
+    assert renamed.status_code==200
+    assert calls==[('sensor','sensor-visible')]
+
+
+def test_singleton_sensor_rejects_blank_explicit_id(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    r=client.post('/api/v2/sensors',headers=h,json={'sensor_id':'','name':'Blank ID Sensor'})
+    assert r.status_code==400
