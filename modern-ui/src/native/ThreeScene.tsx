@@ -545,7 +545,6 @@ export default function ThreeScene({
 
         const rig = new THREE.Group()
         rig.name = 'camera-rig-' + id
-        rig.add(view)
         const helper = new THREE.CameraHelper(view)
         helper.material.transparent = true
         helper.material.opacity = selectedCameraId === id ? 1 : 0.55
@@ -575,7 +574,10 @@ export default function ThreeScene({
               new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: Math.max(0, Math.min(1, cameraOpacity)), side: THREE.DoubleSide, depthWrite: false }),
             )
             plane.position.set(0, 0, -distance)
-            view.add(plane)
+            plane.position.copy(view.position)
+            plane.quaternion.copy(view.quaternion)
+            plane.translateZ(-distance)
+            group.add(plane)
           } catch {
             // Offline cameras retain their frustum but do not receive a projected frame.
           }
