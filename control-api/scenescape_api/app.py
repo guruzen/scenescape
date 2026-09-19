@@ -92,12 +92,15 @@ def service_auth(username: str = Form(...), password: str = Form(...)):
 
 @app.post("/api/v1/aclcheck")
 async def legacy_aclcheck(request: Request):
-    try:
-        form = await request.form()
-        payload = dict(form)
-    except Exception:
+    content_type = request.headers.get("content-type", "").lower()
+    if "application/json" in content_type:
         try:
             payload = await request.json()
+        except Exception:
+            payload = {}
+    else:
+        try:
+            payload = dict(await request.form())
         except Exception:
             payload = {}
     username = str(payload.get("username") or "")
@@ -166,11 +169,15 @@ def legacy_user_delete(username: str, p=Depends(service_principal)):
 
 @app.get("/api/v2/users")
 def native_users(p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
     return keycloak_list_users()
 
 
 @app.get("/api/v2/users/{username}")
 def native_user_get(username: str, p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
     return keycloak_get_user(username)
 
 
