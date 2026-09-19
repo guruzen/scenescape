@@ -53,6 +53,7 @@ def worker():
             db.merge(Heartbeat(key="mqtt", state="connected", details={"reason": str(reason)}))
             db.commit()
         c.subscribe("scenescape/regulated/scene/#")
+        c.subscribe("scenescape/data/sensor/#")
         c.subscribe("scenescape/event/#")
 
     def on_message(c, user_data, msg):
