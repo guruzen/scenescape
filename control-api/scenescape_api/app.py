@@ -869,6 +869,38 @@ def native_sensor_icon_delete(
     return _sensor_value(to_dict(row), native=True)
 
 
+@app.get("/api/v2/sensors/{sensor_id}/telemetry")
+def native_sensor_telemetry(
+    sensor_id: str,
+    limit: int = Query(default=50, ge=1, le=500),
+    p=Depends(current_principal),
+    db=Depends(db_dep),
+):
+    sensor = _sensor_value(to_dict(get_resource(db, "sensor", sensor_id)), native=True)
+    scene_id = str(sensor.get("scene") or "")
+    if scene_id:
+        _scene_allowed(p, scene_id)
+    rows = db.scalars(
+        select(Observation)
+        .where(
+            Observation.scene_id == sensor_id,
+            Observation.topic.like("scenescape/data/sensor/%"),
+        )
+        .order_by(Observation.observed_at.desc(), Observation.id.desc())
+        .limit(limit)
+    ).all()
+    return [
+        {
+            "id": row.id,
+            "sensor_id": sensor_id,
+            "timestamp": row.observed_at.isoformat(),
+            "value": (row.payload or {}).get("value"),
+            "payload": row.payload or {},
+        }
+        for row in rows
+    ]
+
+
 @app.get("/api/v2/overview")
 def overview(p=Depends(current_principal), db=Depends(db_dep)):
     counts = {}
