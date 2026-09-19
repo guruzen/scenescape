@@ -14,7 +14,7 @@ import HierarchyEditor from './native/HierarchyEditor'
 type Row = Record<string, any>
 type Theme = 'light' | 'light-air' | 'dark' | 'dark-command'
 type Overview = { generated_at: string; counts: Record<string, number>; health: Record<string, string | null> }
-type Bundle = { scene: Row; cameras: Row[]; sensors: Row[]; regions: Row[]; tripwires: Row[]; children: Row[]; markers: Row[] }
+type Bundle = { scene: Row; cameras: Row[]; sensors: Row[]; regions: Row[]; tripwires: Row[]; children: Row[]; markers: Row[]; child_regions?: Row[]; child_tripwires?: Row[]; child_sensors?: Row[] }
 
 const operations = [
   ['overview', 'Shift overview'], ['live', 'Live scenes'], ['incidents', 'Incidents'],
@@ -106,6 +106,11 @@ function Map2D({ bundle, live, onPoint }: { bundle: Bundle; live: Row; onPoint?:
   const points = (rows: Row[]) => rows.map((row) => (row.points || []).map((p: any) => xy(p).join(',')).join(' '))
   const regionPoints = points(bundle.regions)
   const tripPoints = points(bundle.tripwires)
+  const childRegions = bundle.child_regions || []
+  const childTripwires = bundle.child_tripwires || []
+  const childSensors = bundle.child_sensors || []
+  const childRegionPoints = points(childRegions)
+  const childTripPoints = points(childTripwires)
 
   return <div className="map-frame">
     <svg className="native-map" viewBox={`0 0 ${size[0]} ${size[1]}`} onClick={(event) => {
@@ -117,10 +122,27 @@ function Map2D({ bundle, live, onPoint }: { bundle: Bundle; live: Row; onPoint?:
     }}>
       {mapUrl && <image href={mapUrl} x="0" y="0" width={size[0]} height={size[1]} preserveAspectRatio="none" />}
       {bundle.regions.map((row, i) => row.visible && regionPoints[i] && <polygon key={rowId(row) || i} points={regionPoints[i]} className="region-shape" />)}
+      {childRegions.map((row, i) => childRegionPoints[i] && <polygon key={`child-region-${rowId(row)||i}`} points={childRegionPoints[i]} className="child-region-shape" />)}
       {bundle.tripwires.map((row, i) => row.visible && tripPoints[i] && <polyline key={rowId(row) || i} points={tripPoints[i]} className="tripwire-line" />)}
+      {childTripwires.map((row, i) => childTripPoints[i] && <polyline key={`child-trip-${rowId(row)||i}`} points={childTripPoints[i]} className="child-tripwire-line" />}
       {bundle.cameras.map((camera, i) => {
         const [x, y] = xy(camera.translation || [i + 1, i + 1])
         return <g key={rowId(camera) || i}><circle cx={x} cy={y} r="8" className="camera-dot"/><text x={x + 11} y={y - 7} className="map-label">{rowName(camera)}</text></g>
+      })}
+      {childSensors.map((sensor, i) => {
+        if (sensor.area === 'scene') return null
+        const center = Array.isArray(sensor.center)
+          ? sensor.center
+          : Array.isArray(sensor.translation) && sensor.translation[0] != null
+            ? sensor.translation.slice(0, 2)
+            : Array.isArray(sensor.x) ? sensor.x : null
+        const polygon = Array.isArray(sensor.points) ? sensor.points.map((point: any) => xy(point).join(',')).join(' ') : ''
+        const position = center ? xy(center) : (sensor.x != null && sensor.y != null ? xy([sensor.x,sensor.y]) : null)
+        return <g key={`child-sensor-${rowId(sensor)||i}`}>
+          {sensor.area === 'poly' && polygon && <polygon points={polygon} className="child-sensor-area"/>}
+          {sensor.area === 'circle' && position && <circle cx={position[0]} cy={position[1]} r={Math.max(1, Number(sensor.radius || 0) * scale)} className="child-sensor-area"/>}
+          {position && <><circle cx={position[0]} cy={position[1]} r="7" className="child-sensor-dot"/><text x={position[0] + 10} y={position[1] - 7} className="map-label">{rowName(sensor)} · {String(sensor.from_child_scene||'child')}</text></>}
+        </g>
       })}
       {bundle.sensors.filter((sensor) => Boolean(sensor.visible)).map((sensor, i) => {
         const center = Array.isArray(sensor.center)
@@ -226,12 +248,12 @@ function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D'
       <span className={live.stale ? 'status-pill warning-pill' : 'status-pill ok-pill'}>{live.stale ? 'No live feed' : `${(live.objects || []).length} live objects · ${Number(live.scene_rate || 0).toFixed(1)} Hz`}</span>
     </Header>
     <div className="scene-summary">
-      <div><span>Scene ID</span><b>{id}</b></div><div><span>Cameras</span><b>{bundle.cameras.length}</b></div><div><span>Sensors</span><b>{bundle.sensors.length}</b></div><div><span>Spatial rules</span><b>{bundle.regions.length + bundle.tripwires.length}</b></div>
+      <div><span>Scene ID</span><b>{id}</b></div><div><span>Cameras</span><b>{bundle.cameras.length}</b></div><div><span>Sensors</span><b>{bundle.sensors.length}</b></div><div><span>Spatial rules</span><b>{bundle.regions.length + bundle.tripwires.length + (bundle.child_regions?.length||0) + (bundle.child_tripwires?.length||0)}</b></div>
     </div>
     <div className="tabs">{['Live 2D','Live 3D','Camera feeds','Geometry','Hierarchy','Camera calibration','History & replay','Trends & analytics'].map((name) => <button key={name} className={tab === name ? 'btn active-tab' : 'btn'} onClick={() => setTab(name)}>{name}</button>)}</div>
     {message && <div className="notice-box">{message}</div>}
     {tab === 'Live 2D' && <Map2D bundle={bundle} live={live}/>} 
-    {tab === 'Live 3D' && <ThreeScene mapPath={map3DPath} objects={live.objects || []} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors}/>} 
+    {tab === 'Live 3D' && <ThreeScene mapPath={map3DPath} objects={live.objects || []} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors} childRegions={bundle.child_regions||[]} childTripwires={bundle.child_tripwires||[]} childSensors={bundle.child_sensors||[]}/>} 
     {tab === 'Camera feeds' && <CameraFeeds cameras={bundle.cameras}/>} 
     {tab === 'Geometry' && <SpatialEditor scene={bundle.scene} regions={bundle.regions} tripwires={bundle.tripwires} isAdmin={isAdmin} onSaved={loadBundle}/>}
     {tab === 'Hierarchy' && <HierarchyEditor scenes={scenes} isAdmin={isAdmin} initialParent={id}/>}
