@@ -62,6 +62,19 @@ SENSOR_DEFAULTS = {
     "translation": [None, None, 0.0],
 }
 
+REGION_ALLOWED_FIELDS = {
+    "uid", "name", "points", "scene", "buffer_size", "height",
+    "volumetric", "color_ranges", "visible",
+}
+REGION_DEFAULTS = {
+    "buffer_size": 0.0,
+    "height": 1.0,
+    "volumetric": False,
+    "visible": False,
+}
+TRIPWIRE_ALLOWED_FIELDS = {"uid", "name", "points", "height", "scene", "visible"}
+TRIPWIRE_DEFAULTS = {"height": 1.0, "visible": False}
+
 
 ASSET_ALLOWED_FIELDS = {
     "uid", "name", "x_size", "y_size", "z_size", "tracking_radius",
@@ -421,6 +434,108 @@ def _sensor_color_ranges(value: Any) -> dict:
     return {"sectors": normalized, "range_max": _number("color_ranges", value["range_max"])}
 
 
+def _strict_bool(field: str, value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in {"true", "1", "yes", "on"}:
+            return True
+        if text in {"false", "0", "no", "off"}:
+            return False
+    _bad(field, "Must be a valid boolean.")
+
+
+def _spatial_points(value: Any) -> list[list[float]]:
+    if not isinstance(value, list):
+        _bad("points", "Points must be a list.")
+    result = []
+    for index, point in enumerate(value):
+        if not isinstance(point, (list, tuple)) or len(point) != 2:
+            _bad("points", f"Each point must be a list of 2 coordinates, got {point} at index {index}.")
+        result.append([_number("points", point[0]), _number("points", point[1])])
+    return result
+
+
+def normalize_spatial(db, kind: str, body: dict, *, uid: str | None, creating: bool, legacy: bool) -> tuple[dict, str | None]:
+    if kind not in {"region", "tripwire"}:
+        raise HTTPException(500, "Unsupported spatial resource")
+    if not isinstance(body, dict) or (creating and not body):
+        _bad("body", "Request body is required.")
+    data = deepcopy(body)
+    allowed = REGION_ALLOWED_FIELDS if kind == "region" else TRIPWIRE_ALLOWED_FIELDS
+    defaults = REGION_DEFAULTS if kind == "region" else TRIPWIRE_DEFAULTS
+    resolved_uid = uid
+
+    if not legacy:
+        if creating and data.get("uid") not in (None, ""):
+            resolved_uid = str(data.pop("uid"))
+        else:
+            data.pop("uid", None)
+        data.pop("kind", None)
+        data.pop("revision", None)
+    else:
+        # Tagged serializers expose uid read-only.
+        data.pop("uid", None)
+
+    unknown = set(data) - (allowed - {"uid"})
+    if unknown:
+        _bad(sorted(unknown)[0], "Unknown field.")
+
+    if creating and "name" not in data:
+        _bad("name", "This field is required.")
+    if "name" in data:
+        name = str(data["name"])
+        if not name.strip():
+            _bad("name", "This field may not be blank.")
+        if len(name) > 150:
+            _bad("name", "Ensure this field has no more than 150 characters.")
+        data["name"] = name
+
+    if creating and "scene" not in data:
+        _bad("scene", "This field is required.")
+    if "scene" in data:
+        if data["scene"] in (None, ""):
+            _bad("scene", "This field may not be null.")
+        scene_uid = str(data["scene"])
+        if not _scene_exists(db, scene_uid):
+            _bad("scene", "Scene with given UUID does not exist.")
+        data["scene"] = scene_uid
+
+    if creating and "points" not in data:
+        _bad("points", "This field is required.")
+    if "points" in data:
+        data["points"] = _spatial_points(data["points"])
+
+    if "height" in data and data["height"] is not None:
+        height = _number("height", data["height"])
+        if kind == "region" and height < 0.001:
+            _bad("height", "Ensure this value is greater than or equal to 0.001.")
+        data["height"] = height
+
+    if kind == "region":
+        if "buffer_size" in data and data["buffer_size"] is not None:
+            buffer_size = _number("buffer_size", data["buffer_size"])
+            if buffer_size < 0:
+                _bad("buffer_size", "Ensure this value is greater than or equal to 0.")
+            data["buffer_size"] = buffer_size
+        if "volumetric" in data and data["volumetric"] is not None:
+            data["volumetric"] = _strict_bool("volumetric", data["volumetric"])
+        if "color_ranges" in data and data["color_ranges"] is not None:
+            data["color_ranges"] = _sensor_color_ranges(data["color_ranges"])
+
+    if "visible" in data and data["visible"] is not None:
+        data["visible"] = _strict_bool("visible", data["visible"])
+
+    if creating:
+        merged = deepcopy(defaults)
+        merged.update(data)
+        data = merged
+    return data, resolved_uid
+
+
 def normalize_sensor(db, body: dict, *, uid: str | None, creating: bool, legacy: bool) -> tuple[dict, str | None]:
     if not isinstance(body, dict) or (creating and not body):
         _bad("body", "Request body is required.")
@@ -513,7 +628,7 @@ def normalize_sensor(db, body: dict, *, uid: str | None, creating: bool, legacy:
     if "singleton_type" in data and data["singleton_type"] is not None:
         data["singleton_type"] = _choice("singleton_type", data["singleton_type"], {"environmental", "attribute"})
     if "visible" in data:
-        data["visible"] = bool(data["visible"])
+        data["visible"] = _strict_bool("visible", data["visible"])
     if "icon" in data and data["icon"] not in (None, ""):
         data["icon"] = str(data["icon"])
 
@@ -635,6 +750,8 @@ def normalize_resource(db, kind: str, body: dict, *, uid: str | None = None, cre
         return normalize_camera(db, body, uid=uid, creating=creating, legacy=legacy)
     if kind == "sensor":
         return normalize_sensor(db, body, uid=uid, creating=creating, legacy=legacy)
+    if kind in {"region", "tripwire"}:
+        return normalize_spatial(db, kind, body, uid=uid, creating=creating, legacy=legacy)
     if kind == "asset":
         return normalize_asset(db, body, uid=uid, creating=creating, legacy=legacy)
     if not isinstance(body, dict):
