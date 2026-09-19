@@ -5,4 +5,6 @@ window.__SCENESCAPE_CONFIG__ = {
   keycloakClientId: 'scenescape-ui',
   legacyBaseUrl: '/legacy/',
   appTitle: 'SceneScape',
+  googleMapsApiKey: '',
+  mapboxApiKey: '',
 }
