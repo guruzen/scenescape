@@ -31,6 +31,10 @@ services:
       OIDC_AUDIENCE: scenescape-api
       OIDC_ALLOWED_ORIGINS: ${SCENESCAPE_PUBLIC_URL:-http://localhost:8088}
       SERVICE_AUTH_FILES: /run/secrets/controller.auth,/run/secrets/calibration.auth,/run/secrets/browser.auth
+      MQTT_HOST: broker.scenescape.intel.com
+      MQTT_PORT: "1883"
+      MQTT_CA_FILE: /run/secrets/certs/scenescape-ca.pem
+      MQTT_AUTH_FILE: /run/secrets/browser.auth
       API_SIGNING_KEY: ${SCENESCAPE_API_SIGNING_KEY:?Run scenescape.sh configure or migrate-native}
       AUTOCALIBRATION_URL: https://autocalibration.scenescape.intel.com:8443
       UPSTREAM_CA_FILE: /run/secrets/certs/scenescape-ca.pem

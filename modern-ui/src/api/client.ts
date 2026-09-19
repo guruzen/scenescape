@@ -37,3 +37,33 @@ export function normalizeList(payload: unknown): Record<string, unknown>[] {
   }
   return []
 }
+
+
+export async function apiJsonStream<T>(path: string, onData: (value: T) => void, signal: AbortSignal): Promise<void> {
+  const token = await tokenSupplier()
+  const headers = new Headers({ Accept: 'text/event-stream' })
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const response = await fetch(resolveUrl(path), { headers, credentials: 'same-origin', signal })
+  if (!response.ok) throw new Error(`SceneScape live stream returned ${response.status}`)
+  if (!response.body) throw new Error('SceneScape live stream has no response body')
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  try {
+    while (!signal.aborted) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
+      let boundary = buffer.indexOf('\n\n')
+      while (boundary >= 0) {
+        const block = buffer.slice(0, boundary)
+        buffer = buffer.slice(boundary + 2)
+        const data = block.split('\n').filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trim()).join('\n')
+        if (data) onData(JSON.parse(data) as T)
+        boundary = buffer.indexOf('\n\n')
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}

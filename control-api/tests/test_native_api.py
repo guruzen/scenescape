@@ -113,3 +113,52 @@ def test_viewer_scene_scope_filters_resources(tmp_path, monkeypatch):
     scenes=client.get('/api/v2/scenes',headers=h).json(); assert [x['uid'] for x in scenes]==['a']
     cameras=client.get('/api/v2/cameras',headers=h).json(); assert [x['uid'] for x in cameras]==['cam-a']
     assert client.get('/api/v2/scenes/b/bundle',headers=h).status_code==403
+
+
+def test_regulated_topic_scene_id_overrides_detector_id(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    assert client.post('/api/v2/scenes',headers=h,json={'uid':'scene-live','name':'Live'}).status_code==200
+    from scenescape_api.ingest import persist
+    from scenescape_api.database import Observation
+    from sqlalchemy import select
+    payload={'id':'camera-source-1','name':'camera-source-1','scene_rate':7.5,'objects':[{'id':'person-1','translation':[2,3,0]}]}
+    with d.sessions()() as db:
+        persist(db,'scenescape/regulated/scene/scene-live',json.dumps(payload).encode()); db.commit()
+        row=db.scalar(select(Observation).order_by(Observation.id.desc()).limit(1))
+        assert row.scene_id=='scene-live'
+    live=client.get('/api/v2/scenes/scene-live/live',headers=h)
+    assert live.status_code==200
+    assert live.json()['objects'][0]['id']=='person-1'
+    assert live.json()['scene_id']=='scene-live'
+
+
+def test_old_miskeyed_observation_is_read_by_regulated_topic(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    assert client.post('/api/v2/scenes',headers=h,json={'uid':'scene-old','name':'Old'}).status_code==200
+    from scenescape_api.database import Observation
+    from datetime import datetime, timezone
+    with d.sessions()() as db:
+        db.add(Observation(scene_id='camera-wrong',topic='scenescape/regulated/scene/scene-old',observed_at=datetime.now(timezone.utc),payload={'id':'camera-wrong','objects':[{'id':'x','translation':[1,1,0]}]})); db.commit()
+    r=client.get('/api/v2/scenes/scene-old/live',headers=h)
+    assert r.status_code==200 and r.json()['objects'][0]['id']=='x'
+
+
+def test_event_scene_id_comes_from_topic(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    from scenescape_api.ingest import persist
+    with d.sessions()() as db:
+        persist(db,'scenescape/event/region/scene-event/zone-a/occupancy',json.dumps({'id':'camera-1','region_name':'Zone A'}).encode()); db.commit()
+    incident=client.get('/api/v2/incidents',headers=h).json()[0]
+    assert incident['scene_id']=='scene-event'
+
+
+def test_native_camera_snapshot_bridge_returns_jpeg(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    assert client.post('/api/v2/scenes',headers=h,json={'uid':'scene-cam','name':'Camera scene'}).status_code==200
+    assert client.post('/api/v2/cameras',headers=h,json={'uid':'cam-1','name':'Cam 1','scene':'scene-cam'}).status_code==200
+    import scenescape_api.app as app_module
+    monkeypatch.setattr(app_module,'fetch_camera_snapshot',lambda camera_id: b'\xff\xd8fake-jpeg\xff\xd9')
+    r=client.get('/api/v2/cameras/cam-1/snapshot',headers=h)
+    assert r.status_code==200
+    assert r.headers['content-type'].startswith('image/jpeg')
+    assert r.content.startswith(b'\xff\xd8')

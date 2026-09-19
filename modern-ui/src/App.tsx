@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { apiFetch, apiObjectUrl } from './api/client'
+import { apiFetch, apiJsonStream, apiObjectUrl } from './api/client'
 import { useAuth } from './auth/AuthProvider'
 import ThreeScene from './native/ThreeScene'
 
@@ -97,6 +97,53 @@ function Map2D({ bundle, live, onPoint }: { bundle: Bundle; live: Row; onPoint?:
   </div>
 }
 
+
+function CameraFeed({ camera }: { camera: Row }) {
+  const [url, setUrl] = useState('')
+  const [error, setError] = useState('')
+  const cameraId = rowId(camera)
+
+  useEffect(() => {
+    let active = true
+    let currentUrl = ''
+    let inFlight = false
+    const refresh = async () => {
+      if (!active || inFlight) return
+      inFlight = true
+      try {
+        const next = await apiObjectUrl(`/api/v2/cameras/${encodeURIComponent(cameraId)}/snapshot?t=${Date.now()}`)
+        if (!active) { URL.revokeObjectURL(next); return }
+        if (currentUrl) URL.revokeObjectURL(currentUrl)
+        currentUrl = next
+        setUrl(next)
+        setError('')
+      } catch (e) {
+        if (active) setError(String(e))
+      } finally {
+        inFlight = false
+      }
+    }
+    void refresh()
+    const timer = window.setInterval(refresh, 900)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+      if (currentUrl) URL.revokeObjectURL(currentUrl)
+    }
+  }, [cameraId])
+
+  return <section className="panel camera-feed-card">
+    <div className="panel-title"><div><h2>{rowName(camera)}</h2><p>{cameraId}</p></div><span className={error ? 'status-pill warning-pill' : 'status-pill ok-pill'}>{error ? 'Unavailable' : 'Live JPEG'}</span></div>
+    <div className="camera-feed-frame">{url ? <img src={url} alt={`${rowName(camera)} live view`} /> : <div className="camera-feed-placeholder">Waiting for camera image…</div>}</div>
+    {error && <div className="camera-feed-error">{error}</div>}
+  </section>
+}
+
+function CameraFeeds({ cameras }: { cameras: Row[] }) {
+  if (!cameras.length) return <div className="empty-state"><h2>No cameras configured</h2><p>This scene has no migrated camera resources.</p></div>
+  return <div className="camera-feed-grid">{cameras.map((camera) => <CameraFeed key={rowId(camera)} camera={camera}/>)}</div>
+}
+
 function SceneWorkspace({ scene, onBack }: { scene: Row; onBack: () => void }) {
   const [bundle, setBundle] = useState<Bundle | null>(null)
   const [live, setLive] = useState<Row>({ objects: [], stale: true })
@@ -118,10 +165,14 @@ function SceneWorkspace({ scene, onBack }: { scene: Row; onBack: () => void }) {
   useEffect(() => {
     loadBundle()
     let active = true
+    let fallbackTimer = 0
+    const controller = new AbortController()
     const refresh = () => void apiFetch<Row>(`/api/v2/scenes/${id}/live`).then((value) => active && setLive(value)).catch(() => {})
     refresh()
-    const timer = window.setInterval(refresh, 1000)
-    return () => { active = false; window.clearInterval(timer) }
+    void apiJsonStream<Row>(`/api/v2/scenes/${id}/live/stream`, (value) => { if (active) setLive(value) }, controller.signal).catch(() => {
+      if (active && !controller.signal.aborted) fallbackTimer = window.setInterval(refresh, 500)
+    })
+    return () => { active = false; controller.abort(); if (fallbackTimer) window.clearInterval(fallbackTimer) }
   }, [id])
 
   if (!bundle) return <><button className="btn" onClick={onBack}>← Back to scenes</button><div className="center-panel">Loading native scene workspace…{message && <div className="error-box">{message}</div>}</div></>
@@ -144,15 +195,16 @@ function SceneWorkspace({ scene, onBack }: { scene: Row; onBack: () => void }) {
   return <>
     <Header kicker="Operations · native scene workspace" title={rowName(bundle.scene)}>
       <button className="btn" onClick={onBack}>← All scenes</button>
-      <span className={live.stale ? 'status-pill warning-pill' : 'status-pill ok-pill'}>{live.stale ? 'No live feed' : `${(live.objects || []).length} live objects`}</span>
+      <span className={live.stale ? 'status-pill warning-pill' : 'status-pill ok-pill'}>{live.stale ? 'No live feed' : `${(live.objects || []).length} live objects · ${Number(live.scene_rate || 0).toFixed(1)} Hz`}</span>
     </Header>
     <div className="scene-summary">
       <div><span>Scene ID</span><b>{id}</b></div><div><span>Cameras</span><b>{bundle.cameras.length}</b></div><div><span>Sensors</span><b>{bundle.sensors.length}</b></div><div><span>Spatial rules</span><b>{bundle.regions.length + bundle.tripwires.length}</b></div>
     </div>
-    <div className="tabs">{['Live 2D','Live 3D','Geometry','Camera calibration','History & replay','Trends & analytics'].map((name) => <button key={name} className={tab === name ? 'btn active-tab' : 'btn'} onClick={() => setTab(name)}>{name}</button>)}</div>
+    <div className="tabs">{['Live 2D','Live 3D','Camera feeds','Geometry','Camera calibration','History & replay','Trends & analytics'].map((name) => <button key={name} className={tab === name ? 'btn active-tab' : 'btn'} onClick={() => setTab(name)}>{name}</button>)}</div>
     {message && <div className="notice-box">{message}</div>}
     {tab === 'Live 2D' && <Map2D bundle={bundle} live={live}/>} 
     {tab === 'Live 3D' && <ThreeScene mapPath={mapPath} objects={live.objects || []} scale={Number(bundle.scene.scale || 100)}/>} 
+    {tab === 'Camera feeds' && <CameraFeeds cameras={bundle.cameras}/>} 
     {tab === 'Geometry' && <div className="workspace-grid"><section className="panel"><div className="panel-title"><div><h2>Draw tripwire</h2><p>Click points directly on the native scene map.</p></div></div><div className="form-row"><label>Name<input value={tripName} onChange={(e) => setTripName(e.target.value)} /></label><button className="btn" onClick={() => setDrawn([])}>Clear points</button><button className="btn btn-primary" onClick={() => void saveTripwire()}>Save to scene</button></div><Map2D bundle={bundle} live={live} onPoint={(point) => setDrawn((old) => [...old, point])}/><div className="point-strip">{drawn.map((point, i) => <code key={i}>{point.map((v) => v.toFixed(2)).join(', ')}</code>)}</div></section><section className="panel"><div className="panel-title"><div><h2>Configured geometry</h2><p>Persisted through FastAPI.</p></div></div><div className="stack-list">{bundle.regions.map((r) => <div key={rowId(r)}><b>{rowName(r)}</b><span>Region · {(r.points || []).length} points</span></div>)}{bundle.tripwires.map((r) => <div key={rowId(r)}><b>{rowName(r)}</b><span>Tripwire · {(r.points || []).length} points</span></div>)}</div></section></div>}
     {tab === 'Camera calibration' && <section className="panel editor-panel"><div className="panel-title"><div><h2>Native camera pose</h2><p>{bundle.cameras[0] ? rowName(bundle.cameras[0]) : 'No camera configured'}</p></div></div><textarea aria-label="Camera pose: translation, rotation, scale" value={pose} onChange={(e) => setPose(e.target.value)} /><div className="editor-actions"><button className="btn btn-primary" onClick={() => void savePose()}>Save camera pose</button></div></section>}
     {tab === 'History & replay' && <section className="panel history-panel"><div className="panel-title"><div><h2>Persisted observations</h2><p>Metadata replay from the native historian.</p></div><button className="btn btn-primary" onClick={() => void apiFetch<Row[]>(`/api/v2/scenes/${id}/history`).then(setHistory)}>Load history</button></div>{history.length > 0 ? <><input type="range" min="0" max={history.length - 1}/><div className="history-list">{history.slice(-12).map((row) => <div key={row.id}><b>{row.timestamp}</b><span>{(row.payload?.objects || []).length} objects</span></div>)}</div></> : <div className="table-empty">No retained samples loaded yet.</div>}</section>}
