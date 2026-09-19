@@ -407,6 +407,95 @@ def child_to_dict(db, row: Resource, *, native: bool = False) -> dict:
     return result
 
 
+def _child_pose_matrix(payload: dict):
+    """Build the exact 4x4 child-to-parent pose used by CameraPose."""
+    import numpy as np
+    from scipy.spatial.transform import Rotation
+
+    transform_type = str(payload.get("transform_type") or "matrix")
+    values = [_as_number(payload.get(f"transform{i}", IDENTITY[i - 1]), f"transform{i}") for i in range(1, 17)]
+    if transform_type == "matrix":
+        return np.array(values, dtype=float).reshape(4, 4)
+    if transform_type == "euler":
+        translation = values[0:3]
+        rotation = Rotation.from_euler("XYZ", values[3:6], degrees=True).as_matrix()
+        scale = values[6:9]
+    elif transform_type == "quaternion":
+        translation = values[0:3]
+        rotation = Rotation.from_quat(values[3:7]).as_matrix()
+        scale = values[7:10]
+    else:
+        _bad("transform_type", f'"{transform_type}" is not a valid choice.')
+    pose = np.vstack((np.hstack((rotation, np.array(translation, dtype=float).reshape(3, 1))), [0, 0, 0, 1]))
+    return pose @ np.diag([*scale, 1.0])
+
+
+def _transform_child_geometry(value: dict, payload: dict, child_name: str) -> dict:
+    import numpy as np
+
+    result = deepcopy(value)
+    matrix = _child_pose_matrix(payload)
+
+    def transform_xy(point):
+        if not isinstance(point, (list, tuple)) or len(point) < 2:
+            return point
+        vec = np.array([float(point[0]), float(point[1]), 0.0, 1.0], dtype=float)
+        out = matrix @ vec
+        return [float(out[0]), float(out[1])]
+
+    if isinstance(result.get("points"), list):
+        result["points"] = [transform_xy(point) for point in result["points"]]
+    if result.get("x") is not None and result.get("y") is not None:
+        result["x"], result["y"] = transform_xy([result["x"], result["y"]])
+    if isinstance(result.get("center"), (list, tuple)) and len(result["center"]) >= 2:
+        result["center"] = transform_xy(result["center"])
+        result["translation"] = [result["center"][0], result["center"][1], 0.0]
+    elif isinstance(result.get("translation"), (list, tuple)) and len(result["translation"]) >= 2 and result["translation"][0] is not None:
+        xy = transform_xy(result["translation"])
+        result["translation"] = [xy[0], xy[1], float(result["translation"][2] if len(result["translation"]) > 2 else 0.0)]
+        result["center"] = xy
+    result["from_child_scene"] = child_name
+    return result
+
+
+def child_metadata_for_parent(db, parent_uid: str) -> dict[str, list[dict]]:
+    """Return transformed direct-child spatial metadata as Django did in 2026.2."""
+    result = {"regions": [], "tripwires": [], "sensors": []}
+    parent = str(parent_uid)
+    for link_row in _child_rows(db):
+        payload = link_row.payload or {}
+        if str(payload.get("parent") or payload.get("scene") or "") != parent:
+            continue
+        child_type = str(payload.get("child_type") or "local")
+        if child_type == "local":
+            child_uid = str(payload.get("child") or "")
+            child_scene = _scene_row(db, child_uid)
+            if child_scene is None:
+                continue
+            child_name = str((child_scene.payload or {}).get("name") or child_uid)
+            for resource_kind, key in (("region", "regions"), ("tripwire", "tripwires"), ("sensor", "sensors")):
+                rows = db.scalars(select(Resource).where(Resource.kind == resource_kind).order_by(Resource.id)).all()
+                for row in rows:
+                    value = deepcopy(row.payload or {})
+                    if str(value.get("scene") or value.get("scene_id") or "") != child_uid:
+                        continue
+                    value["uid"] = row.uid
+                    if resource_kind == "sensor" and str(value.get("area") or "scene") == "scene":
+                        value["from_child_scene"] = child_name
+                        result[key].append(value)
+                    else:
+                        result[key].append(_transform_child_geometry(value, payload, child_name))
+        else:
+            child_name = str(payload.get("child_name") or payload.get("remote_child_id") or "")
+            for value in payload.get("cached_rois") or []:
+                if isinstance(value, dict):
+                    result["regions"].append(_transform_child_geometry(value, payload, child_name))
+            for value in payload.get("cached_tripwires") or []:
+                if isinstance(value, dict):
+                    result["tripwires"].append(_transform_child_geometry(value, payload, child_name))
+    return result
+
+
 def cascade_scene_links(db, scene_uid: str) -> list[str]:
     deleted: list[str] = []
     value = str(scene_uid)
