@@ -34,7 +34,11 @@ spec:
       - name: wait-for-web-initcontainer
         image: {{ .Values.busyboxImage.repository }}/{{ .Values.busyboxImage.name }}:{{ .Values.busyboxImage.tag }}
         imagePullPolicy: {{ .Values.busyboxImage.pullPolicy }}
+        {{- if .Values.native.enabled }}
+        command: ["/bin/sh", "-c", "until wget -q --no-check-certificate --spider https://web.{{ .Release.Namespace }}.svc.cluster.local:443/api/v1/health; do sleep 1; done"]
+        {{- else }}
         command: ["/bin/sh", "-c", "until wget -q --spider http://web.{{ .Release.Namespace }}.svc.cluster.local; do sleep 1; done"]
+        {{- end }}
         securityContext:
           {{ include "defaultContainerSecurityContext" . | indent 10 }}
       containers:
