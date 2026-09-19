@@ -489,6 +489,8 @@ def normalize_spatial(db, kind: str, body: dict, *, uid: str | None, creating: b
     if creating and "name" not in data:
         _bad("name", "This field is required.")
     if "name" in data:
+        if data["name"] is None:
+            _bad("name", "This field may not be null.")
         name = str(data["name"])
         if not name.strip():
             _bad("name", "This field may not be blank.")
