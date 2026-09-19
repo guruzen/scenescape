@@ -29,6 +29,7 @@ from .scene_import_native import import_scene_archive
 from .mapping_service import mapping_health, mesh_generation_status, start_mesh_generation
 from .pipeline_generation import pipeline_preview
 from .scene_service import cleanup_scene_media, create_scene, delete_scene, delete_scene_media, update_scene
+from .sensor_service import update_sensor_resource
 from .resources import ALIASES, delete_resource, get_resource, list_resources, to_dict, upsert
 
 app = FastAPI(title="SceneScape Native Control API", version="0.2")
@@ -510,6 +511,8 @@ def legacy_update(thing: str, uid: str, body: dict, p=Depends(service_principal)
     previous = _legacy_clean(current) if kind == "camera" else None
     if kind == "camera":
         row, _ = update_camera_resource(db, uid, body, p, legacy=True, expected_revision=current.revision)
+    elif kind == "sensor":
+        row, _ = update_sensor_resource(db, uid, body, p, legacy=True, expected_revision=current.revision)
     else:
         body, resolved_uid = normalize_resource(db, kind, body, uid=uid, creating=False, legacy=True)
         row = upsert(db, kind, resolved_uid or uid, body, p, current.revision)
@@ -573,6 +576,7 @@ def legacy_delete(thing: str, uid: str, p=Depends(service_principal), db=Depends
         return {"marker_id": marker_id}
     current = get_resource(db, kind, uid)
     previous = _legacy_clean(current) if kind == "camera" else None
+    sensor_icon = str((current.payload or {}).get("icon") or "") if kind == "sensor" else ""
     media_values = []
     asset_media = ""
     if kind == "scene":
@@ -586,6 +590,8 @@ def legacy_delete(thing: str, uid: str, p=Depends(service_principal), db=Depends
         delete_scene_media(media_values)
     if asset_media:
         delete_media(asset_media)
+    if sensor_icon:
+        delete_media(sensor_icon)
     notify_config_change(kind, uid)
     if kind == "camera" and previous is not None:
         notify_camera_change(previous, "delete")
@@ -786,6 +792,60 @@ async def native_asset_update(uid: str, request: Request, revision: int | None =
         raise
     cleanup_replaced_asset_media(before, row.payload or {})
     notify_config_change("asset", row.uid)
+    return to_dict(row)
+
+
+@app.post("/api/v2/sensors/{sensor_id}/icon")
+async def native_sensor_icon_upload(
+    sensor_id: str,
+    icon: UploadFile = File(...),
+    revision: int | None = Query(default=None),
+    p=Depends(current_principal),
+    db=Depends(db_dep),
+):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    current = get_resource(db, "sensor", sensor_id)
+    before = dict(current.payload or {})
+    created = ""
+    try:
+        created = await save_upload(icon, kind="thumbnail")
+        row, _ = update_sensor_resource(
+            db, sensor_id, {"icon": created}, p, legacy=False,
+            expected_revision=revision if revision is not None else current.revision,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        if created:
+            delete_media(created)
+        raise
+    old_icon = str(before.get("icon") or "")
+    if old_icon and old_icon != created:
+        delete_media(old_icon)
+    notify_config_change("sensor", row.uid)
+    return to_dict(row)
+
+
+@app.delete("/api/v2/sensors/{sensor_id}/icon")
+def native_sensor_icon_delete(
+    sensor_id: str,
+    revision: int | None = Query(default=None),
+    p=Depends(current_principal),
+    db=Depends(db_dep),
+):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    current = get_resource(db, "sensor", sensor_id)
+    old_icon = str((current.payload or {}).get("icon") or "")
+    row, _ = update_sensor_resource(
+        db, sensor_id, {"icon": None}, p, legacy=False,
+        expected_revision=revision if revision is not None else current.revision,
+    )
+    db.commit()
+    if old_icon:
+        delete_media(old_icon)
+    notify_config_change("sensor", row.uid)
     return to_dict(row)
 
 
@@ -1130,6 +1190,8 @@ def update_any(
     previous = to_dict(current) if kind == "camera" else None
     if kind == "camera":
         row, _ = update_camera_resource(db, uid, body, p, legacy=False, expected_revision=revision)
+    elif kind == "sensor":
+        row, _ = update_sensor_resource(db, uid, body, p, legacy=False, expected_revision=revision)
     else:
         body, resolved_uid = normalize_resource(db, kind, body, uid=uid, creating=False, legacy=False)
         row = upsert(db, kind, resolved_uid or uid, body, p, revision)
@@ -1160,6 +1222,7 @@ def delete_any(plural: str, uid: str, p=Depends(current_principal), db=Depends(d
         return {"deleted": True, "uid": marker_id, "kind": kind}
     current = get_resource(db, kind, uid)
     previous = to_dict(current) if kind == "camera" else None
+    sensor_icon = str((current.payload or {}).get("icon") or "") if kind == "sensor" else ""
     media_values = []
     asset_media = ""
     if kind == "scene":
@@ -1173,6 +1236,8 @@ def delete_any(plural: str, uid: str, p=Depends(current_principal), db=Depends(d
         delete_scene_media(media_values)
     if asset_media:
         delete_media(asset_media)
+    if sensor_icon:
+        delete_media(sensor_icon)
     notify_config_change(kind, uid)
     if kind == "camera" and previous is not None:
         notify_camera_change(previous, "delete")
