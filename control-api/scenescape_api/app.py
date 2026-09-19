@@ -537,7 +537,7 @@ def legacy_update(thing: str, uid: str, body: dict, p=Depends(service_principal)
         row = upsert(db, kind, resolved_uid or uid, body, p, current.revision)
     db.commit()
     value = _legacy_scene(db, row) if kind == "scene" else _legacy_clean(row)
-    if not (kind == "sensor" and set(body.keys()) == {"visible"}):
+    if not (kind in {"sensor", "region", "tripwire"} and set(body.keys()) == {"visible"}):
         notify_config_change(kind, row.uid)
     if kind == "camera":
         notify_camera_change(value, "save", previous)
