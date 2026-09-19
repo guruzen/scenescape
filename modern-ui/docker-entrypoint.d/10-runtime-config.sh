@@ -7,6 +7,8 @@ window.__SCENESCAPE_CONFIG__ = {
   keycloakUrl: "$(escape_js "${SCENESCAPE_KEYCLOAK_URL:-/auth}")",
   keycloakRealm: "$(escape_js "${SCENESCAPE_KEYCLOAK_REALM:-scenescape}")",
   keycloakClientId: "$(escape_js "${SCENESCAPE_KEYCLOAK_CLIENT_ID:-scenescape-ui}")",
-  appTitle: "$(escape_js "${SCENESCAPE_APP_TITLE:-SceneScape}")"
+  appTitle: "$(escape_js "${SCENESCAPE_APP_TITLE:-SceneScape}")",
+  googleMapsApiKey: "$(escape_js "${GOOGLE_MAPS_API_KEY:-}")",
+  mapboxApiKey: "$(escape_js "${MAPBOX_API_KEY:-}")"
 };
 EOF_CONFIG
