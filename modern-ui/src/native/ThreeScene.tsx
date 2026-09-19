@@ -65,7 +65,7 @@ export default function ThreeScene({
       const next: Record<string, THREE.Object3D> = {}
       for (const asset of assets) {
         const path = String(asset.model_3d || '')
-        if (!path) continue
+        if (!path && !(previewAsset && mediaOverrideUrl)) continue
         try {
           const url = previewAsset && mediaOverrideUrl ? mediaOverrideUrl : await apiObjectUrl(path)
           if (!(previewAsset && mediaOverrideUrl)) urls.push(url)
