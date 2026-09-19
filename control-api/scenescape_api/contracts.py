@@ -399,8 +399,10 @@ def normalize_camera(db, body: dict, *, uid: str | None, creating: bool, legacy:
         _bad("name", f'A camera with the name "{name}" already exists.')
     data["name"] = name
     sensor_id = data.pop("sensor_id", None)
-    if creating and resolved_uid is None:
-        resolved_uid = str(sensor_id if sensor_id not in (None, "") else name.replace(" ", "_"))
+    if sensor_id not in (None, ""):
+        resolved_uid = str(sensor_id)
+    elif creating and resolved_uid is None:
+        resolved_uid = name.replace(" ", "_")
     if "scene" in data and data["scene"] not in (None, ""):
         scene_uid = str(data["scene"])
         if not _scene_exists(db, scene_uid):
@@ -412,10 +414,30 @@ def normalize_camera(db, body: dict, *, uid: str | None, creating: bool, legacy:
         data["distortion"] = _distortion(data["distortion"])
     if "resolution" in data and data["resolution"] is not None:
         data["resolution"] = _resolution(data["resolution"])
-    for field in ("translation", "rotation", "scale"):
-        if field in data and data[field] is not None:
-            data[field] = _vec3(field, data[field])
+    if "translation" in data and data["translation"] is not None:
+        data["translation"] = _vec3("translation", data["translation"])
+    if "scale" in data and data["scale"] is not None:
+        data["scale"] = _vec3("scale", data["scale"])
+    if "transform_type" in data and data["transform_type"] is not None:
+        data["transform_type"] = _choice("transform_type", data["transform_type"], CAMERA_CHOICES["transform_type"])
+    transform_type = data.get("transform_type")
+    if "rotation" in data and data["rotation"] is not None:
+        if transform_type == "quaternion":
+            value = data["rotation"]
+            if not isinstance(value, (list, tuple)) or len(value) != 4:
+                _bad("rotation", "Quaternion rotation must contain exactly 4 numeric values [x, y, z, w].")
+            try:
+                from scipy.spatial.transform import Rotation
+                data["rotation"] = Rotation.from_quat([float(item) for item in value]).as_euler("XYZ", degrees=True).tolist()
+            except (TypeError, ValueError) as exc:
+                _bad("rotation", f"Invalid quaternion rotation: {exc}")
+            # 2026.2 CamSerializer normalizes quaternion API input to Euler storage.
+            data["transform_type"] = "euler"
+        else:
+            data["rotation"] = _vec3("rotation", data["rotation"])
     for field, choices in CAMERA_CHOICES.items():
+        if field == "transform_type":
+            continue
         if field in data and data[field] is not None:
             data[field] = _choice(field, data[field], choices)
     if data.get("use_camera_pipeline") is True and not data.get("camera_pipeline"):
