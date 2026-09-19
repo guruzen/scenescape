@@ -1,0 +1,108 @@
+{{- if and .Values.native.enabled .Values.native.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-native-worker
+  labels:
+    app: {{ .Release.Name }}-native-worker
+spec:
+  replicas: {{ .Values.native.worker.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-native-worker
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-native-worker
+        {{ include "releaseLabels" . | indent 8 }}
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-for-native-api
+          image: {{ .Values.busyboxImage.repository }}/{{ .Values.busyboxImage.name }}:{{ .Values.busyboxImage.tag }}
+          imagePullPolicy: {{ .Values.busyboxImage.pullPolicy }}
+          command: ["sh","-c"]
+          args:
+            - |
+              until wget -q --no-check-certificate --spider https://web.{{ .Release.Namespace }}.svc.cluster.local:443/api/v1/health; do sleep 2; done
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: historian
+          image: "{{ .Values.native.image.repository }}:{{ default .Chart.AppVersion .Values.native.image.tag }}"
+          imagePullPolicy: {{ .Values.native.image.pullPolicy }}
+          args: ["worker"]
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: DBHOST
+              value: pgserver.{{ .Release.Namespace }}.svc.cluster.local
+            - name: DBPORT
+              value: "5432"
+            - name: DBNAME
+              value: scenescape
+            - name: DBUSER
+              value: scenescape
+            - name: DBPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-db
+                  key: DATABASE_PASSWORD
+            - name: MEDIA_ROOT
+              value: /data/media
+            - name: MQTT_HOST
+              value: broker.{{ .Release.Namespace }}.svc.cluster.local
+            - name: MQTT_PORT
+              value: "1883"
+            - name: MQTT_CA_FILE
+              value: /run/secrets/certs/scenescape-ca.pem
+            - name: MQTT_AUTH_FILE
+              value: /run/secrets/browser.auth
+            - name: MQTT_CLIENT_ID
+              value: "{{ .Release.Name }}-native-historian"
+            - name: HISTORY_SAMPLE_SECONDS
+              value: {{ .Values.native.historySampleSeconds | quote }}
+            - name: HISTORY_RETENTION_DAYS
+              value: {{ .Values.native.historyRetentionDays | quote }}
+            - name: EVENT_RETENTION_DAYS
+              value: {{ .Values.native.eventRetentionDays | quote }}
+            {{ include "proxy_envs" . | indent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          resources:
+            {{- toYaml .Values.native.worker.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: /run/secrets/certs/scenescape-ca.pem
+              subPath: scenescape-ca.pem
+              name: certs
+              readOnly: true
+            - mountPath: /run/secrets/browser.auth
+              subPath: browser.auth
+              name: browser-auth
+              readOnly: true
+            - mountPath: /data/media
+              name: media-storage
+      volumes:
+        {{- include "certs_volume" . | nindent 8 }}
+        - name: browser-auth
+          secret:
+            secretName: {{ .Release.Name }}-browser.auth
+        - name: media-storage
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-media-pvc
+{{- end }}
