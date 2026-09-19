@@ -15,6 +15,9 @@ export default function ThreeScene({
   meshScale,
   onPick,
   pickedPoints = [],
+  regions = [],
+  tripwires = [],
+  sensors = [],
 }: {
   mapPath?: string
   objects: Row[]
@@ -24,11 +27,15 @@ export default function ThreeScene({
   meshScale?: number[]
   onPick?: (point: number[]) => void
   pickedPoints?: number[][]
+  regions?: Row[]
+  tripwires?: Row[]
+  sensors?: Row[]
 }) {
   const host = useRef<HTMLDivElement | null>(null)
   const surface = useRef<HTMLDivElement | null>(null)
   const objectGroup = useRef<THREE.Group | null>(null)
   const calibrationGroup = useRef<THREE.Group | null>(null)
+  const spatialGroup = useRef<THREE.Group | null>(null)
   const onPickRef = useRef(onPick)
   const [error, setError] = useState('')
 
@@ -77,6 +84,9 @@ export default function ThreeScene({
     const calibration = new THREE.Group()
     calibrationGroup.current = calibration
     scene.add(calibration)
+    const spatial = new THREE.Group()
+    spatialGroup.current = spatial
+    scene.add(spatial)
     const pickTargets: THREE.Object3D[] = []
 
     const fit = (object: THREE.Object3D) => {
@@ -184,6 +194,7 @@ export default function ThreeScene({
       if (mediaUrl) URL.revokeObjectURL(mediaUrl)
       objectGroup.current = null
       calibrationGroup.current = null
+      spatialGroup.current = null
     }
   }, [
     mapPath,
@@ -214,6 +225,84 @@ export default function ThreeScene({
       group.add(marker)
     }
   }, [objects, mapPath])
+
+  useEffect(() => {
+    const group = spatialGroup.current
+    if (!group) return
+    while (group.children.length) {
+      const child = group.children.pop()
+      if (!child) continue
+      child.traverse((node) => {
+        if (node instanceof THREE.Mesh || node instanceof THREE.Line) {
+          node.geometry.dispose()
+          const material = node.material
+          if (Array.isArray(material)) material.forEach((item) => item.dispose())
+          else material.dispose()
+        }
+      })
+    }
+
+    const addPolygon = (points: any[], height: number, material: THREE.Material) => {
+      if (!Array.isArray(points) || points.length < 3) return
+      const shape = new THREE.Shape(points.map((point) => new THREE.Vector2(Number(point[0] || 0), Number(point[1] || 0))))
+      const geometry = new THREE.ExtrudeGeometry(shape, { depth: Math.max(0.01, height), bevelEnabled: false })
+      const mesh = new THREE.Mesh(geometry, material)
+      group.add(mesh)
+    }
+
+    for (const region of regions) {
+      if (!region.visible) continue
+      addPolygon(
+        region.points || [],
+        Number(region.height || 1),
+        new THREE.MeshStandardMaterial({ color: 0x4ed1ce, transparent: true, opacity: region.volumetric ? 0.22 : 0.12, side: THREE.DoubleSide }),
+      )
+    }
+
+    for (const tripwire of tripwires) {
+      if (!tripwire.visible || !Array.isArray(tripwire.points) || tripwire.points.length < 2) continue
+      const z = Math.max(0.03, Number(tripwire.height || 1))
+      const points = tripwire.points.map((point: any) => new THREE.Vector3(Number(point[0] || 0), Number(point[1] || 0), z))
+      const geometry = new THREE.BufferGeometry().setFromPoints(points)
+      group.add(new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0xff7859 })))
+      for (const point of tripwire.points) {
+        const pillar = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.018, 0.018, z, 8),
+          new THREE.MeshBasicMaterial({ color: 0xff7859, transparent: true, opacity: 0.55 }),
+        )
+        pillar.rotation.x = Math.PI / 2
+        pillar.position.set(Number(point[0] || 0), Number(point[1] || 0), z / 2)
+        group.add(pillar)
+      }
+    }
+
+    for (const sensor of sensors) {
+      if (!sensor.visible) continue
+      const material = new THREE.MeshStandardMaterial({ color: 0xffb454, transparent: true, opacity: 0.16, side: THREE.DoubleSide })
+      if (sensor.area === 'poly') {
+        addPolygon(sensor.points || [], 0.08, material)
+      } else if (sensor.area === 'circle' && Array.isArray(sensor.center)) {
+        const geometry = new THREE.CylinderGeometry(Number(sensor.radius || 0), Number(sensor.radius || 0), 0.08, 48)
+        const mesh = new THREE.Mesh(geometry, material)
+        mesh.rotation.x = Math.PI / 2
+        mesh.position.set(Number(sensor.center[0] || 0), Number(sensor.center[1] || 0), 0.04)
+        group.add(mesh)
+      }
+      const center = Array.isArray(sensor.center)
+        ? sensor.center
+        : Array.isArray(sensor.translation) && sensor.translation[0] != null
+          ? sensor.translation
+          : null
+      if (center) {
+        const marker = new THREE.Mesh(
+          new THREE.SphereGeometry(0.08, 12, 8),
+          new THREE.MeshStandardMaterial({ color: 0xffb454 }),
+        )
+        marker.position.set(Number(center[0] || 0), Number(center[1] || 0), 0.1)
+        group.add(marker)
+      }
+    }
+  }, [regions, tripwires, sensors, mapPath])
 
   useEffect(() => {
     const group = calibrationGroup.current
