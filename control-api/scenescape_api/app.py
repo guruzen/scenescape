@@ -308,6 +308,8 @@ def legacy_camera_frame(
 ):
     try:
         return request_camera_frame(camera, timestamp=timestamp, frame_type=type)
+    except ValueError as exc:
+        raise HTTPException(400, {"timestamp": "Must provide valid timestamp"}) from exc
     except CameraSnapshotError:
         raise HTTPException(404)
 
@@ -934,6 +936,8 @@ def native_camera_frame(
         _scene_allowed(p, scene_id)
     try:
         return request_camera_frame(camera_id, timestamp=timestamp, frame_type=type)
+    except ValueError as exc:
+        raise HTTPException(400, {"timestamp": "Must provide valid timestamp"}) from exc
     except CameraSnapshotError as exc:
         raise HTTPException(404, str(exc)) from exc
 
