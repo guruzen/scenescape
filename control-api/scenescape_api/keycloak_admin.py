@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from functools import lru_cache
 from urllib.parse import quote
 
@@ -280,6 +281,7 @@ def create_user(body: dict) -> dict:
     if not user_id:
         user_id = str(_get_user_rep(username)["id"])
     _set_roles(user_id, roles)
+    _clear_acl_cache()
     return get_user(username)
 
 
@@ -323,12 +325,14 @@ def update_user(username: str, body: dict) -> dict:
         if not isinstance(body["roles"], list):
             raise HTTPException(400, {"roles": ["Must be a list."]})
         _set_roles(user_id, [str(item) for item in body["roles"]])
+    _clear_acl_cache()
     return user_to_dict(_request("GET", f"users/{quote(user_id, safe='')}")[0])
 
 
 def delete_user(username: str) -> dict:
     rep = _get_user_rep(username)
     _request("DELETE", f"users/{quote(str(rep['id']), safe='')}", expected=(204,))
+    _clear_acl_cache()
     return {"success": True}
 
 
@@ -341,16 +345,28 @@ def match_topic(template: str, topic: str) -> bool:
     return re.fullmatch(regex, topic, flags=re.IGNORECASE) is not None
 
 
-def acl_check(username: str, topic: str, access: int) -> tuple[bool, int | None]:
+@lru_cache(maxsize=1024)
+def _acl_identity_snapshot(username: str, time_bucket: int) -> tuple[frozenset[str], tuple[tuple[str, int], ...]]:
     rep = _get_user_rep(username)
-    roles = {str(role.get("name")) for role in _realm_roles_for_user(str(rep["id"]))}
+    roles = frozenset(str(role.get("name")) for role in _realm_roles_for_user(str(rep["id"])))
+    acls = tuple((str(item["topic"]), int(item["access"])) for item in _decode_acls(rep))
+    return roles, acls
+
+
+def _clear_acl_cache() -> None:
+    _acl_identity_snapshot.cache_clear()
+
+
+def acl_check(username: str, topic: str, access: int) -> tuple[bool, int | None]:
+    ttl = max(1, int(os.getenv("MQTT_ACL_CACHE_SECONDS", "5")))
+    roles, acl_pairs = _acl_identity_snapshot(username, int(time.monotonic() // ttl))
     if "scenescape-admin" in roles:
         return True, 3
     matched = None
-    for acl in _decode_acls(rep):
-        template = TOPIC_TEMPLATES.get(str(acl["topic"]))
+    for acl_topic, acl_access in acl_pairs:
+        template = TOPIC_TEMPLATES.get(acl_topic)
         if template and match_topic(template, topic):
-            matched = acl
+            matched = {"topic": acl_topic, "access": acl_access}
     if not matched:
         return False, None
     granted = int(matched["access"])
