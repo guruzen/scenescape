@@ -321,6 +321,8 @@ def normalize_asset(db, body: dict, *, uid: str | None, creating: bool, legacy: 
             data["shift_type"] = int(data["shift_type"])
         except (TypeError, ValueError):
             _bad("shift_type", "A valid integer is required.")
+        if data["shift_type"] not in {1, 2}:
+            _bad("shift_type", f'"{data["shift_type"]}" is not a valid choice.')
     for field in ("geometric_center", "center_of_mass"):
         if field in data and data[field] is not None:
             data[field] = _numeric_list(field, data[field], 3)
@@ -328,7 +330,7 @@ def normalize_asset(db, body: dict, *, uid: str | None, creating: bool, legacy: 
         data["friction_coefficients"] = _numeric_list("friction_coefficients", data["friction_coefficients"], 2)
     for field in ("project_to_map", "rotation_from_velocity", "is_static"):
         if field in data and data[field] is not None:
-            data[field] = bool(data[field])
+            data[field] = _strict_bool(field, data[field])
     if "mark_color" in data and data["mark_color"] is not None:
         data["mark_color"] = str(data["mark_color"])
     if "model_3d" in data and data["model_3d"] not in (None, ""):
