@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 {{- if .Values.native.enabled }}
 apiVersion: apps/v1
 kind: Deployment
@@ -21,6 +24,8 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
       {{ with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{ toYaml . | nindent 8 }}
@@ -183,7 +188,11 @@ spec:
               value: /data/media
             - name: MEDIA_FALLBACK_ROOT
               value: /data/samples
+            - name: MODEL_ROOT
+              value: /models
             - name: MODEL_CONFIGS_FOLDER
+              value: /models/models/model_configs
+            - name: MODEL_CONFIGS_FALLBACK_FOLDER
               value: /app/model_configs
             - name: SERVICE_AUTH_FILES
               value: /run/secrets/controller.auth,/run/secrets/calibration.auth,/run/secrets/browser.auth
@@ -318,6 +327,8 @@ spec:
               readOnly: true
             - mountPath: /data/media
               name: media-storage
+            - mountPath: /models
+              name: models-storage
             - mountPath: /data/samples
               name: sample-data-storage
               readOnly: true
@@ -337,6 +348,9 @@ spec:
         - name: media-storage
           persistentVolumeClaim:
             claimName: {{ .Release.Name }}-media-pvc
+        - name: models-storage
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-models-pvc
         - name: sample-data-storage
           persistentVolumeClaim:
             claimName: {{ .Release.Name }}-sample-data-pvc
