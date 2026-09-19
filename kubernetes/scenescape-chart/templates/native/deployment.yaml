@@ -65,6 +65,51 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+      {{- if .Values.native.seedSample }}
+        - name: seed-native-sample
+          image: "{{ .Values.native.image.repository }}:{{ default .Chart.AppVersion .Values.native.image.tag }}"
+          imagePullPolicy: {{ .Values.native.image.pullPolicy }}
+          command: ["sh","-c"]
+          args:
+            - |
+              set -eu
+              marker=/workspace/migrations/native-seed-complete
+              if [ -f "$marker" ]; then
+                echo "Native sample was already seeded."
+                exit 0
+              fi
+              sample="$(find /data/samples -type f -name Retail.json -print -quit)"
+              if [ -z "$sample" ]; then
+                echo "Retail.json was not found on the sample-data PVC." >&2
+                exit 1
+              fi
+              python -m scenescape_api.cli seed "$sample"
+              touch "$marker"
+          env:
+            - name: DBHOST
+              value: pgserver.{{ .Release.Namespace }}.svc.cluster.local
+            - name: DBPORT
+              value: "5432"
+            - name: DBNAME
+              value: scenescape
+            - name: DBUSER
+              value: scenescape
+            - name: DBPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-db
+                  key: DATABASE_PASSWORD
+          volumeMounts:
+            - mountPath: /data/samples
+              name: sample-data-storage
+              readOnly: true
+            - mountPath: /workspace/migrations
+              name: migrations-storage
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      {{- end }}
       {{- if .Values.native.migrateLegacy }}
         - name: import-legacy-snapshot
           image: "{{ .Values.native.image.repository }}:{{ default .Chart.AppVersion .Values.native.image.tag }}"
