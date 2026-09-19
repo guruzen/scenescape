@@ -281,3 +281,105 @@ def test_v1_camera_mutations_emit_kubeclient_notifications(tmp_path, monkeypatch
     assert deleted.status_code==200
     assert [call[1] for call in calls]==['save','save','delete']
     assert calls[1][2]['name']=='Camera Old'
+
+
+def test_camera_quaternion_id_rename_and_collision(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    assert client.post('/api/v2/scenes',headers=h,json={'uid':'scene-c','name':'Camera Scene'}).status_code==200
+    created=client.post('/api/v2/cameras',headers=h,json={'uid':'cam-old','name':'Camera Old','scene':'scene-c'})
+    assert created.status_code==200,created.text
+    assert client.post('/api/v2/cameras',headers=h,json={'uid':'cam-taken','name':'Camera Taken','scene':'scene-c'}).status_code==200
+    updated=client.put(
+        f"/api/v2/cameras/cam-old?revision={created.json()['revision']}",
+        headers=h,
+        json={
+            'name':'Camera Renamed','sensor_id':'cam-new','scene':'scene-c',
+            'transform_type':'quaternion','translation':[1,2,3],
+            'rotation':[0,0,0,1],'scale':[1,1,1],
+        },
+    )
+    assert updated.status_code==200,updated.text
+    body=updated.json()
+    assert body['uid']=='cam-new' and body['transform_type']=='euler'
+    assert body['rotation']==pytest.approx([0.0,0.0,0.0])
+    assert client.get('/api/v2/cameras/cam-old',headers=h).status_code==404
+    assert client.get('/api/v2/cameras/cam-new',headers=h).status_code==200
+    collision=client.put(
+        f"/api/v2/cameras/cam-new?revision={body['revision']}",
+        headers=h,json={'name':'Camera Renamed','sensor_id':'cam-taken'}
+    )
+    assert collision.status_code==400
+
+
+def test_camera_media_calibration_and_runtime_routes(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    assert client.post('/api/v2/scenes',headers=h,json={'uid':'scene-media','name':'Media Scene'}).status_code==200
+    assert client.post('/api/v2/cameras',headers=h,json={'uid':'cam-media','name':'Camera Media','scene':'scene-media'}).status_code==200
+    import scenescape_api.app as app_module
+    monkeypatch.setattr(app_module,'fetch_camera_calibration',lambda camera_id:{
+        'id':camera_id,'image':'ZmFrZQ==','intrinsics':[[570,0,320],[0,570,240],[0,0,1]],'distortion':[0,0,0,0,0]
+    })
+    monkeypatch.setattr(app_module,'request_camera_frame',lambda camera_id,timestamp=None,frame_type=None:{
+        'camera':camera_id,'timestamp':timestamp,'frame_type':frame_type,'image':'ZmFrZQ=='
+    })
+    monkeypatch.setattr(app_module,'request_camera_video',lambda camera_id:b'fake-mp4')
+    monkeypatch.setattr(app_module,'update_camera_runtime',lambda camera_id,body:{'ok':True,'camera':camera_id,'update':body})
+
+    calibration=client.get('/api/v2/cameras/cam-media/calibration-frame',headers=h)
+    assert calibration.status_code==200 and calibration.json()['id']=='cam-media'
+    frame=client.get('/api/v2/cameras/cam-media/frame?type=raw',headers=h)
+    assert frame.status_code==200 and frame.json()['frame_type']=='raw'
+    video=client.get('/api/v2/cameras/cam-media/video',headers=h)
+    assert video.status_code==200 and video.content==b'fake-mp4'
+    assert video.headers['content-disposition'].endswith('cam-media.mp4')
+    runtime=client.post('/api/v2/cameras/cam-media/runtime-update',headers=h,json={'intrinsics':{'fx':600}})
+    assert runtime.status_code==200 and runtime.json()['ok'] is True
+
+    service=client.post('/api/v1/auth',data={'username':'svc','password':'pw'}).json()['token']
+    v1={'Authorization':'Token '+service}
+    legacy_frame=client.get('/api/v1/frame?camera=cam-media&type=raw',headers=v1)
+    assert legacy_frame.status_code==200 and legacy_frame.json()['camera']=='cam-media'
+    legacy_video=client.get('/api/v1/video?camera=cam-media',headers=v1)
+    assert legacy_video.status_code==200 and legacy_video.content==b'fake-mp4'
+
+
+def test_camera_frame_timestamp_contract():
+    from scenescape_api.camera_io import _frame_timestamp
+    assert _frame_timestamp('2026-09-19T10:11:12.123Z')=='2026-09-19T10:11:12.123Z'
+    with pytest.raises(ValueError):
+        _frame_timestamp('not-a-timestamp')
+
+
+def test_autocalibration_proxy_routes(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    import scenescape_api.app as app_module
+    monkeypatch.setattr(app_module,'proxy_calibration_status',lambda:{'status':'running','version':'1.0.0'})
+    monkeypatch.setattr(app_module,'proxy_scene_registration',lambda scene_id,method:{'status':'success','sceneId':scene_id,'method':method})
+    monkeypatch.setattr(app_module,'proxy_camera_calibration',lambda camera_id,method,payload=None:{
+        'status':'success','cameraId':camera_id,'method':method,'payload':payload
+    })
+    status=client.get('/api/v2/autocalibration/status',headers=h)
+    assert status.status_code==200 and status.json()['status']=='running'
+    registered=client.post('/api/v2/autocalibration/scenes/scene-a/registration',headers=h,json={})
+    assert registered.status_code==200 and registered.json()['method']=='POST'
+    camera=client.post('/api/v2/autocalibration/cameras/cam-a/calibration',headers=h,json={'image':'abc','intrinsics':[[1,0,0],[0,1,0],[0,0,1]]})
+    assert camera.status_code==200 and camera.json()['payload']['image']=='abc'
+
+
+def test_camera_pipeline_preview_uses_tagged_model_config(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    config_root=Path(__file__).resolve().parents[1]/'model_configs'
+    monkeypatch.setenv('MODEL_CONFIGS_FOLDER',str(config_root))
+    created=client.post('/api/v2/cameras',headers=h,json={
+        'uid':'cam-pipeline','name':'Pipeline Camera','command':'rtsp://camera.example/live',
+        'camerachain':'retail','modelconfig':'model_config.json','cv_subsystem':'AUTO'
+    })
+    assert created.status_code==200,created.text
+    preview=client.post('/api/v2/cameras/cam-pipeline/pipeline-preview',headers=h,json={
+        'command':'rtsp://camera.example/live','camerachain':'retail','modelconfig':'model_config.json'
+    })
+    assert preview.status_code==200,preview.text
+    pipeline=preview.json()['pipeline']
+    assert 'rtspsrc location=rtsp://camera.example/live' in pipeline
+    assert 'gvadetect ' in pipeline
+    assert 'sscape_post_inference_data_publish name=datapublisher' in pipeline
