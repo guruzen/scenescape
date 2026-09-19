@@ -10,6 +10,7 @@ from sqlalchemy import func, or_, select
 
 from .auth import Principal, current_principal, issue_token, service_principal, verify_service
 from .camera_io import CameraSnapshotError, fetch_camera_snapshot
+from .contracts import normalize_resource
 from .mqtt_commands import notify_config_change
 from .database import Event, Heartbeat, Incident, Observation, Resource, sessions
 from .resources import ALIASES, delete_resource, get_resource, list_resources, to_dict, upsert
@@ -185,7 +186,8 @@ def legacy_update(thing: str, uid: str, body: dict, p=Depends(service_principal)
     if not kind:
         raise HTTPException(404)
     current = get_resource(db, kind, uid)
-    row = upsert(db, kind, uid, body, p, current.revision)
+    body, resolved_uid = normalize_resource(db, kind, body, uid=uid, creating=False, legacy=True)
+    row = upsert(db, kind, resolved_uid or uid, body, p, current.revision)
     db.commit()
     notify_config_change(kind, row.uid)
     return _legacy_scene(db, row) if kind == "scene" else _legacy_clean(row)
@@ -196,7 +198,8 @@ def legacy_create(thing: str, body: dict, p=Depends(service_principal), db=Depen
     kind = LEGACY_V1.get(thing)
     if not kind:
         raise HTTPException(404)
-    row = upsert(db, kind, None, body, p)
+    body, resolved_uid = normalize_resource(db, kind, body, uid=None, creating=True, legacy=True)
+    row = upsert(db, kind, resolved_uid, body, p)
     db.commit()
     notify_config_change(kind, row.uid)
     value = _legacy_scene(db, row) if kind == "scene" else _legacy_clean(row)
@@ -396,7 +399,8 @@ def create_any(plural: str, body: dict, p=Depends(current_principal), db=Depends
     if not p.is_admin:
         raise HTTPException(403, "Administrator role required")
     kind = _kind(plural)
-    row = upsert(db, kind, None, body, p)
+    body, resolved_uid = normalize_resource(db, kind, body, uid=None, creating=True, legacy=False)
+    row = upsert(db, kind, resolved_uid, body, p)
     db.commit()
     notify_config_change(kind, row.uid)
     return to_dict(row)
@@ -414,7 +418,9 @@ def update_any(
     if not p.is_admin:
         raise HTTPException(403, "Administrator role required")
     kind = _kind(plural)
-    row = upsert(db, kind, uid, body, p, revision)
+    get_resource(db, kind, uid)
+    body, resolved_uid = normalize_resource(db, kind, body, uid=uid, creating=False, legacy=False)
+    row = upsert(db, kind, resolved_uid or uid, body, p, revision)
     db.commit()
     notify_config_change(kind, row.uid)
     return to_dict(row)
