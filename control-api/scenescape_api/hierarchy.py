@@ -120,6 +120,20 @@ def _validate_cache(value: Any, field: str) -> list:
     return deepcopy(value)
 
 
+def _as_bool(value: Any, field: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in {"true", "1", "yes", "on"}:
+            return True
+        if text in {"false", "0", "no", "off"}:
+            return False
+    _bad(field, "Must be a valid boolean.")
+
+
 def _as_number(value: Any, field: str) -> float:
     try:
         return float(value)
@@ -322,7 +336,7 @@ def normalize_child(db, body: dict, *, row: Resource | None = None, creating: bo
         effective["child"] = None
 
     if "retrack" in effective:
-        effective["retrack"] = bool(effective["retrack"])
+        effective["retrack"] = _as_bool(effective["retrack"], "retrack")
     for field in CACHE_FIELDS:
         effective[field] = _validate_cache(effective.get(field, []), field)
 
