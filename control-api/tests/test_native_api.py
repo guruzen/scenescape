@@ -556,7 +556,7 @@ def test_singleton_sensor_icon_lifecycle(tmp_path, monkeypatch):
     revision=created.json()['revision']
     # Valid 1x1 PNG.
     png=__import__('base64').b64decode(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlQfKsAAAAASUVORK5CYII='
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC'
     )
     uploaded=client.post(
         f'/api/v2/sensors/sensor-icon/icon?revision={revision}',headers=h,
