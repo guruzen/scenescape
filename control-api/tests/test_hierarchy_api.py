@@ -1,3 +1,4 @@
+import pytest
 import json
 from fastapi.testclient import TestClient
 
@@ -147,3 +148,85 @@ def test_v1_2026_2_hierarchy_scenarios_19_through_33(tmp_path,monkeypatch):
     assert c.get('/api/v1/scene/'+A,headers=h).status_code==404
     assert c.delete('/api/v1/scene/123',headers=h).status_code==404
     assert c.delete('/api/v1/child/00000000-0000-4000-8000-000000000099',headers=h).status_code==404
+
+
+def test_parent_bundle_projects_local_child_spatial_metadata(tmp_path,monkeypatch):
+    c,h=boot(tmp_path,monkeypatch)
+    add_scenes(c,h,'PARENT','CHILD')
+    # Give the child a descriptive name so from_child_scene can be verified.
+    child=c.get('/api/v2/scenes/CHILD',headers=h).json()
+    renamed=c.put(
+        f"/api/v2/scenes/CHILD?revision={child['revision']}",
+        headers=h,json={'name':'Child Floor'}
+    )
+    assert renamed.status_code==200,renamed.text
+
+    assert c.post('/api/v2/regions',headers=h,json={
+        'uid':'child-region','name':'Child ROI','scene':'CHILD',
+        'points':[[1,1],[2,1],[2,2]],'height':2.0,
+    }).status_code==200
+    assert c.post('/api/v2/tripwires',headers=h,json={
+        'uid':'child-trip','name':'Child Trip','scene':'CHILD',
+        'points':[[0,0],[1,0]],
+    }).status_code==200
+    assert c.post('/api/v2/sensors',headers=h,json={
+        'sensor_id':'child-sensor','name':'Child Sensor','scene':'CHILD',
+        'area':'circle','center':[1,2],'radius':3,
+    }).status_code==200
+    assert c.post('/api/v2/sensors',headers=h,json={
+        'sensor_id':'child-scene-sensor','name':'Whole Child','scene':'CHILD','area':'scene'
+    }).status_code==200
+
+    link=c.post('/api/v2/children',headers=h,json={
+        'child_type':'local','parent':'PARENT','child':'CHILD',
+        'transform':{
+            'translation':[10,20,0],
+            'rotation':[0,0,0],
+            'scale':[2,2,1],
+        },
+    })
+    assert link.status_code==200,link.text
+
+    bundle=c.get('/api/v2/scenes/PARENT/bundle',headers=h)
+    assert bundle.status_code==200,bundle.text
+    body=bundle.json()
+    assert len(body['child_regions'])==1
+    assert body['child_regions'][0]['points'][0]==[12.0,22.0]
+    assert body['child_regions'][0]['from_child_scene']=='Child Floor'
+    assert body['child_tripwires'][0]['points']==[[10.0,20.0],[12.0,20.0]]
+    circle=next(item for item in body['child_sensors'] if item.get('uid')=='child-sensor')
+    assert circle['center']==[12.0,24.0]
+    assert circle['translation']==[12.0,24.0,0.0]
+    assert circle['from_child_scene']=='Child Floor'
+    whole=next(item for item in body['child_sensors'] if item.get('uid')=='child-scene-sensor')
+    assert whole['area']=='scene' and whole['from_child_scene']=='Child Floor'
+
+
+def test_parent_bundle_projects_cached_remote_geometry(tmp_path,monkeypatch):
+    c,h=boot(tmp_path,monkeypatch)
+    add_scenes(c,h,'PARENT')
+    remote='44444444-4444-4444-8444-444444444444'
+    created=c.post('/api/v2/children',headers=h,json={
+        'child_type':'remote','parent':'PARENT','remote_child_id':remote,
+        'child_name':'Remote Plant','host_name':'broker','mqtt_username':'u','mqtt_password':'p',
+        'retrack':False,
+        'transform':{
+            'translation':[5,6,0],
+            'rotation':[0,0,90],
+            'scale':[1,1,1],
+        },
+        'cached_rois':[{'title':'Remote ROI','points':[[1,0],[2,0],[2,1]]}],
+        'cached_tripwires':[{'title':'Remote Trip','points':[[0,0],[1,0]]}],
+    })
+    assert created.status_code==200,created.text
+    assert created.json()['retrack'] is False
+
+    bundle=c.get('/api/v2/scenes/PARENT/bundle',headers=h)
+    assert bundle.status_code==200,bundle.text
+    body=bundle.json()
+    roi=body['child_regions'][0]
+    trip=body['child_tripwires'][0]
+    assert roi['from_child_scene']=='Remote Plant'
+    assert roi['points'][0]==pytest.approx([5.0,7.0])
+    assert trip['points'][0]==pytest.approx([5.0,6.0])
+    assert trip['points'][1]==pytest.approx([5.0,7.0])
