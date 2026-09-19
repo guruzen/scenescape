@@ -195,10 +195,10 @@ def test_v1_service_camera_update_contract(tmp_path, monkeypatch):
     h={'Authorization':'Token '+auth.json()['token']}
     admin=headers(client)
     assert client.post('/api/v2/cameras',headers=admin,json={'uid':'cam-update','name':'Camera'}).status_code==200
-    updated=client.post('/api/v1/camera/cam-update',headers=h,json={'intrinsics':{'fx':100.0},'resolution':{'width':1920,'height':1080}})
+    updated=client.post('/api/v1/camera/cam-update',headers=h,json={'name':'Camera','intrinsics':{'fx':100.0,'fy':100.0,'cx':960.0,'cy':540.0},'resolution':[1920,1080]})
     assert updated.status_code==200
     assert updated.json()['intrinsics']['fx']==100.0
-    assert updated.json()['resolution']['width']==1920
+    assert updated.json()['resolution']==[1920,1080]
 
 
 def test_v1_health_not_shadowed_by_compat_routes(tmp_path, monkeypatch):
@@ -236,10 +236,46 @@ def test_v1_mutations_emit_config_invalidation(tmp_path, monkeypatch):
     import scenescape_api.app as app_module
     calls=[]
     monkeypatch.setattr(app_module,'notify_config_change',lambda kind,uid=None: calls.append((kind,uid)) or {'ok':True})
-    created=client.post('/api/v1/camera',headers=h,json={'uid':'notify-cam','name':'Notify camera'})
+    created=client.post('/api/v1/camera',headers=h,json={'sensor_id':'notify-cam','name':'Notify camera'})
     assert created.status_code==201
     updated=client.post('/api/v1/camera/notify-cam',headers=h,json={'name':'Notify camera 2'})
     assert updated.status_code==200
     deleted=client.delete('/api/v1/camera/notify-cam',headers=h)
     assert deleted.status_code==200
     assert calls==[('camera','notify-cam'),('camera','notify-cam'),('camera','notify-cam')]
+
+
+def test_camera_mutations_emit_kubeclient_notifications(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    import scenescape_api.app as app_module
+    monkeypatch.setattr(app_module,'notify_config_change',lambda kind,uid=None: {'ok':True})
+    calls=[]
+    monkeypatch.setattr(app_module,'notify_camera_change',lambda camera,action,previous=None: calls.append((camera,action,previous)) or {'ok':True})
+    created=client.post('/api/v2/cameras',headers=h,json={'uid':'cam-side','name':'Camera Old'})
+    assert created.status_code==200
+    updated=client.put('/api/v2/cameras/cam-side',headers=h,json={'name':'Camera New'})
+    assert updated.status_code==200
+    deleted=client.delete('/api/v2/cameras/cam-side',headers=h)
+    assert deleted.status_code==200
+    assert [call[1] for call in calls]==['save','save','delete']
+    assert calls[0][0]['uid']=='cam-side' and calls[0][2] is None
+    assert calls[1][0]['name']=='Camera New' and calls[1][2]['name']=='Camera Old'
+    assert calls[2][0]['name']=='Camera New'
+
+
+def test_v1_camera_mutations_emit_kubeclient_notifications(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch)
+    service=client.post('/api/v1/auth',data={'username':'svc','password':'pw'})
+    h={'Authorization':'Token '+service.json()['token']}
+    import scenescape_api.app as app_module
+    monkeypatch.setattr(app_module,'notify_config_change',lambda kind,uid=None: {'ok':True})
+    calls=[]
+    monkeypatch.setattr(app_module,'notify_camera_change',lambda camera,action,previous=None: calls.append((camera,action,previous)) or {'ok':True})
+    created=client.post('/api/v1/camera',headers=h,json={'sensor_id':'cam-v1-side','name':'Camera Old'})
+    assert created.status_code==201
+    updated=client.post('/api/v1/camera/cam-v1-side',headers=h,json={'name':'Camera New'})
+    assert updated.status_code==200
+    deleted=client.delete('/api/v1/camera/cam-v1-side',headers=h)
+    assert deleted.status_code==200
+    assert [call[1] for call in calls]==['save','save','delete']
+    assert calls[1][2]['name']=='Camera Old'

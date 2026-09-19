@@ -11,7 +11,7 @@ from sqlalchemy import func, or_, select
 from .auth import Principal, current_principal, issue_token, service_principal, verify_service
 from .camera_io import CameraSnapshotError, fetch_camera_snapshot
 from .contracts import normalize_resource
-from .mqtt_commands import notify_config_change
+from .mqtt_commands import notify_camera_change, notify_config_change
 from .database import Event, Heartbeat, Incident, Observation, Resource, sessions
 from .resources import ALIASES, delete_resource, get_resource, list_resources, to_dict, upsert
 
@@ -186,11 +186,15 @@ def legacy_update(thing: str, uid: str, body: dict, p=Depends(service_principal)
     if not kind:
         raise HTTPException(404)
     current = get_resource(db, kind, uid)
+    previous = _legacy_clean(current) if kind == "camera" else None
     body, resolved_uid = normalize_resource(db, kind, body, uid=uid, creating=False, legacy=True)
     row = upsert(db, kind, resolved_uid or uid, body, p, current.revision)
     db.commit()
+    value = _legacy_scene(db, row) if kind == "scene" else _legacy_clean(row)
     notify_config_change(kind, row.uid)
-    return _legacy_scene(db, row) if kind == "scene" else _legacy_clean(row)
+    if kind == "camera":
+        notify_camera_change(value, "save", previous)
+    return value
 
 
 @app.post("/api/v1/{thing}")
@@ -201,8 +205,10 @@ def legacy_create(thing: str, body: dict, p=Depends(service_principal), db=Depen
     body, resolved_uid = normalize_resource(db, kind, body, uid=None, creating=True, legacy=True)
     row = upsert(db, kind, resolved_uid, body, p)
     db.commit()
-    notify_config_change(kind, row.uid)
     value = _legacy_scene(db, row) if kind == "scene" else _legacy_clean(row)
+    notify_config_change(kind, row.uid)
+    if kind == "camera":
+        notify_camera_change(value, "save")
     return Response(content=json.dumps(value), media_type="application/json", status_code=201)
 
 
@@ -211,9 +217,13 @@ def legacy_delete(thing: str, uid: str, p=Depends(service_principal), db=Depends
     kind = LEGACY_V1.get(thing)
     if not kind:
         raise HTTPException(404)
+    current = get_resource(db, kind, uid)
+    previous = _legacy_clean(current) if kind == "camera" else None
     result = delete_resource(db, kind, uid)
     db.commit()
     notify_config_change(kind, uid)
+    if kind == "camera" and previous is not None:
+        notify_camera_change(previous, "delete")
     return result
 
 
@@ -402,8 +412,11 @@ def create_any(plural: str, body: dict, p=Depends(current_principal), db=Depends
     body, resolved_uid = normalize_resource(db, kind, body, uid=None, creating=True, legacy=False)
     row = upsert(db, kind, resolved_uid, body, p)
     db.commit()
+    value = to_dict(row)
     notify_config_change(kind, row.uid)
-    return to_dict(row)
+    if kind == "camera":
+        notify_camera_change(value, "save")
+    return value
 
 
 @app.put("/api/v2/{plural}/{uid}")
@@ -418,12 +431,16 @@ def update_any(
     if not p.is_admin:
         raise HTTPException(403, "Administrator role required")
     kind = _kind(plural)
-    get_resource(db, kind, uid)
+    current = get_resource(db, kind, uid)
+    previous = to_dict(current) if kind == "camera" else None
     body, resolved_uid = normalize_resource(db, kind, body, uid=uid, creating=False, legacy=False)
     row = upsert(db, kind, resolved_uid or uid, body, p, revision)
     db.commit()
+    value = to_dict(row)
     notify_config_change(kind, row.uid)
-    return to_dict(row)
+    if kind == "camera":
+        notify_camera_change(value, "save", previous)
+    return value
 
 
 @app.delete("/api/v2/{plural}/{uid}")
@@ -431,9 +448,13 @@ def delete_any(plural: str, uid: str, p=Depends(current_principal), db=Depends(d
     if not p.is_admin:
         raise HTTPException(403, "Administrator role required")
     kind = _kind(plural)
+    current = get_resource(db, kind, uid)
+    previous = to_dict(current) if kind == "camera" else None
     result = delete_resource(db, kind, uid)
     db.commit()
     notify_config_change(kind, uid)
+    if kind == "camera" and previous is not None:
+        notify_camera_change(previous, "delete")
     return result
 
 
