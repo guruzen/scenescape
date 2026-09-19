@@ -98,3 +98,19 @@ def test_successful_rollback_never_deletes_native_or_legacy_data(rt, monkeypatch
     assert all("--volumes" not in call.args for call in compose.call_args_list)
     command=run.call_args.args[0]
     assert "down" not in command and "--no-build" in command
+
+
+def test_identity_reconcile_command_verifies_audience_mapper(rt, monkeypatch):
+    rt.save_state({"mode": "native", "installed": True})
+    monkeypatch.setattr(rt, "doctor", Mock())
+    compose = Mock(); monkeypatch.setattr(rt, "compose", compose)
+    reconcile = Mock(); monkeypatch.setattr(rt, "reconcile_identity", reconcile)
+    rt.reconcile_identity_command({"COMPOSE_PROJECT_NAME": "test"})
+    assert compose.call_args.args[1:4] == ("up", "-d", "keycloak")
+    reconcile.assert_called_once()
+
+def test_reconcile_identity_contains_readback_verification():
+    source = (Path(__file__).parents[2] / "tools/native_runtime.py").read_text()
+    assert "Keycloak did not persist the scenescape-api audience mapper." in source
+    assert "included.custom.audience" in source
+    assert "reconcile-identity" in source

@@ -264,8 +264,37 @@ def reconcile_identity(config):
             kcadm(config, "update", path + "/" + existing["id"], "-r", "scenescape", "-f", "-", data=json.dumps(mapper).encode())
         else:
             kcadm(config, "create", path, "-r", "scenescape", "-f", "-", data=json.dumps(mapper).encode())
+
+        verified_mappers = json.loads(kcadm(config, "get", path, "-r", "scenescape"))
+        verified = next((m for m in verified_mappers if m.get("name") == mapper["name"]), None)
+        verified_config = (verified or {}).get("config") or {}
+        if (not verified or verified_config.get("included.custom.audience") != "scenescape-api"
+                or str(verified_config.get("access.token.claim", "")).lower() != "true"):
+            fail("Keycloak did not persist the scenescape-api audience mapper.")
     finally:
         compose(config, "exec", "-T", "keycloak", "rm", "-f", "/tmp/scenescape-kcadm.config", native=True, capture=True, check=False)
+
+
+def reconcile_identity_command(config):
+    state = read_state()
+    if state.get("mode") != "native" or not state.get("installed"):
+        fail("Identity reconciliation requires an installed native runtime.")
+    doctor()
+    compose(config, "up", "-d", "keycloak", native=True)
+    last_error = None
+    for attempt in range(30):
+        try:
+            reconcile_identity(config)
+            print("Keycloak scenescape-ui audience mapper verified: scenescape-api")
+            print("Sign out of SceneScape and sign back in once to obtain a fresh access token.")
+            return
+        except RuntimeError as error:
+            last_error = error
+            if attempt == 29:
+                raise
+            time.sleep(2)
+    if last_error:
+        raise last_error
 
 
 def endpoints(config):
@@ -439,7 +468,7 @@ def uninstall(config, args):
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description="Single SceneScape lifecycle entrypoint for WSL2/Linux")
-    parser.add_argument("command", choices=["configure", "doctor", "build", "install", "migrate-native", "rollback-native", "start", "stop", "restart", "status", "logs", "open", "uninstall"])
+    parser.add_argument("command", choices=["configure", "doctor", "build", "install", "migrate-native", "rollback-native", "reconcile-identity", "start", "stop", "restart", "status", "logs", "open", "uninstall"])
     parser.add_argument("services", nargs="*")
     parser.add_argument("--port", type=int)
     parser.add_argument("--public-url")
@@ -482,6 +511,8 @@ def main():
         migrate_native(config, args)
     elif args.command == "rollback-native":
         rollback(config, args)
+    elif args.command == "reconcile-identity":
+        reconcile_identity_command(config)
     elif args.command == "start":
         doctor(); start(config)
     elif args.command == "stop":
