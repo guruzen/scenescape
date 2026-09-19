@@ -4,6 +4,8 @@ import { apiFetch, apiJsonStream, apiObjectUrl } from './api/client'
 import { useAuth } from './auth/AuthProvider'
 import ThreeScene from './native/ThreeScene'
 import SceneInventory from './native/SceneInventory'
+import CameraInventory from './native/CameraInventory'
+import CameraCalibration from './native/CameraCalibration'
 
 type Row = Record<string, any>
 type Theme = 'light' | 'light-air' | 'dark' | 'dark-command'
@@ -171,23 +173,18 @@ function CameraFeeds({ cameras }: { cameras: Row[] }) {
   return <div className="camera-feed-grid">{cameras.map((camera) => <CameraFeed key={rowId(camera)} camera={camera}/>)}</div>
 }
 
-function SceneWorkspace({ scene, onBack }: { scene: Row; onBack: () => void }) {
+function SceneWorkspace({ scene, onBack, isAdmin }: { scene: Row; onBack: () => void; isAdmin: boolean }) {
   const [bundle, setBundle] = useState<Bundle | null>(null)
   const [live, setLive] = useState<Row>({ objects: [], stale: true })
   const [tab, setTab] = useState('Live 2D')
   const [tripName, setTripName] = useState('')
   const [drawn, setDrawn] = useState<number[][]>([])
-  const [pose, setPose] = useState('')
   const [history, setHistory] = useState<Row[]>([])
   const [trends, setTrends] = useState<Row[]>([])
   const [message, setMessage] = useState('')
   const id = rowId(scene)
 
-  const loadBundle = () => void apiFetch<Bundle>(`/api/v2/scenes/${id}/bundle`).then((value) => {
-    setBundle(value)
-    const camera = value.cameras[0]
-    if (camera) setPose(JSON.stringify({ translation: camera.translation ?? [0,0,0], rotation: camera.rotation ?? [0,0,0], scale: camera.scale ?? [1,1,1] }, null, 2))
-  }).catch((e) => setMessage(String(e)))
+  const loadBundle = () => void apiFetch<Bundle>(`/api/v2/scenes/${id}/bundle`).then(setBundle).catch((e) => setMessage(String(e)))
 
   useEffect(() => {
     loadBundle()
@@ -210,16 +207,6 @@ function SceneWorkspace({ scene, onBack }: { scene: Row; onBack: () => void }) {
     await apiFetch('/api/v2/tripwires', { method: 'POST', body: JSON.stringify({ name: tripName || 'Tripwire', scene: id, points: drawn }) })
     setDrawn([]); setTripName(''); setMessage('Tripwire saved.'); loadBundle()
   }
-  const savePose = async () => {
-    const camera = bundle.cameras[0]
-    if (!camera) { setMessage('No camera is configured for this scene.'); return }
-    try {
-      const poseUpdate = { name: rowName(camera), ...JSON.parse(pose) }
-      await apiFetch(`/api/v2/cameras/${rowId(camera)}?revision=${camera.revision}`, { method: 'PUT', body: JSON.stringify(poseUpdate) })
-      setMessage('Camera pose saved.'); loadBundle()
-    } catch (e) { setMessage(String(e)) }
-  }
-
   return <>
     <Header kicker="Operations · native scene workspace" title={rowName(bundle.scene)}>
       <button className="btn" onClick={onBack}>← All scenes</button>
@@ -234,7 +221,7 @@ function SceneWorkspace({ scene, onBack }: { scene: Row; onBack: () => void }) {
     {tab === 'Live 3D' && <ThreeScene mapPath={map3DPath} objects={live.objects || []} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale}/>} 
     {tab === 'Camera feeds' && <CameraFeeds cameras={bundle.cameras}/>} 
     {tab === 'Geometry' && <div className="workspace-grid"><section className="panel"><div className="panel-title"><div><h2>Draw tripwire</h2><p>Click points directly on the native scene map.</p></div></div><div className="form-row"><label>Name<input value={tripName} onChange={(e) => setTripName(e.target.value)} /></label><button className="btn" onClick={() => setDrawn([])}>Clear points</button><button className="btn btn-primary" onClick={() => void saveTripwire()}>Save to scene</button></div><Map2D bundle={bundle} live={live} onPoint={(point) => setDrawn((old) => [...old, point])}/><div className="point-strip">{drawn.map((point, i) => <code key={i}>{point.map((v) => v.toFixed(2)).join(', ')}</code>)}</div></section><section className="panel"><div className="panel-title"><div><h2>Configured geometry</h2><p>Persisted through FastAPI.</p></div></div><div className="stack-list">{bundle.regions.map((r) => <div key={rowId(r)}><b>{rowName(r)}</b><span>Region · {(r.points || []).length} points</span></div>)}{bundle.tripwires.map((r) => <div key={rowId(r)}><b>{rowName(r)}</b><span>Tripwire · {(r.points || []).length} points</span></div>)}</div></section></div>}
-    {tab === 'Camera calibration' && <section className="panel editor-panel"><div className="panel-title"><div><h2>Native camera pose</h2><p>{bundle.cameras[0] ? rowName(bundle.cameras[0]) : 'No camera configured'}</p></div></div><textarea aria-label="Camera pose: translation, rotation, scale" value={pose} onChange={(e) => setPose(e.target.value)} /><div className="editor-actions"><button className="btn btn-primary" onClick={() => void savePose()}>Save camera pose</button></div></section>}
+    {tab === 'Camera calibration' && <CameraCalibration scene={bundle.scene} cameras={bundle.cameras} isAdmin={isAdmin} onSaved={loadBundle}/>}
     {tab === 'History & replay' && <section className="panel history-panel"><div className="panel-title"><div><h2>Persisted observations</h2><p>Metadata replay from the native historian.</p></div><button className="btn btn-primary" onClick={() => void apiFetch<Row[]>(`/api/v2/scenes/${id}/history`).then(setHistory)}>Load history</button></div>{history.length > 0 ? <><input type="range" min="0" max={history.length - 1}/><div className="history-list">{history.slice(-12).map((row) => <div key={row.id}><b>{row.timestamp}</b><span>{(row.payload?.objects || []).length} objects</span></div>)}</div></> : <div className="table-empty">No retained samples loaded yet.</div>}</section>}
     {tab === 'Trends & analytics' && <section className="panel"><div className="panel-title"><div><h2>24-hour object trend</h2><p>Calculated from retained observations, not synthetic data.</p></div><button className="btn btn-primary" onClick={() => void apiFetch<Row[]>(`/api/v2/scenes/${id}/trends`).then(setTrends)}>Apply range</button></div><div className="table-wrap"><table><thead><tr><th>Hour</th><th>Average objects</th><th>Samples</th></tr></thead><tbody>{trends.map((row) => <tr key={row.bucket}><td>{row.bucket}</td><td>{row.average_objects}</td><td>{row.samples}</td></tr>)}</tbody></table>{!trends.length && <div className="table-empty">No trend samples loaded yet.</div>}</div></section>}
   </>
@@ -325,14 +312,14 @@ function App() {
   const sceneMatch = path.match(/^scene\/(.+)$/)
   const activeScene = sceneMatch ? scenes.find((scene) => rowId(scene) === sceneMatch[1]) : undefined
   let page: ReactNode
-  if (sceneMatch && activeScene) page = <SceneWorkspace scene={activeScene} onBack={() => go('live')}/>
+  if (sceneMatch && activeScene) page = <SceneWorkspace scene={activeScene} onBack={() => go('live')} isAdmin={auth.isAdmin}/>
   else if (path === 'live') page = <><Header kicker="Operations · data plane" title="Live scenes"><button className="btn" onClick={refresh}>Refresh</button></Header><div className="card-grid">{scenes.map((scene) => <section className="panel scene-card" key={rowId(scene)}><div className="mini-scene"><div className="floor-shape"/><span className="track track-a"/><span className="track track-b"/></div><h2>{rowName(scene)}</h2><code>{rowId(scene)}</code><div className="scene-meta"><span>{scene.map ? 'Map configured' : 'No map'}</span><span>{scene.scale ? `${scene.scale} px/m` : 'Scale unknown'}</span></div><button className="btn btn-primary full" onClick={() => go(`scene/${rowId(scene)}`)}>Open native 2D / 3D scene</button></section>)}</div>{!scenes.length && <div className="empty-state"><h2>No native scenes yet</h2><p>Run <code>./scenescape.sh recover-legacy-data</code> to copy existing Django configuration, or <code>./scenescape.sh seed-native-data</code> for the upstream Retail sample.</p></div>}</>
   else if (path === 'incidents') page = <Incidents/>
   else if (path === 'history') page = <SceneAnalytics scenes={scenes} mode="history"/>
   else if (path === 'trends') page = <SceneAnalytics scenes={scenes} mode="trends"/>
   else if (path === 'health') page = <><Header kicker="Operations · data plane" title="Feed & service health"><button className="btn" onClick={refresh}>Refresh</button></Header><div className="metric-grid compact"><div className="metric"><span>Native API</span><strong className="small-value ok">Connected</strong><small>FastAPI /api/v2</small></div><div className="metric"><span>Database</span><strong className="small-value ok">{overview?.health.database || 'Unknown'}</strong><small>PostgreSQL/native tables</small></div><div className="metric"><span>MQTT historian</span><strong className="small-value">{overview?.health.mqtt || 'Unknown'}</strong><small>Last observation: {overview?.health.last_observation || 'none'}</small></div></div></>
   else if (path === 'scenes') page = <SceneInventory isAdmin={auth.isAdmin}/>
-  else if (path === 'cameras') page = <Inventory kind="cameras" label="Cameras" isAdmin={auth.isAdmin}/>
+  else if (path === 'cameras') page = <CameraInventory isAdmin={auth.isAdmin}/>
   else if (path === 'sensors') page = <Inventory kind="sensors" label="Sensors" isAdmin={auth.isAdmin}/>
   else if (path === 'zones') page = <Zones isAdmin={auth.isAdmin}/>
   else if (path === 'settings') page = <><Header kicker="Administration" title="Access & native migration"/><section className="panel settings-list"><div><b>Signed in as</b><span>{auth.displayName}{auth.email ? ` · ${auth.email}` : ''}</span></div><div><b>Roles</b><span>{auth.roles.filter((role) => role.startsWith('scenescape-')).join(', ') || 'authenticated'}</span></div><div><b>Browser backend</b><span>FastAPI /api/v2/* only; no Django page fallback.</span></div><div><b>Recover existing data</b><code>./scenescape.sh recover-legacy-data</code></div><div><b>Load upstream sample</b><code>./scenescape.sh seed-native-data</code></div></section></>
