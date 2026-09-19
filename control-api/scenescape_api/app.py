@@ -178,6 +178,10 @@ def _legacy_scene(db, row, seen=None):
     scene["children"] = children
     if scene.get("trs_matrix") is None or scene.get("output_lla") is False:
         scene.pop("trs_matrix", None)
+    # Native-only Mapping Service lifecycle state is not part of the tagged
+    # 2026.2 SceneSerializer contract and must not leak through /api/v1/export.
+    scene.pop("mesh_request_id", None)
+    scene.pop("mesh_state", None)
     return _nonnull(scene)
 
 
