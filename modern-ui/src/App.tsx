@@ -124,7 +124,7 @@ function Map2D({ bundle, live, onPoint }: { bundle: Bundle; live: Row; onPoint?:
       {bundle.regions.map((row, i) => row.visible && regionPoints[i] && <polygon key={rowId(row) || i} points={regionPoints[i]} className="region-shape" />)}
       {childRegions.map((row, i) => childRegionPoints[i] && <polygon key={`child-region-${rowId(row)||i}`} points={childRegionPoints[i]} className="child-region-shape" />)}
       {bundle.tripwires.map((row, i) => row.visible && tripPoints[i] && <polyline key={rowId(row) || i} points={tripPoints[i]} className="tripwire-line" />)}
-      {childTripwires.map((row, i) => childTripPoints[i] && <polyline key={`child-trip-${rowId(row)||i}`} points={childTripPoints[i]} className="child-tripwire-line" />}
+      {childTripwires.map((row, i) => childTripPoints[i] && <polyline key={`child-trip-${rowId(row)||i}`} points={childTripPoints[i]} className="child-tripwire-line" />)}
       {bundle.cameras.map((camera, i) => {
         const [x, y] = xy(camera.translation || [i + 1, i + 1])
         return <g key={rowId(camera) || i}><circle cx={x} cy={y} r="8" className="camera-dot"/><text x={x + 11} y={y - 7} className="map-label">{rowName(camera)}</text></g>
