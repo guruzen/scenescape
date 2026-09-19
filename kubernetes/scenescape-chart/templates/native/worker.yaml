@@ -21,10 +21,10 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
-      {{- with .Values.imagePullSecrets }}
+      {{ with .Values.imagePullSecrets }}
       imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{ toYaml . | nindent 8 }}
+      {{ end }}
       initContainers:
         - name: wait-for-native-api
           image: {{ .Values.busyboxImage.repository }}/{{ .Values.busyboxImage.name }}:{{ .Values.busyboxImage.tag }}
@@ -85,7 +85,7 @@ spec:
             runAsUser: 1000
             runAsGroup: 1000
           resources:
-            {{- toYaml .Values.native.worker.resources | nindent 12 }}
+            {{ toYaml .Values.native.worker.resources | nindent 12 }}
           volumeMounts:
             - mountPath: /run/secrets/certs/scenescape-ca.pem
               subPath: scenescape-ca.pem
@@ -98,11 +98,11 @@ spec:
             - mountPath: /data/media
               name: media-storage
       volumes:
-        {{- include "certs_volume" . | nindent 8 }}
+        {{ include "certs_volume" . | nindent 8 }}
         - name: browser-auth
           secret:
             secretName: {{ .Release.Name }}-browser.auth
         - name: media-storage
           persistentVolumeClaim:
             claimName: {{ .Release.Name }}-media-pvc
-{{- end }}
+{{ end }}
