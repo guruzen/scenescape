@@ -12,9 +12,9 @@ const imagePath=(scene:Row)=>{
 }
 
 function SensorMapEditor({
-  scene,sensor,center,points,onCenter,onPoint,
+  scene,sensor,center,points,iconUrl,onCenter,onPoint,
 }:{
-  scene:Row|null;sensor:Row;center:number[]|null;points:number[][];
+  scene:Row|null;sensor:Row;center:number[]|null;points:number[][];iconUrl:string;
   onCenter:(point:number[])=>void;onPoint:(point:number[])=>void;
 }) {
   const [url,setUrl]=useState('')
@@ -55,7 +55,7 @@ function SensorMapEditor({
       {sensor.area==='poly'&&points.length>1&&<polygon points={svgPoints} className="sensor-poly-area"/>}
       {sensor.area==='poly'&&points.map((point,index)=>{const [x,y]=xy(point);return <g key={index}><circle cx={x} cy={y} r="7" className="sensor-vertex"/><text x={x+10} y={y-8} className="map-label">{index+1}</text></g>})}
       {sensor.area==='circle'&&sensorCenter&&(()=>{const [x,y]=xy(sensorCenter);return <circle cx={x} cy={y} r={Math.max(1,Number(sensor.radius||0)*scale)} className="sensor-circle-area"/>})()}
-      {sensorCenter&&(()=>{const [x,y]=xy(sensorCenter);return <g><circle cx={x} cy={y} r="9" className="sensor-center-dot"/><text x={x+12} y={y-9} className="map-label">{String(sensor.name||'Sensor')}</text></g>})()}
+      {sensorCenter&&(()=>{const [x,y]=xy(sensorCenter);return <g>{iconUrl?<image href={iconUrl} x={x-14} y={y-14} width="28" height="28" preserveAspectRatio="xMidYMid meet" className="sensor-map-icon"/>:<circle cx={x} cy={y} r="9" className="sensor-center-dot"/>}<text x={x+12} y={y-9} className="map-label">{String(sensor.name||'Sensor')}</text></g>})()}
     </svg>
     {!url&&<div className="map-watermark">No renderable 2D map is available for this scene. Numeric geometry can still be edited.</div>}
   </div>
@@ -188,7 +188,7 @@ export default function SensorInventory({isAdmin}:{isAdmin:boolean}){
           </div>
           <div className="sensor-map-column">
             <div className="sensor-map-help">{draft.area==='poly'?'Click map vertices in order. Use Reset polygon to redraw.':'Click the map to place or move the sensor.'}</div>
-            <SensorMapEditor scene={scene} sensor={draft} center={center} points={points} onCenter={setCenter} onPoint={(point)=>setPoints((old)=>[...old,point])}/>
+            <SensorMapEditor scene={scene} sensor={draft} center={center} points={points} iconUrl={iconUrl} onCenter={setCenter} onPoint={(point)=>setPoints((old)=>[...old,point])}/>
             <div className="editor-actions">{draft.area==='poly'&&<button className="btn" onClick={()=>setPoints([])}>Reset polygon</button>}</div>
             {draft.area==='poly'&&<div className="point-strip">{points.map((point,index)=><code key={index}>{index+1}: {point.map((v)=>v.toFixed(2)).join(', ')}</code>)}</div>}
           </div>
