@@ -403,6 +403,8 @@ def normalize_camera(db, body: dict, *, uid: str | None, creating: bool, legacy:
         resolved_uid = str(sensor_id)
     elif creating and resolved_uid is None:
         resolved_uid = name.replace(" ", "_")
+    if creating and resolved_uid is not None and _existing(db, "camera", resolved_uid) is not None:
+        _bad("sensor_id", f"A camera with ID '{resolved_uid}' already exists.")
     if "scene" in data and data["scene"] not in (None, ""):
         scene_uid = str(data["scene"])
         if not _scene_exists(db, scene_uid):
