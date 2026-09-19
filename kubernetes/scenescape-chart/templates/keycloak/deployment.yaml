@@ -46,10 +46,10 @@ spec:
               mountPath: /opt/keycloak/data/import/scenescape-realm.json
               subPath: scenescape-realm.json
               readOnly: true
-            {{- if .Values.keycloak.persistence.enabled }}
+            {{ if .Values.keycloak.persistence.enabled }}
             - name: keycloak-data
               mountPath: /opt/keycloak/data/h2
-            {{- end }}
+            {{ end }}
           resources:
             {{- toYaml .Values.keycloak.resources | nindent 12 }}
           securityContext:
@@ -63,9 +63,9 @@ spec:
         - name: realm
           configMap:
             name: {{ .Release.Name }}-keycloak-realm
-        {{- if .Values.keycloak.persistence.enabled }}
+        {{ if .Values.keycloak.persistence.enabled }}
         - name: keycloak-data
           persistentVolumeClaim:
             claimName: {{ .Release.Name }}-keycloak-data
-        {{- end }}
+        {{ end }}
 {{- end }}
