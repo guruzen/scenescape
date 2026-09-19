@@ -18,7 +18,7 @@ spec:
         path: /
         backend:
           service:
-{{- if .Values.modernUI.enabled }}
+{{- if or .Values.modernUI.enabled .Values.native.enabled }}
             name: modern-ui
             port:
               number: {{ .Values.modernUI.service.port }}
