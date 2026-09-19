@@ -10,6 +10,19 @@ const defaultDraft:Row={child_type:'local',parent:'',child:'',remote_child_id:''
 const vector=(value:any,len:number,fallback:number[])=>Array.isArray(value)&&value.length===len?value.map(Number):fallback
 const transformOf=(row:Row)=>row.transform&&typeof row.transform==='object'?row.transform:{translation:[0,0,0],rotation:[0,0,0],scale:[1,1,1]}
 
+const editDraft=(row:Row)=> {
+  const t=transformOf(row)
+  const matrix=Array.from({length:16},(_,index)=>Number(row[`transform${index+1}`]??identity[index]))
+  const quaternion=row.transform_type==='quaternion'
+    ? [4,5,6,7].map((index)=>Number(row[`transform${index}`]??(index===7?1:0)))
+    : [0,0,0,1]
+  return {...defaultDraft,...row,matrix,quaternion,transform:{
+    translation:vector(t.translation,3,[0,0,0]),
+    rotation:vector(t.rotation,3,[0,0,0]),
+    scale:vector(t.scale,3,[1,1,1]),
+  }}
+}
+
 export default function HierarchyEditor({scenes,isAdmin,initialParent=''}:{scenes:Row[];isAdmin:boolean;initialParent?:string}){
   const [rows,setRows]=useState<Row[]>([])
   const [selected,setSelected]=useState<Row|null>(null)
@@ -24,14 +37,8 @@ export default function HierarchyEditor({scenes,isAdmin,initialParent=''}:{scene
   const localOptions=scenes.filter((scene)=>idOf(scene)!==String(draft.parent||'')&&!linkedLocalChildren.has(idOf(scene)))
   const open=(row:Row|null,parent=initialParent)=>{
     setSelected(row)
-    if(row){
-      const t=transformOf(row)
-      const matrix=Array.from({length:16},(_,index)=>Number(row[`transform${index+1}`]??identity[index]))
-      const quaternion=row.transform_type==='quaternion'
-        ? [4,5,6,7].map((index)=>Number(row[`transform${index}`]??(index===7?1:0)))
-        : [0,0,0,1]
-      setDraft({...defaultDraft,...row,matrix,quaternion,transform:{translation:vector(t.translation,3,[0,0,0]),rotation:vector(t.rotation,3,[0,0,0]),scale:vector(t.scale,3,[1,1,1])}})
-    }else setDraft({...defaultDraft,parent,matrix:[...identity]})
+    if(row)setDraft(editDraft(row))
+    else setDraft({...defaultDraft,parent,matrix:[...identity],quaternion:[0,0,0,1]})
     setMessage('');setError('')
   }
   const field=(key:string,value:any)=>setDraft((old)=>({...old,[key]:value}))
@@ -73,7 +80,7 @@ export default function HierarchyEditor({scenes,isAdmin,initialParent=''}:{scene
       let saved:Row
       if(selected)saved=await apiFetch<Row>(`/api/v2/children/${encodeURIComponent(idOf(selected))}?revision=${selected.revision}`,{method:'PUT',body:JSON.stringify(payload())})
       else saved=await apiFetch<Row>('/api/v2/children',{method:'POST',body:JSON.stringify(payload())})
-      setSelected(saved);setDraft({...defaultDraft,...saved,transform:transformOf(saved)});setMessage('Scene hierarchy link saved.');load()
+      setSelected(saved);setDraft(editDraft(saved));setMessage('Scene hierarchy link saved.');load()
     }catch(e){setError(String(e))}finally{setBusy(false)}
   }
   const remove=async()=>{
