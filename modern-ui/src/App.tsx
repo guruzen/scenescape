@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { apiFetch, apiJsonStream, apiObjectUrl } from './api/client'
 import { useAuth } from './auth/AuthProvider'
 import ThreeScene from './native/ThreeScene'
+import SceneInventory from './native/SceneInventory'
 
 type Row = Record<string, any>
 type Theme = 'light' | 'light-air' | 'dark' | 'dark-command'
@@ -330,7 +331,7 @@ function App() {
   else if (path === 'history') page = <SceneAnalytics scenes={scenes} mode="history"/>
   else if (path === 'trends') page = <SceneAnalytics scenes={scenes} mode="trends"/>
   else if (path === 'health') page = <><Header kicker="Operations · data plane" title="Feed & service health"><button className="btn" onClick={refresh}>Refresh</button></Header><div className="metric-grid compact"><div className="metric"><span>Native API</span><strong className="small-value ok">Connected</strong><small>FastAPI /api/v2</small></div><div className="metric"><span>Database</span><strong className="small-value ok">{overview?.health.database || 'Unknown'}</strong><small>PostgreSQL/native tables</small></div><div className="metric"><span>MQTT historian</span><strong className="small-value">{overview?.health.mqtt || 'Unknown'}</strong><small>Last observation: {overview?.health.last_observation || 'none'}</small></div></div></>
-  else if (path === 'scenes') page = <Inventory kind="scenes" label="Sites, floors & scenes" isAdmin={auth.isAdmin}/>
+  else if (path === 'scenes') page = <SceneInventory isAdmin={auth.isAdmin}/>
   else if (path === 'cameras') page = <Inventory kind="cameras" label="Cameras" isAdmin={auth.isAdmin}/>
   else if (path === 'sensors') page = <Inventory kind="sensors" label="Sensors" isAdmin={auth.isAdmin}/>
   else if (path === 'zones') page = <Zones isAdmin={auth.isAdmin}/>
