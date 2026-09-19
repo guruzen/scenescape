@@ -245,6 +245,95 @@ def _euler_xyz_degrees(matrix3):
     return [float(math.degrees(v)) for v in values]
 
 
+MESH_SIGNIFICANT_COMPONENT_FRACTION = 0.15
+MESH_COMPONENT_SEPARATION_FRACTION = 0.01
+MESH_DISTANCE_SAMPLE_SIZE = 4000
+
+
+def _check_mesh_connectivity(mesh) -> str | None:
+    """Mirror the 2026.2 dominant-surface fragmentation guard."""
+    try:
+        from scipy.sparse import csr_matrix
+        from scipy.sparse.csgraph import connected_components
+        from scipy.spatial import cKDTree
+    except Exception as exc:
+        raise HTTPException(503, "Mesh connectivity dependencies are unavailable") from exc
+
+    faces = np.asarray(getattr(mesh, "faces", []))
+    vertices = np.asarray(getattr(mesh, "vertices", []))
+    if len(faces) == 0 or len(vertices) == 0:
+        return None
+    edges = np.asarray(mesh.edges_unique)
+    graph = csr_matrix(
+        (np.ones(len(edges), dtype=np.uint8), (edges[:, 0], edges[:, 1])),
+        shape=(len(vertices), len(vertices)),
+    )
+    component_count, labels = connected_components(graph, directed=False)
+    if component_count <= 1:
+        return None
+
+    face_labels = labels[faces[:, 0]]
+    face_counts = np.bincount(face_labels, minlength=component_count)
+    total_faces = int(face_counts.sum())
+    if total_faces == 0:
+        return None
+    significant = [
+        int(index) for index in np.argsort(face_counts)[::-1]
+        if face_counts[index] >= MESH_SIGNIFICANT_COMPONENT_FRACTION * total_faces
+    ]
+    if len(significant) <= 1:
+        return None
+
+    component_points = {index: vertices[labels == index] for index in significant}
+    diagonal = float(np.linalg.norm(vertices.max(axis=0) - vertices.min(axis=0)))
+    gap_threshold = MESH_COMPONENT_SEPARATION_FRACTION * diagonal
+    groups = {index: position for position, index in enumerate(significant)}
+    rng = np.random.default_rng(0)
+
+    def sample(points):
+        if len(points) <= MESH_DISTANCE_SAMPLE_SIZE:
+            return points
+        indexes = rng.choice(len(points), MESH_DISTANCE_SAMPLE_SIZE, replace=False)
+        return points[indexes]
+
+    for left_index, left in enumerate(significant):
+        for right in significant[left_index + 1:]:
+            if groups[left] == groups[right]:
+                continue
+            a = sample(component_points[left])
+            b = sample(component_points[right])
+            distance = float(cKDTree(b).query(a, k=1)[0].min())
+            if distance <= gap_threshold:
+                merged, absorbed = groups[left], groups[right]
+                for component in significant:
+                    if groups[component] == absorbed:
+                        groups[component] = merged
+
+    grouped: dict[int, list[int]] = {}
+    for component in significant:
+        grouped.setdefault(groups[component], []).append(component)
+    if len(grouped) <= 1:
+        return None
+
+    regions = []
+    for members in grouped.values():
+        points = np.concatenate([component_points[component] for component in members], axis=0)
+        minimum = np.round(points.min(axis=0), 2)
+        maximum = np.round(points.max(axis=0), 2)
+        percentage = 100.0 * sum(face_counts[component] for component in members) / total_faces
+        regions.append(
+            f"~{percentage:.0f}% at x[{minimum[0]}, {maximum[0]}] "
+            f"y[{minimum[1]}, {maximum[1]}] z[{minimum[2]}, {maximum[2]}]"
+        )
+    return (
+        f"The reconstructed mesh is split into {len(grouped)} spatially separate surfaces, "
+        "which means the cameras do not all observe the same physical scene. "
+        "Disjoint regions (share of mesh and bounding box in meters): "
+        + "; ".join(regions)
+        + ". Ensure every camera shares an overlapping view with the others and regenerate the mesh."
+    )
+
+
 def _align_generated_mesh(mesh):
     to_origin, extents = trimesh.bounds.oriented_bounds(mesh)
     from_origin = np.linalg.inv(to_origin)
@@ -336,7 +425,15 @@ def mesh_generation_status(db, scene_id: str, request_id: str, actor) -> dict:
     except Exception as exc:
         raise HTTPException(502, "Mapping service returned invalid GLB data") from exc
 
-    aligned, rotation, translation = _align_generated_mesh(_load_generated_glb(raw))
+    generated_mesh = _load_generated_glb(raw)
+    connectivity_error = _check_mesh_connectivity(generated_mesh)
+    if connectivity_error:
+        upsert(db, "scene", scene_id, {"mesh_state": "failed"}, actor, scene.revision)
+        payload["success"] = False
+        payload["error"] = connectivity_error
+        return payload
+
+    aligned, rotation, translation = _align_generated_mesh(generated_mesh)
     glb = aligned.export(file_type="glb")
     scene_name = str((scene.payload or {}).get("name") or "scene")
     map_url = store_bytes(f"{scene_name}_generated_mesh.glb", glb, kind="scene-map")
