@@ -137,6 +137,13 @@ def fetch_camera_calibration(camera_id: str, timeout: float = 5.0) -> dict:
     return payload
 
 
+def _frame_timestamp(value: str | None) -> str:
+    if not value:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    parsed = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+    return parsed.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
 def request_camera_frame(
     camera_id: str,
     *,
@@ -148,7 +155,7 @@ def request_camera_frame(
     channel = str(uuid.uuid4())
     query = {
         "channel": channel,
-        "timestamp": timestamp or datetime.now(timezone.utc).isoformat(),
+        "timestamp": _frame_timestamp(timestamp),
     }
     if frame_type:
         query["frame_type"] = frame_type.split() if isinstance(frame_type, str) else list(frame_type)
