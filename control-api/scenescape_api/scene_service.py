@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timezone
+
+from sqlalchemy import select
 
 from .contracts import normalize_resource
 from .hierarchy import cascade_scene_links
 from .markers import cascade_scene_markers
 from .media_files import delete_media
 from .map_processing import process_uploaded_mesh
+from .database import Resource
 from .resources import delete_resource, get_resource, upsert
 from .scene_config import apply_scene_relation, cleanup_replaced_media, split_scene_relation
 
@@ -57,11 +61,38 @@ def update_scene(db, uid: str, body: dict, actor, *, legacy: bool, expected_revi
     return row, notify, before
 
 
+def _cascade_scene_resources(db, scene_uid: str) -> None:
+    """Mirror Django FK semantics when a Scene is deleted.
+
+    Sensor.scene uses SET_NULL for both cameras and singleton sensors.
+    Regions and tripwires are scene-owned and use CASCADE.
+    """
+    rows = db.scalars(
+        select(Resource).where(Resource.kind.in_(("camera", "sensor", "region", "tripwire")))
+    ).all()
+    now = datetime.now(timezone.utc)
+    for resource in rows:
+        payload = dict(resource.payload or {})
+        linked_scene = str(payload.get("scene") or payload.get("scene_id") or "")
+        if linked_scene != str(scene_uid):
+            continue
+        if resource.kind in {"camera", "sensor"}:
+            payload["scene"] = None
+            payload.pop("scene_id", None)
+            resource.payload = payload
+            resource.revision += 1
+            resource.updated_at = now
+        else:
+            db.delete(resource)
+    db.flush()
+
+
 def delete_scene(db, uid: str):
     row = get_resource(db, 'scene', uid)
     media = [str((row.payload or {}).get(field) or '') for field in ('map', 'thumbnail', 'polycam_data')]
     cascade_scene_links(db, uid)
     cascade_scene_markers(db, uid)
+    _cascade_scene_resources(db, uid)
     result = delete_resource(db, 'scene', uid)
     return result, [value for value in media if value]
 
