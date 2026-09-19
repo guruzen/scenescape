@@ -463,7 +463,10 @@ def normalize_sensor(db, body: dict, *, uid: str | None, creating: bool, legacy:
             _bad("name", f"orphaned sensor with the name '{name}' already exists.")
         data["name"] = name
 
+    sensor_id_supplied = "sensor_id" in data
     sensor_id = data.pop("sensor_id", None)
+    if sensor_id_supplied and sensor_id in (None, ""):
+        _bad("sensor_id", "This field may not be blank.")
     if sensor_id not in (None, ""):
         sensor_id = str(sensor_id)
         if len(sensor_id) > 20:
