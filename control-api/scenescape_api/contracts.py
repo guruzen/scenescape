@@ -437,6 +437,16 @@ def normalize_camera(db, body: dict, *, uid: str | None, creating: bool, legacy:
             data["transform_type"] = "euler"
         else:
             data["rotation"] = _vec3("rotation", data["rotation"])
+    normalized_transform_type = data.get("transform_type")
+    if normalized_transform_type == "euler" and all(field in data for field in ("translation", "rotation", "scale")):
+        data["transforms"] = list(data["translation"]) + list(data["rotation"]) + list(data["scale"])
+    elif normalized_transform_type == "3d-2d point correspondence" and "transforms" in data and data["transforms"] is not None:
+        if not isinstance(data["transforms"], (list, tuple)):
+            _bad("transforms", "Transforms must be a list.")
+        try:
+            data["transforms"] = [float(item) for item in data["transforms"]]
+        except (TypeError, ValueError) as exc:
+            _bad("transforms", f"Transforms must contain numeric values: {exc}")
     for field, choices in CAMERA_CHOICES.items():
         if field == "transform_type":
             continue
