@@ -13,6 +13,8 @@ export default function ThreeScene({
   meshTranslation,
   meshRotation,
   meshScale,
+  onPick,
+  pickedPoints = [],
 }: {
   mapPath?: string
   objects: Row[]
@@ -20,11 +22,17 @@ export default function ThreeScene({
   meshTranslation?: number[]
   meshRotation?: number[]
   meshScale?: number[]
+  onPick?: (point: number[]) => void
+  pickedPoints?: number[][]
 }) {
   const host = useRef<HTMLDivElement | null>(null)
   const surface = useRef<HTMLDivElement | null>(null)
   const objectGroup = useRef<THREE.Group | null>(null)
+  const calibrationGroup = useRef<THREE.Group | null>(null)
+  const onPickRef = useRef(onPick)
   const [error, setError] = useState('')
+
+  useEffect(() => { onPickRef.current = onPick }, [onPick])
 
   useEffect(() => {
     if (!host.current || !surface.current) return
@@ -66,6 +74,10 @@ export default function ThreeScene({
     const group = new THREE.Group()
     objectGroup.current = group
     scene.add(group)
+    const calibration = new THREE.Group()
+    calibrationGroup.current = calibration
+    scene.add(calibration)
+    const pickTargets: THREE.Object3D[] = []
 
     const fit = (object: THREE.Object3D) => {
       const box = new THREE.Box3().setFromObject(object)
@@ -104,6 +116,7 @@ export default function ThreeScene({
               Number(objectScale[2] ?? 1),
             )
             scene.add(gltf.scene)
+            pickTargets.push(gltf.scene)
             fit(gltf.scene)
           }, undefined, () => setError('The GLB map could not be rendered. Live data is still available in 2D.'))
         } else if (/\.(?:png|jpe?g|webp)(?:$|\?)/i.test(mapPath)) {
@@ -119,6 +132,7 @@ export default function ThreeScene({
             )
             plane.position.set(width / 2, height / 2, -0.02)
             scene.add(plane)
+            pickTargets.push(plane)
             fit(plane)
           }, undefined, () => setError('The map image could not be rendered in 3D.'))
         }
@@ -139,6 +153,19 @@ export default function ThreeScene({
     resize.observe(container)
     resizeRenderer()
 
+    const raycaster = new THREE.Raycaster()
+    const pointer = new THREE.Vector2()
+    const handlePick = (event: MouseEvent) => {
+      if (!onPickRef.current || !pickTargets.length) return
+      const rect = renderer.domElement.getBoundingClientRect()
+      pointer.x = ((event.clientX - rect.left) / Math.max(rect.width, 1)) * 2 - 1
+      pointer.y = -((event.clientY - rect.top) / Math.max(rect.height, 1)) * 2 + 1
+      raycaster.setFromCamera(pointer, camera)
+      const hit = raycaster.intersectObjects(pickTargets, true)[0]
+      if (hit) onPickRef.current([hit.point.x, hit.point.y, hit.point.z])
+    }
+    renderer.domElement.addEventListener('dblclick', handlePick)
+
     const loop = () => {
       controls.update()
       renderer.render(scene, camera)
@@ -151,10 +178,12 @@ export default function ThreeScene({
       cancelAnimationFrame(frame)
       resize?.disconnect()
       controls.dispose()
+      renderer.domElement.removeEventListener('dblclick', handlePick)
       renderer.dispose()
       renderer.domElement.remove()
       if (mediaUrl) URL.revokeObjectURL(mediaUrl)
       objectGroup.current = null
+      calibrationGroup.current = null
     }
   }, [
     mapPath,
@@ -185,6 +214,28 @@ export default function ThreeScene({
       group.add(marker)
     }
   }, [objects, mapPath])
+
+  useEffect(() => {
+    const group = calibrationGroup.current
+    if (!group) return
+    while (group.children.length) {
+      const child = group.children.pop()
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose()
+        const material = child.material
+        if (Array.isArray(material)) material.forEach((item) => item.dispose())
+        else material.dispose()
+      }
+    }
+    for (const point of pickedPoints) {
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.09, 14, 10),
+        new THREE.MeshStandardMaterial({ color: 0xffb454, emissive: 0x6b3b00, emissiveIntensity: 0.3 }),
+      )
+      marker.position.set(Number(point[0] || 0), Number(point[1] || 0), Number(point[2] || 0))
+      group.add(marker)
+    }
+  }, [pickedPoints])
 
   return <div className="three-viewer" ref={host}><div className="three-surface" ref={surface}/>{error && <div className="viewer-error">{error}</div>}</div>
 }
