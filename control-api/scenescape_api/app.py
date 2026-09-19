@@ -1,6 +1,10 @@
 import asyncio
+import base64
+import io
 import json
 import os
+import re
+import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -17,9 +21,10 @@ from .database import Event, Heartbeat, Incident, Observation, Resource, session
 from .hierarchy import cascade_scene_links, child_to_dict, create_child_link, resolve_child_link, transform_dict, update_child_link
 from .intrinsics import calculate_camera_intrinsics
 from .markers import marker_to_dict, normalize_marker, resolve_marker
-from .media_files import delete_media, save_upload
+from .media_files import delete_media, media_path, save_upload, store_bytes
 from .scene_config import apply_uploaded_map_semantics
 from .scene_import_native import import_scene_archive
+from .mapping_service import mapping_health, mesh_generation_status, start_mesh_generation
 from .scene_service import cleanup_scene_media, create_scene, delete_scene, delete_scene_media, update_scene
 from .resources import ALIASES, delete_resource, get_resource, list_resources, to_dict, upsert
 
@@ -536,6 +541,106 @@ async def native_import_scene(zipFile: UploadFile = File(...), p=Depends(current
     after = {row.uid for row in _legacy_rows(db, "scene")}
     for scene_uid in sorted(after - before):
         notify_config_change("scene", scene_uid)
+    return result
+
+
+@app.post("/api/v2/geospatial/snapshot")
+def native_geospatial_snapshot(body: dict, p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    value = str(body.get("image_data") or "")
+    if value.startswith("data:image/png;base64,"):
+        value = value.split(",", 1)[1]
+    if not value:
+        raise HTTPException(400, "No image data provided")
+    try:
+        raw = base64.b64decode(value, validate=True)
+    except Exception as exc:
+        raise HTTPException(400, "Failed to decode image data") from exc
+    if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise HTTPException(400, "Geospatial snapshot must be a PNG image")
+    name = f"geospatial_map_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.png"
+    url = store_bytes(name, raw, kind="thumbnail")
+    return {"success": True, "filename": Path(url).name, "media_url": url}
+
+
+def _archive_media(zip_file, scene: dict, seen: set[str]):
+    map_value = str(scene.get("map") or "")
+    if map_value and map_value not in seen:
+        target = media_path(map_value)
+        if target is not None and target.is_file():
+            seen.add(map_value)
+            safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(scene.get("name") or "scene"))
+            zip_file.writestr(f"{safe_name}{target.suffix.lower()}", target.read_bytes())
+    for child in scene.get("children") or []:
+        if isinstance(child, dict):
+            _archive_media(zip_file, child, seen)
+
+
+@app.get("/api/v2/scenes/{scene_id}/export")
+def native_export_scene(scene_id: str, p=Depends(current_principal), db=Depends(db_dep)):
+    _scene_allowed(p, scene_id)
+    row = get_resource(db, "scene", scene_id)
+    scene = _legacy_scene(db, row)
+    name = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(scene.get("name") or scene_id)) or "scene"
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(f"{name}.json", json.dumps(scene, indent=2, default=str))
+        _archive_media(archive, scene, set())
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{name}.zip"', "Cache-Control": "no-store"},
+    )
+
+
+@app.get("/api/v2/mapping/health")
+def native_mapping_health(p=Depends(current_principal)):
+    return mapping_health()
+
+
+@app.post("/api/v2/scenes/{scene_id}/mesh")
+async def native_generate_mesh(scene_id: str, request: Request, p=Depends(current_principal), db=Depends(db_dep)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    get_resource(db, "scene", scene_id)
+    mesh_type = "mesh"
+    video = None
+    content_type = request.headers.get("content-type", "").lower()
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        mesh_type = str(form.get("mesh_type") or "mesh")
+        upload = form.get("map")
+        if hasattr(upload, "read") and getattr(upload, "filename", ""):
+            raw = await upload.read(int(os.getenv("MAX_UPLOAD_BYTES", str(512 * 1024 * 1024))) + 1)
+            await upload.close()
+            if len(raw) > int(os.getenv("MAX_UPLOAD_BYTES", str(512 * 1024 * 1024))):
+                raise HTTPException(413, "Uploaded video exceeds the configured size limit")
+            video = (str(upload.filename), str(getattr(upload, "content_type", "") or ""), raw)
+    elif "application/json" in content_type:
+        body = await request.json()
+        mesh_type = str((body or {}).get("mesh_type") or "mesh")
+    result = start_mesh_generation(db, scene_id, p, mesh_type=mesh_type, video=video)
+    result.pop("_before_scene", None)
+    db.commit()
+    return result
+
+
+@app.get("/api/v2/scenes/{scene_id}/mesh/status")
+def native_generate_mesh_status(scene_id: str, request_id: str = Query(...), p=Depends(current_principal), db=Depends(db_dep)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    result = mesh_generation_status(db, scene_id, request_id, p)
+    before = result.pop("_before_scene", None)
+    after = result.pop("_after_scene", None)
+    camera_changes = result.pop("_changed_cameras", [])
+    finalized = bool(result.get("finalized")) and before is not None and after is not None
+    db.commit()
+    if finalized:
+        cleanup_scene_media(before, after)
+        notify_config_change("scene", scene_id)
+        for change in camera_changes:
+            notify_camera_change(change["after"], "save", change["before"])
     return result
 
 
