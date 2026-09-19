@@ -31,11 +31,16 @@ export default function AssetInventory({isAdmin}:{isAdmin:boolean}){
   useEffect(()=>{
     let alive=true,current=''
     setModelUrl('')
+    if(modelFile){
+      current=URL.createObjectURL(modelFile)
+      setModelUrl(current)
+      return()=>{alive=false;if(current)URL.revokeObjectURL(current)}
+    }
     const path=String(draft.model_3d||'')
     if(!path)return
     void apiObjectUrl(path).then((url)=>{if(alive){current=url;setModelUrl(url)}else URL.revokeObjectURL(url)}).catch(()=>{})
     return()=>{alive=false;if(current)URL.revokeObjectURL(current)}
-  },[draft.model_3d])
+  },[draft.model_3d,modelFile])
   const field=(key:string,value:any)=>setDraft((old)=>({...old,[key]:value}))
   const num=(key:string)=>Number(draft[key]??defaults[key]??0)
   const body=()=>{
@@ -55,7 +60,8 @@ export default function AssetInventory({isAdmin}:{isAdmin:boolean}){
     setBusy(true);setError('');setMessage('')
     try{
       const form=new FormData()
-      form.append('json',JSON.stringify(body()))
+      const payload=body()
+      Object.entries(payload).forEach(([key,value])=>form.append(key,typeof value==='string'?value:JSON.stringify(value)))
       if(modelFile)form.append('model_3d',modelFile)
       let saved:Row
       if(selected)saved=await apiFetch<Row>(`/api/v2/assets/${encodeURIComponent(idOf(selected))}?revision=${selected.revision}`,{method:'PUT',body:form})
@@ -107,7 +113,7 @@ export default function AssetInventory({isAdmin}:{isAdmin:boolean}){
             </div></div>
             <div className="scene-subsection"><h3>3D model</h3><div className="asset-upload-row"><label className="file-field">GLB model<input type="file" accept=".glb,model/gltf-binary" onChange={(e)=>setModelFile(e.target.files?.[0]||null)}/></label>{draft.model_3d&&<button className="btn" onClick={clearModel}>Remove model</button>}<code>{modelFile?.name||draft.model_3d||'Default box geometry'}</code></div></div>
           </div>
-          <aside className="asset-preview-panel"><div className="asset-preview-label">Live preview</div><ThreeScene mapPath={modelUrl?String(draft.model_3d||''):undefined} mediaOverrideUrl={modelUrl||undefined} objects={[]} scale={1} previewAsset={draft}/></aside>
+          <aside className="asset-preview-panel"><div className="asset-preview-label">Live preview</div><ThreeScene objects={[]} scale={1} mediaOverrideUrl={modelUrl||undefined} previewAsset={{...draft,model_3d:modelUrl?'preview.glb':draft.model_3d}}/></aside>
         </div>
         <div className="editor-actions camera-save-actions">{selected&&<button className="btn danger-button" disabled={busy} onClick={()=>void remove()}>Delete</button>}{isAdmin&&<button className="btn btn-primary" disabled={busy} onClick={()=>void save()}>{busy?'Working…':'Save object class'}</button>}</div>
       </section>
