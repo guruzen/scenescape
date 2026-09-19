@@ -185,6 +185,19 @@ export default function CameraCalibration({
         ...cameraPoints.flatMap((point) => point.slice(0, 2)),
         ...scenePoints.flatMap((point) => point.slice(0, 3)),
       ]
+      const solved = await apiFetch<Row>('/api/v2/calculateintrinsics', {
+        method: 'POST',
+        body: JSON.stringify({
+          camPoints: cameraPoints,
+          mapPoints: scenePoints,
+          fixIntrinsics: { fx: true, fy: true, cx: true, cy: true, k1: true, k2: true, k3: true, p1: true, p2: true },
+          intrinsics: matrixFromIntrinsics(intrinsics),
+          distortion: [distortion.k1, distortion.k2, distortion.p1, distortion.p2, distortion.k3],
+          imageSize,
+        }),
+      })
+      const translation = Array.isArray(solved.position) ? solved.position : (camera.translation || [0,0,0])
+      const rotation = Array.isArray(solved.euler) ? solved.euler : (camera.rotation || [0,0,0])
       const saved = await apiFetch<Row>(`/api/v2/cameras/${encodeURIComponent(idOf(camera))}?revision=${camera.revision}`, {
         method: 'PUT',
         body: JSON.stringify({
@@ -192,6 +205,9 @@ export default function CameraCalibration({
           scene: camera.scene,
           transform_type: '3d-2d point correspondence',
           transforms,
+          translation,
+          rotation,
+          scale: camera.scale || [1,1,1],
           intrinsics,
           distortion,
           resolution: imageSize,
@@ -199,7 +215,7 @@ export default function CameraCalibration({
       })
       await apiFetch(`/api/v2/cameras/${encodeURIComponent(idOf(saved))}/runtime-update`, {
         method: 'POST',
-        body: JSON.stringify({ intrinsics, distortion }),
+        body: JSON.stringify({ translation, rotation, intrinsics, distortion }),
       }).catch(() => null)
       setMessage('Manual 2D/3D camera calibration saved.')
       onSaved()
