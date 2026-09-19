@@ -1,3 +1,4 @@
+{{- if not .Values.native.enabled }}
 # SPDX-FileCopyrightText: (C) 2025 - 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
@@ -243,3 +244,4 @@ spec:
         persistentVolumeClaim:
           claimName: {{ .Release.Name }}-migrations-pvc
 status: {}
+{{- end }}
