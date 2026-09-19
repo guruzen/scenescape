@@ -244,6 +244,33 @@ export default function ThreeScene({
       camera.aspect = width / height
       camera.updateProjectionMatrix()
     }
+    const set2DView = () => {
+      const target = controls.target.clone()
+      const distance = Math.max(6, camera.position.distanceTo(target))
+      camera.position.set(target.x, target.y, target.z + distance)
+      camera.up.set(0, 1, 0)
+      controls.update()
+    }
+    const set3DView = () => {
+      camera.up.set(0, 0, 1)
+      const target = controls.target.clone()
+      const distance = Math.max(6, camera.position.distanceTo(target))
+      camera.position.set(target.x + distance * 0.7, target.y - distance * 0.9, target.z + distance * 0.65)
+      controls.update()
+    }
+    const resetView = () => {
+      camera.up.set(0, 0, 1)
+      camera.position.set(8, -10, 9)
+      controls.target.set(3, 3, 0)
+      controls.update()
+    }
+    const onViewerCommand = (event: Event) => {
+      const command = (event as CustomEvent<string>).detail
+      if (command === '2d') set2DView()
+      else if (command === '3d') set3DView()
+      else if (command === 'reset') resetView()
+    }
+    container.addEventListener('scenescape-view', onViewerCommand)
     resize = new ResizeObserver(resizeRenderer)
     resize.observe(container)
     resizeRenderer()
@@ -280,6 +307,7 @@ export default function ThreeScene({
       cancelAnimationFrame(frame)
       resize?.disconnect()
       controls.dispose()
+      container.removeEventListener('scenescape-view', onViewerCommand)
       renderer.domElement.removeEventListener('dblclick', handlePick)
       renderer.dispose()
       renderer.domElement.remove()
@@ -614,5 +642,6 @@ export default function ThreeScene({
     }
   }, [pickedPoints])
 
-  return <div className="three-viewer" ref={host}><div className="three-surface" ref={surface}/>{error && <div className="viewer-error">{error}</div>}</div>
+  const commandView = (command: string) => host.current?.dispatchEvent(new CustomEvent('scenescape-view', { detail: command }))
+  return <div className="three-viewer" ref={host}><div className="three-view-toolbar"><button className="btn" onClick={()=>commandView('2d')}>2D</button><button className="btn" onClick={()=>commandView('3d')}>3D</button><button className="btn" onClick={()=>commandView('reset')}>Reset</button></div><div className="three-surface" ref={surface}/>{error && <div className="viewer-error">{error}</div>}</div>
 }
