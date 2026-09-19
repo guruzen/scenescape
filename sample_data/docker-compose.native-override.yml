@@ -38,6 +38,8 @@ services:
       MQTT_AUTH_FILE: /run/secrets/browser.auth
       API_SIGNING_KEY: ${SCENESCAPE_API_SIGNING_KEY:?Run scenescape.sh configure or migrate-native}
       AUTOCALIBRATION_URL: https://autocalibration.scenescape.intel.com:8443
+      MAPPING_SERVICE_URL: https://mapping.scenescape.intel.com:8444/v1
+      MAPPING_REQUEST_TIMEOUT: ${MAPPING_REQUEST_TIMEOUT:-300}
       UPSTREAM_CA_FILE: /run/secrets/certs/scenescape-ca.pem
       HISTORY_SAMPLE_SECONDS: ${HISTORY_SAMPLE_SECONDS:-1}
       HISTORY_RETENTION_DAYS: ${HISTORY_RETENTION_DAYS:-7}
