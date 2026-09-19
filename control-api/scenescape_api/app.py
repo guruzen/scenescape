@@ -901,6 +901,8 @@ def scene_bundle(scene_id: str, p=Depends(current_principal), db=Depends(db_dep)
             result[plural] = [child_to_dict(db, row, native=True) for row in rows if _scene_matches(row, scene_id)]
         elif plural == "markers":
             result[plural] = [marker_to_dict(row, native=True) for row in rows if _scene_matches(row, scene_id)]
+        elif plural == "sensors":
+            result[plural] = [_sensor_value(to_dict(row), native=True) for row in rows if _scene_matches(row, scene_id)]
         else:
             result[plural] = [to_dict(row) for row in rows if _scene_matches(row, scene_id)]
     return result
@@ -1117,6 +1119,9 @@ def list_any(plural: str, p=Depends(current_principal), db=Depends(db_dep)):
     elif kind == "marker":
         db_rows = db.scalars(select(Resource).where(Resource.kind == "marker").order_by(Resource.id)).all()
         rows = [marker_to_dict(row, native=True) for row in db_rows]
+    elif kind == "sensor":
+        db_rows = db.scalars(select(Resource).where(Resource.kind == "sensor").order_by(Resource.id)).all()
+        rows = [_sensor_value(to_dict(row), native=True) for row in db_rows]
     else:
         rows = list_resources(db, kind)
     if p.is_admin or "*" in p.scene_scopes:
@@ -1133,6 +1138,8 @@ def get_any(plural: str, uid: str, p=Depends(current_principal), db=Depends(db_d
         row = child_to_dict(db, resolve_child_link(db, uid), native=True)
     elif kind == "marker":
         row = marker_to_dict(resolve_marker(db, uid), native=True)
+    elif kind == "sensor":
+        row = _sensor_value(to_dict(get_resource(db, kind, uid)), native=True)
     else:
         row = to_dict(get_resource(db, kind, uid))
     if not (p.is_admin or "*" in p.scene_scopes):
@@ -1166,7 +1173,7 @@ def create_any(plural: str, body: dict, p=Depends(current_principal), db=Depends
     body, resolved_uid = normalize_resource(db, kind, body, uid=None, creating=True, legacy=False)
     row = upsert(db, kind, resolved_uid, body, p)
     db.commit()
-    value = to_dict(row)
+    value = _sensor_value(to_dict(row), native=True) if kind == "sensor" else to_dict(row)
     notify_config_change(kind, row.uid)
     if kind == "camera":
         notify_camera_change(value, "save")
