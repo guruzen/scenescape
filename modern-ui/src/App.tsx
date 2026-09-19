@@ -8,6 +8,8 @@ import CameraInventory from './native/CameraInventory'
 import CameraCalibration from './native/CameraCalibration'
 import SensorInventory from './native/SensorInventory'
 import SpatialEditor from './native/SpatialEditor'
+import AssetInventory from './native/AssetInventory'
+import HierarchyEditor from './native/HierarchyEditor'
 
 type Row = Record<string, any>
 type Theme = 'light' | 'light-air' | 'dark' | 'dark-command'
@@ -20,6 +22,7 @@ const operations = [
 ] as const
 const configuration = [
   ['scenes', 'Sites, floors & scenes'], ['cameras', 'Cameras'], ['sensors', 'Sensors'], ['zones', 'Zones & tripwires'],
+  ['assets', 'Object library'], ['hierarchy', 'Scene hierarchy'],
 ] as const
 const themes: Array<{ value: Theme; label: string }> = [
   { value: 'light', label: 'Light' }, { value: 'light-air', label: 'Light Air' },
@@ -190,7 +193,7 @@ function CameraFeeds({ cameras }: { cameras: Row[] }) {
   return <div className="camera-feed-grid">{cameras.map((camera) => <CameraFeed key={rowId(camera)} camera={camera}/>)}</div>
 }
 
-function SceneWorkspace({ scene, onBack, isAdmin, initialTab = 'Live 2D' }: { scene: Row; onBack: () => void; isAdmin: boolean; initialTab?: string }) {
+function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D' }: { scene: Row; scenes: Row[]; onBack: () => void; isAdmin: boolean; initialTab?: string }) {
   const [bundle, setBundle] = useState<Bundle | null>(null)
   const [live, setLive] = useState<Row>({ objects: [], stale: true })
   const [tab, setTab] = useState(initialTab)
@@ -225,12 +228,13 @@ function SceneWorkspace({ scene, onBack, isAdmin, initialTab = 'Live 2D' }: { sc
     <div className="scene-summary">
       <div><span>Scene ID</span><b>{id}</b></div><div><span>Cameras</span><b>{bundle.cameras.length}</b></div><div><span>Sensors</span><b>{bundle.sensors.length}</b></div><div><span>Spatial rules</span><b>{bundle.regions.length + bundle.tripwires.length}</b></div>
     </div>
-    <div className="tabs">{['Live 2D','Live 3D','Camera feeds','Geometry','Camera calibration','History & replay','Trends & analytics'].map((name) => <button key={name} className={tab === name ? 'btn active-tab' : 'btn'} onClick={() => setTab(name)}>{name}</button>)}</div>
+    <div className="tabs">{['Live 2D','Live 3D','Camera feeds','Geometry','Hierarchy','Camera calibration','History & replay','Trends & analytics'].map((name) => <button key={name} className={tab === name ? 'btn active-tab' : 'btn'} onClick={() => setTab(name)}>{name}</button>)}</div>
     {message && <div className="notice-box">{message}</div>}
     {tab === 'Live 2D' && <Map2D bundle={bundle} live={live}/>} 
     {tab === 'Live 3D' && <ThreeScene mapPath={map3DPath} objects={live.objects || []} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors}/>} 
     {tab === 'Camera feeds' && <CameraFeeds cameras={bundle.cameras}/>} 
     {tab === 'Geometry' && <SpatialEditor scene={bundle.scene} regions={bundle.regions} tripwires={bundle.tripwires} isAdmin={isAdmin} onSaved={loadBundle}/>}
+    {tab === 'Hierarchy' && <HierarchyEditor scenes={scenes} isAdmin={isAdmin} initialParent={id}/>}
     {tab === 'Camera calibration' && <CameraCalibration scene={bundle.scene} cameras={bundle.cameras} isAdmin={isAdmin} onSaved={loadBundle}/>}
     {tab === 'History & replay' && <section className="panel history-panel"><div className="panel-title"><div><h2>Persisted observations</h2><p>Metadata replay from the native historian.</p></div><button className="btn btn-primary" onClick={() => void apiFetch<Row[]>(`/api/v2/scenes/${id}/history`).then(setHistory)}>Load history</button></div>{history.length > 0 ? <><input type="range" min="0" max={history.length - 1}/><div className="history-list">{history.slice(-12).map((row) => <div key={row.id}><b>{row.timestamp}</b><span>{(row.payload?.objects || []).length} objects</span></div>)}</div></> : <div className="table-empty">No retained samples loaded yet.</div>}</section>}
     {tab === 'Trends & analytics' && <section className="panel"><div className="panel-title"><div><h2>24-hour object trend</h2><p>Calculated from retained observations, not synthetic data.</p></div><button className="btn btn-primary" onClick={() => void apiFetch<Row[]>(`/api/v2/scenes/${id}/trends`).then(setTrends)}>Apply range</button></div><div className="table-wrap"><table><thead><tr><th>Hour</th><th>Average objects</th><th>Samples</th></tr></thead><tbody>{trends.map((row) => <tr key={row.bucket}><td>{row.bucket}</td><td>{row.average_objects}</td><td>{row.samples}</td></tr>)}</tbody></table>{!trends.length && <div className="table-empty">No trend samples loaded yet.</div>}</div></section>}
@@ -320,10 +324,10 @@ function App() {
   if (!auth.ready) return <div className="center-state"><div className="spinner"/><h1>Securing SceneScape</h1><p>Establishing your Keycloak session…</p></div>
   if (!auth.authenticated) return <div className="center-state"><h1>Identity service unavailable</h1><p>Verify the Keycloak realm/client configuration.</p><button className="btn btn-primary" onClick={() => void auth.login()}>Try sign in again</button></div>
 
-  const sceneMatch = path.match(/^scene\/([^/]+)(?:\/(geometry))?$/)
+  const sceneMatch = path.match(/^scene\/([^/]+)(?:\/(geometry|hierarchy))?$/)
   const activeScene = sceneMatch ? scenes.find((scene) => rowId(scene) === sceneMatch[1]) : undefined
   let page: ReactNode
-  if (sceneMatch && activeScene) page = <SceneWorkspace scene={activeScene} onBack={() => go('live')} isAdmin={auth.isAdmin} initialTab={sceneMatch[2] === 'geometry' ? 'Geometry' : 'Live 2D'}/>
+  if (sceneMatch && activeScene) page = <SceneWorkspace scene={activeScene} scenes={scenes} onBack={() => go('live')} isAdmin={auth.isAdmin} initialTab={sceneMatch[2] === 'geometry' ? 'Geometry' : sceneMatch[2] === 'hierarchy' ? 'Hierarchy' : 'Live 2D'}/>
   else if (path === 'live') page = <><Header kicker="Operations · data plane" title="Live scenes"><button className="btn" onClick={refresh}>Refresh</button></Header><div className="card-grid">{scenes.map((scene) => <section className="panel scene-card" key={rowId(scene)}><div className="mini-scene"><div className="floor-shape"/><span className="track track-a"/><span className="track track-b"/></div><h2>{rowName(scene)}</h2><code>{rowId(scene)}</code><div className="scene-meta"><span>{scene.map ? 'Map configured' : 'No map'}</span><span>{scene.scale ? `${scene.scale} px/m` : 'Scale unknown'}</span></div><button className="btn btn-primary full" onClick={() => go(`scene/${rowId(scene)}`)}>Open native 2D / 3D scene</button></section>)}</div>{!scenes.length && <div className="empty-state"><h2>No native scenes yet</h2><p>Run <code>./scenescape.sh recover-legacy-data</code> to copy existing Django configuration, or <code>./scenescape.sh seed-native-data</code> for the upstream Retail sample.</p></div>}</>
   else if (path === 'incidents') page = <Incidents/>
   else if (path === 'history') page = <SceneAnalytics scenes={scenes} mode="history"/>
@@ -333,6 +337,8 @@ function App() {
   else if (path === 'cameras') page = <CameraInventory isAdmin={auth.isAdmin}/>
   else if (path === 'sensors') page = <SensorInventory isAdmin={auth.isAdmin}/>
   else if (path === 'zones') page = <Zones goTo={go}/>
+  else if (path === 'assets') page = <AssetInventory isAdmin={auth.isAdmin}/>
+  else if (path === 'hierarchy') page = <><Header kicker="Configuration · scene composition" title="Scene hierarchy"/><HierarchyEditor scenes={scenes} isAdmin={auth.isAdmin}/></>
   else if (path === 'settings') page = <><Header kicker="Administration" title="Access & native migration"/><section className="panel settings-list"><div><b>Signed in as</b><span>{auth.displayName}{auth.email ? ` · ${auth.email}` : ''}</span></div><div><b>Roles</b><span>{auth.roles.filter((role) => role.startsWith('scenescape-')).join(', ') || 'authenticated'}</span></div><div><b>Browser backend</b><span>FastAPI /api/v2/* only; no Django page fallback.</span></div><div><b>Recover existing data</b><code>./scenescape.sh recover-legacy-data</code></div><div><b>Load upstream sample</b><code>./scenescape.sh seed-native-data</code></div></section></>
   else page = <><Header kicker="Operations · data plane" title="Shift overview"><button className="btn" onClick={refresh}>Refresh</button></Header>{apiError && <div className="error-box">{apiError}</div>}<div className="metric-grid"><button className="metric actionable" onClick={() => go('live')}><span>Active scenes</span><strong>{overview?.counts.scenes ?? scenes.length}</strong><small>Open native scene workspace →</small></button><button className="metric actionable" onClick={() => go('cameras')}><span>Camera inputs</span><strong>{overview?.counts.cameras ?? 0}</strong><small>Inspect native configuration →</small></button><button className="metric actionable" onClick={() => go('zones')}><span>Spatial rules</span><strong>{(overview?.counts.regions ?? 0) + (overview?.counts.tripwires ?? 0)}</strong><small>Regions + tripwires →</small></button><button className="metric actionable" onClick={() => go('incidents')}><span>Incidents</span><strong>{overview?.counts.incidents ?? 0}</strong><small>Durable operator workflow →</small></button></div><div className="workspace-grid"><section className="panel scene-panel"><div className="panel-title"><div><h2>Native live scene workspace</h2><p>2D maps, live objects, geometry, calibration and WebGL 3D without Django navigation.</p></div><button className="btn" onClick={() => go('live')}>All scenes</button></div><div className="scene-canvas"><div className="floor-shape"/><div className="zone-shape"/><span className="track track-a"/><span className="track track-b"/><span className="tripwire-shape"/><div className="coverage-note">{scenes.length ? `${scenes.length} scene(s) available in native configuration` : 'No native scene data yet — recover or seed it from Administration'}</div></div></section><section className="panel incident-panel"><div className="panel-title"><div><h2>Operator attention</h2><p>Current native runtime state.</p></div></div><div className="attention-card"><b>MQTT historian</b><span>{overview?.health.mqtt || 'Unknown'} · {(overview?.counts.observations ?? 0)} retained observations</span></div><div className="attention-card"><b>Keycloak session</b><span>{auth.displayName} · {auth.isAdmin ? 'Administrator' : 'Operator'}</span></div><div className="attention-card"><b>Native configuration</b><span>{scenes.length ? 'Scene data available' : 'Recover existing legacy data or load the Retail sample'}</span></div><button className="btn btn-primary full" onClick={() => go('health')}>Open health workspace</button></section></div><section className="panel"><div className="panel-title"><div><h2>Configured scenes</h2><p>All actions remain inside the React/FastAPI application.</p></div></div><div className="scene-list">{scenes.slice(0, 8).map((scene) => <div className="scene-row" key={rowId(scene)}><div><b>{rowName(scene)}</b><span>{rowId(scene)}</span></div><button className="btn" onClick={() => go(`scene/${rowId(scene)}`)}>Open native scene</button></div>)}{!scenes.length && <div className="table-empty">No scenes imported into native tables yet.</div>}</div></section></>
 
