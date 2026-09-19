@@ -72,6 +72,7 @@ export default function SensorInventory({isAdmin}:{isAdmin:boolean}){
   const [ranges,setRanges]=useState<Row>(defaultRanges)
   const [iconFile,setIconFile]=useState<File|null>(null)
   const [iconUrl,setIconUrl]=useState('')
+  const [telemetry,setTelemetry]=useState<Row[]>([])
   const [busy,setBusy]=useState(false)
   const [message,setMessage]=useState('')
   const [error,setError]=useState('')
@@ -91,7 +92,7 @@ export default function SensorInventory({isAdmin}:{isAdmin:boolean}){
     setCenter(c?c.map(Number):null)
     setPoints(Array.isArray(value.points)?value.points.map((p:any)=>[Number(p[0]),Number(p[1])]):[])
     setRanges(value.color_ranges?JSON.parse(JSON.stringify(value.color_ranges)):JSON.parse(JSON.stringify(defaultRanges)))
-    setIconFile(null);setMessage('');setError('')
+    setIconFile(null);setTelemetry([]);setMessage('');setError('')
   }
   useEffect(()=>{
     let alive=true,current=''
@@ -101,6 +102,13 @@ export default function SensorInventory({isAdmin}:{isAdmin:boolean}){
     void apiObjectUrl(icon).then((url)=>{if(alive){current=url;setIconUrl(url)}else URL.revokeObjectURL(url)}).catch(()=>{})
     return()=>{alive=false;if(current)URL.revokeObjectURL(current)}
   },[draft.icon])
+
+  const refreshTelemetry=()=>{
+    if(!selected)return
+    void apiFetch<Row[]>(`/api/v2/sensors/${encodeURIComponent(idOf(selected))}/telemetry?limit=20`)
+      .then(setTelemetry).catch(()=>setTelemetry([]))
+  }
+  useEffect(()=>{if(selected)refreshTelemetry();else setTelemetry([])},[selected?idOf(selected):''])
 
   const field=(key:string,value:unknown)=>setDraft((old)=>({...old,[key]:value}))
   const setSector=(color:string,value:number)=>setRanges((old)=>({...old,sectors:(old.sectors||[]).map((item:Row)=>item.color===color?{...item,color_min:value}:item)}))
@@ -185,6 +193,7 @@ export default function SensorInventory({isAdmin}:{isAdmin:boolean}){
             </div>
             <div className="scene-subsection"><h3>Color range</h3><div className="scene-form-grid">{['green','yellow','red'].map((color)=>{const sector=(ranges.sectors||[]).find((item:Row)=>item.color===color)||{};return <label key={color}>{color} minimum<input type="number" step="any" value={Number(sector.color_min??0)} onChange={(e)=>setSector(color,Number(e.target.value))}/></label>})}<label>Range maximum<input type="number" step="any" value={Number(ranges.range_max??10)} onChange={(e)=>setRanges((old)=>({...old,range_max:Number(e.target.value)}))}/></label></div></div>
             <div className="scene-subsection"><h3>Sensor icon</h3><div className="sensor-icon-row">{iconUrl?<img src={iconUrl} alt="Sensor icon" className="sensor-icon-preview"/>:<div className="sensor-icon-placeholder">Default red marker</div>}<label className="file-field">PNG/JPEG icon<input type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" onChange={(e)=>setIconFile(e.target.files?.[0]||null)}/></label>{selected&&draft.icon&&<button className="btn" onClick={()=>void removeIcon()}>Remove icon</button>}</div></div>
+            {selected&&<div className="scene-subsection"><div className="sensor-telemetry-title"><h3>Telemetry</h3><button className="btn" onClick={refreshTelemetry}>Refresh</button></div><div className="sensor-telemetry-list">{telemetry.slice(0,8).map((item)=><div key={item.id}><b>{item.value===null||item.value===undefined?'—':typeof item.value==='object'?JSON.stringify(item.value):String(item.value)}</b><span>{String(item.timestamp||'')}</span></div>)}{!telemetry.length&&<div className="table-empty">No retained sensor values yet.</div>}</div></div>}
           </div>
           <div className="sensor-map-column">
             <div className="sensor-map-help">{draft.area==='poly'?'Click map vertices in order. Use Reset polygon to redraw.':'Click the map to place or move the sensor.'}</div>
