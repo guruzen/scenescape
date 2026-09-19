@@ -1224,7 +1224,7 @@ def update_any(
         row = upsert(db, kind, resolved_uid or uid, body, p, revision)
     db.commit()
     value = _sensor_value(to_dict(row), native=True) if kind == "sensor" else to_dict(row)
-    if not (kind == "sensor" and set(body.keys()) == {"visible"}):
+    if not (kind in {"sensor", "region", "tripwire"} and set(body.keys()) == {"visible"}):
         notify_config_change(kind, row.uid)
     if kind == "camera":
         notify_camera_change(value, "save", previous)
