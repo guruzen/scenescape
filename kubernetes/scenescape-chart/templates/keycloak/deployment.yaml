@@ -37,7 +37,7 @@ spec:
                   name: {{ if .Values.keycloak.existingSecret }}{{ .Values.keycloak.existingSecret }}{{ else }}{{ .Release.Name }}-keycloak-bootstrap{{ end }}
                   key: password
             - name: KC_HOSTNAME
-              value: "https://{{ .Values.certdomain }}/auth"
+              value: {{ default (printf "https://%s/auth" .Values.certdomain) .Values.modernUI.auth.publicKeycloakUrl | quote }}
           ports:
             - name: http
               containerPort: 8080
