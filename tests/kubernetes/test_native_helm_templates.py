@@ -59,6 +59,8 @@ def test_native_mode_replaces_django_without_renaming_stateful_interfaces():
   _resource(docs, "Deployment", "scenescape-native-worker")
   _resource(docs, "Deployment", "scenescape-modern-ui")
   _resource(docs, "Deployment", "scenescape-keycloak")
+  _resource(docs, "Job", "scenescape-native-export-legacy")
+  _resource(docs, "Job", "scenescape-keycloak-reconcile")
 
 
 def test_legacy_render_remains_available_for_helm_rollback():
