@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 import zipfile
@@ -361,3 +362,30 @@ def test_generated_mesh_connectivity_guard_matches_2026_2():
 
     joined=trimesh.creation.box(extents=[4.0,2.0,1.0])
     assert _check_mesh_connectivity(joined) is None
+
+
+def test_geospatial_snapshot_legacy_and_native_routes(tmp_path,monkeypatch):
+    c,d,v1,v2,calls=boot(tmp_path,monkeypatch)
+    encoded=base64.b64encode(png_bytes()).decode()
+    for path in ('/api/v1/save-geospatial-snapshot/','/api/v2/geospatial/snapshot'):
+        response=c.post(path,headers=v2,json={'image_data':'data:image/png;base64,'+encoded})
+        assert response.status_code==200,response.text
+        body=response.json()
+        assert body['success'] is True and body['media_url'].startswith('/media/')
+        assert (tmp_path/'media'/body['filename']).is_file()
+
+
+def test_legacy_mapping_route_aliases(tmp_path,monkeypatch):
+    c,d,v1,v2,calls=boot(tmp_path,monkeypatch)
+    assert c.post('/api/v2/scenes',headers=v2,json={'uid':'alias-scene','name':'Alias'}).status_code==200
+    import scenescape_api.app as app_module
+    monkeypatch.setattr(app_module,'mapping_health',lambda:{'available':True,'ready':True})
+    monkeypatch.setattr(app_module,'start_mesh_generation',lambda db,scene_id,p,mesh_type='mesh',video=None:{'success':True,'request_id':'alias-r1'})
+    monkeypatch.setattr(app_module,'mesh_generation_status',lambda db,scene_id,request_id,p:{
+        'success':True,'state':'complete','finalized':False
+    })
+    assert c.get('/mapping-service/status/',headers=v2).json()['ready'] is True
+    started=c.post('/scene/generate-mesh/alias-scene/',headers=v2,data={'mesh_type':'mesh'})
+    assert started.status_code==200 and started.json()['request_id']=='alias-r1'
+    status=c.get('/scene/generate-mesh-status/alias-scene/?request_id=alias-r1',headers=v2)
+    assert status.status_code==200 and status.json()['state']=='complete'
