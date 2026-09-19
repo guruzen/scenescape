@@ -1476,7 +1476,7 @@ def media(path: str, p=Depends(current_principal), db=Depends(db_dep)):
 @app.get("/api/v1/health")
 def api_health(db=Depends(db_dep)):
     db.execute(select(1))
-    return {"status": "ok", "database": "connected"}
+    return {"status": "ok", "ready": True, "database": "connected"}
 
 
 @app.get("/healthz", response_class=PlainTextResponse)
