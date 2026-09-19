@@ -162,3 +162,45 @@ def test_native_camera_snapshot_bridge_returns_jpeg(tmp_path, monkeypatch):
     assert r.status_code==200
     assert r.headers['content-type'].startswith('image/jpeg')
     assert r.content.startswith(b'\xff\xd8')
+
+
+def test_v1_service_compatibility_for_analytics(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch)
+    auth=client.post('/api/v1/auth',data={'username':'svc','password':'pw'})
+    assert auth.status_code==200
+    h={'Authorization':'Token '+auth.json()['token']}
+
+    admin=headers(client)
+    assert client.post('/api/v2/scenes',headers=admin,json={'uid':'scene-v1','name':'Retail'}).status_code==200
+    assert client.post('/api/v2/cameras',headers=admin,json={'uid':'cam-v1','name':'Camera 1','scene':'scene-v1','translation':[1,2,0]}).status_code==200
+    assert client.post('/api/v2/regions',headers=admin,json={'uid':'region-v1','name':'Zone','scene':'scene-v1','points':[[0,0],[1,0],[1,1]]}).status_code==200
+    assert client.post('/api/v2/tripwires',headers=admin,json={'uid':'trip-v1','name':'Door','scene':'scene-v1','points':[[0,0],[1,1]]}).status_code==200
+
+    scenes=client.get('/api/v1/scenes',headers=h)
+    assert scenes.status_code==200
+    payload=scenes.json()
+    assert payload['count']==1 and payload['results'][0]['uid']=='scene-v1'
+    assert payload['results'][0]['cameras'][0]['uid']=='cam-v1'
+    assert payload['results'][0]['regions'][0]['uid']=='region-v1'
+    assert payload['results'][0]['tripwires'][0]['uid']=='trip-v1'
+
+    regions=client.get('/api/v1/regions?scene=scene-v1',headers=h)
+    assert regions.status_code==200 and regions.json()['results'][0]['uid']=='region-v1'
+
+
+def test_v1_service_camera_update_contract(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch)
+    auth=client.post('/api/v1/auth',data={'username':'svc','password':'pw'})
+    h={'Authorization':'Token '+auth.json()['token']}
+    admin=headers(client)
+    assert client.post('/api/v2/cameras',headers=admin,json={'uid':'cam-update','name':'Camera'}).status_code==200
+    updated=client.post('/api/v1/camera/cam-update',headers=h,json={'intrinsics':{'fx':100.0},'resolution':{'width':1920,'height':1080}})
+    assert updated.status_code==200
+    assert updated.json()['intrinsics']['fx']==100.0
+    assert updated.json()['resolution']['width']==1920
+
+
+def test_v1_health_not_shadowed_by_compat_routes(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch)
+    r=client.get('/api/v1/health')
+    assert r.status_code==200 and r.json()['status']=='ok'

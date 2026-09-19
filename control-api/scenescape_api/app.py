@@ -4,11 +4,11 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Query
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, PlainTextResponse, Response, StreamingResponse
 from sqlalchemy import func, or_, select
 
-from .auth import Principal, current_principal, issue_token, verify_service
+from .auth import Principal, current_principal, issue_token, service_principal, verify_service
 from .camera_io import CameraSnapshotError, fetch_camera_snapshot
 from .database import Event, Heartbeat, Incident, Observation, Resource, sessions
 from .resources import ALIASES, delete_resource, get_resource, list_resources, to_dict, upsert
@@ -71,6 +71,143 @@ def service_auth(username: str = Form(...), password: str = Form(...)):
     if not verify_service(username, password):
         raise HTTPException(401, "Invalid service credentials")
     return {"token": issue_token(username)}
+
+
+LEGACY_V1 = {
+    "scenes": "scene", "scene": "scene",
+    "cameras": "camera", "camera": "camera",
+    "sensors": "sensor", "sensor": "sensor",
+    "regions": "region", "region": "region",
+    "tripwires": "tripwire", "tripwire": "tripwire",
+    "assets": "asset", "asset": "asset",
+    "child": "child",
+    "calibrationmarkers": "marker", "calibrationmarker": "marker",
+}
+
+
+def _legacy_clean(row):
+    value = to_dict(row) if isinstance(row, Resource) else dict(row)
+    value.pop("kind", None)
+    value.pop("revision", None)
+    return value
+
+
+def _legacy_rows(db, kind):
+    return db.scalars(select(Resource).where(Resource.kind == kind).order_by(Resource.id)).all()
+
+
+def _legacy_filter(items, request: Request):
+    allowed = {"name", "parent", "scene", "username", "id"}
+    unknown = set(request.query_params.keys()) - allowed
+    if unknown:
+        return []
+    result = []
+    for item in items:
+        row = _legacy_clean(item)
+        ok = True
+        for key, wanted in request.query_params.items():
+            actual = row.get(key)
+            if key == "id":
+                actual = row.get("uid") or row.get("id")
+            if str(actual or "") != str(wanted):
+                ok = False
+                break
+        if ok:
+            result.append(row)
+    return result
+
+
+def _legacy_scene(db, row):
+    scene = _legacy_clean(row)
+    scene_id = str(scene.get("uid") or "")
+    for plural, kind in (("cameras","camera"),("sensors","sensor"),("regions","region"),("tripwires","tripwire")):
+        nested = []
+        for item in _legacy_rows(db, kind):
+            payload = item.payload or {}
+            if str(payload.get("scene") or payload.get("scene_id") or "") == scene_id:
+                nested.append(_legacy_clean(item))
+        scene[plural] = nested
+    children = []
+    for item in _legacy_rows(db, "child"):
+        payload = item.payload or {}
+        if str(payload.get("parent") or payload.get("scene") or "") == scene_id:
+            children.append(_legacy_clean(item))
+    scene["children"] = children
+    return scene
+
+
+@app.get("/api/v1/scenes")
+def legacy_scenes(request: Request, p=Depends(service_principal), db=Depends(db_dep)):
+    rows = [_legacy_scene(db, row) for row in _legacy_rows(db, "scene")]
+    rows = _legacy_filter(rows, request)
+    return {"count": len(rows), "next": None, "previous": None, "results": rows}
+
+
+@app.get("/api/v1/scenes/child")
+def legacy_children(request: Request, p=Depends(service_principal), db=Depends(db_dep)):
+    rows = _legacy_filter(_legacy_rows(db, "child"), request)
+    return {"count": len(rows), "next": None, "previous": None, "results": rows}
+
+
+@app.get("/api/v1/cameras")
+@app.get("/api/v1/sensors")
+@app.get("/api/v1/regions")
+@app.get("/api/v1/tripwires")
+@app.get("/api/v1/assets")
+@app.get("/api/v1/calibrationmarkers")
+def legacy_list(request: Request, p=Depends(service_principal), db=Depends(db_dep)):
+    plural = request.url.path.rstrip("/").rsplit("/", 1)[-1]
+    kind = LEGACY_V1[plural]
+    rows = _legacy_filter(_legacy_rows(db, kind), request)
+    return {"count": len(rows), "next": None, "previous": None, "results": rows}
+
+
+@app.get("/api/v1/database-ready")
+def legacy_database_ready(db=Depends(db_dep)):
+    db.execute(select(1))
+    return {"databaseReady": True}
+
+
+@app.get("/api/v1/{thing}/{uid}")
+def legacy_get(thing: str, uid: str, p=Depends(service_principal), db=Depends(db_dep)):
+    kind = LEGACY_V1.get(thing)
+    if not kind:
+        raise HTTPException(404)
+    row = get_resource(db, kind, uid)
+    return _legacy_scene(db, row) if kind == "scene" else _legacy_clean(row)
+
+
+@app.post("/api/v1/{thing}/{uid}")
+@app.put("/api/v1/{thing}/{uid}")
+def legacy_update(thing: str, uid: str, body: dict, p=Depends(service_principal), db=Depends(db_dep)):
+    kind = LEGACY_V1.get(thing)
+    if not kind:
+        raise HTTPException(404)
+    current = get_resource(db, kind, uid)
+    row = upsert(db, kind, uid, body, p, current.revision)
+    db.commit()
+    return _legacy_scene(db, row) if kind == "scene" else _legacy_clean(row)
+
+
+@app.post("/api/v1/{thing}")
+def legacy_create(thing: str, body: dict, p=Depends(service_principal), db=Depends(db_dep)):
+    kind = LEGACY_V1.get(thing)
+    if not kind:
+        raise HTTPException(404)
+    row = upsert(db, kind, None, body, p)
+    db.commit()
+    value = _legacy_scene(db, row) if kind == "scene" else _legacy_clean(row)
+    return Response(content=json.dumps(value), media_type="application/json", status_code=201)
+
+
+@app.delete("/api/v1/{thing}/{uid}")
+def legacy_delete(thing: str, uid: str, p=Depends(service_principal), db=Depends(db_dep)):
+    kind = LEGACY_V1.get(thing)
+    if not kind:
+        raise HTTPException(404)
+    result = delete_resource(db, kind, uid)
+    db.commit()
+    return result
 
 
 @app.get("/api/v2/overview")

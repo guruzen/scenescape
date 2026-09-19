@@ -38,3 +38,16 @@ def current_principal(authorization:str|None=Header(default=None)):
             data=jwt.decode(token,signing_key,algorithms=[alg or "RS256"],audience=audience,issuer=issuer)
     except Exception as exc: raise HTTPException(401,f"Invalid token: {exc}") from exc
     return _principal(data)
+
+
+def service_principal(authorization:str|None=Header(default=None)):
+    if not authorization or not authorization.startswith("Token "):
+        raise HTTPException(401,"Token authentication required")
+    token=authorization.split(" ",1)[1]
+    try:
+        data=jwt.decode(token,_key(),algorithms=["HS256"],audience=os.getenv("OIDC_AUDIENCE","scenescape-api"))
+        if data.get("typ")!="service":
+            raise ValueError("not a service token")
+    except Exception as exc:
+        raise HTTPException(401,f"Invalid service token: {exc}") from exc
+    return _principal(data)
