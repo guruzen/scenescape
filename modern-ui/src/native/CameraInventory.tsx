@@ -39,6 +39,7 @@ const parseVector = (label: string, value: string, length: number) => {
 export default function CameraInventory({ isAdmin }: { isAdmin: boolean }) {
   const [rows, setRows] = useState<Row[]>([])
   const [scenes, setScenes] = useState<Row[]>([])
+  const [modelConfigs, setModelConfigs] = useState<string[]>([])
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Row | null>(null)
   const [draft, setDraft] = useState<Row>({ ...defaults })
@@ -54,6 +55,7 @@ export default function CameraInventory({ isAdmin }: { isAdmin: boolean }) {
   const load = () => {
     void apiFetch<Row[]>('/api/v2/cameras').then(setRows).catch((e)=>setError(String(e)))
     void apiFetch<Row[]>('/api/v2/scenes').then(setScenes).catch(()=>{})
+    void apiFetch<{configs:string[]}>('/api/v2/models/configs').then((value)=>setModelConfigs(value.configs||[])).catch(()=>{})
   }
   useEffect(load, [])
   const filtered = useMemo(() => rows.filter((row)=>JSON.stringify(row).toLowerCase().includes(query.toLowerCase())), [rows,query])
@@ -211,7 +213,7 @@ export default function CameraInventory({ isAdmin }: { isAdmin: boolean }) {
               <label>Decode device<select value={String(draft.cv_subsystem || 'AUTO')} onChange={(e)=>field('cv_subsystem',e.target.value)}><option>AUTO</option><option>GPU</option><option>CPU</option></select></label>
               <label className="wide">Video source<input value={String(draft.command || '')} onChange={(e)=>field('command',e.target.value)} placeholder="rtsp://…, http(s)://…, file://…, /dev/video…"/></label>
               <label>Camera chain<input value={String(draft.camerachain || '')} onChange={(e)=>field('camerachain',e.target.value)} placeholder="retail or retail+reid"/></label>
-              <label>Model config<input value={String(draft.modelconfig || '')} onChange={(e)=>field('modelconfig',e.target.value)}/></label>
+              <label>Model config<select value={String(draft.modelconfig || '')} onChange={(e)=>field('modelconfig',e.target.value)}><option value={String(draft.modelconfig || 'model_config.json')}>{String(draft.modelconfig || 'model_config.json')}</option>{modelConfigs.filter((name)=>name!==String(draft.modelconfig||'')).map((name)=><option key={name} value={name}>{name}</option>)}</select></label>
               <label>Width<input type="number" min="1" value={Number(draft.resolution?.[0] || 640)} onChange={(e)=>field('resolution',[Number(e.target.value),Number(draft.resolution?.[1]||480)])}/></label>
               <label>Height<input type="number" min="1" value={Number(draft.resolution?.[1] || 480)} onChange={(e)=>field('resolution',[Number(draft.resolution?.[0]||640),Number(e.target.value)])}/></label>
               <label>Transform type<select value={String(draft.transform_type || '3d-2d point correspondence')} onChange={(e)=>field('transform_type',e.target.value)}><option value="3d-2d point correspondence">3D-2D point correspondence</option><option value="euler">Euler</option><option value="quaternion">Quaternion</option><option value="matrix">Matrix</option></select></label>
