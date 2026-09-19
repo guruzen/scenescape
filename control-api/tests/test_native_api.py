@@ -862,3 +862,78 @@ def test_viewer_can_read_global_object_library(tmp_path, monkeypatch):
     single=client.get(f"/api/v2/assets/{asset.json()['uid']}",headers=h)
     assert single.status_code==200 and single.json()['name']=='person'
     assert client.post('/api/v2/assets',headers=h,json={'name':'forbidden'}).status_code==403
+
+
+def test_native_keycloak_user_admin_and_legacy_contract(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    import scenescape_api.app as app_module
+    users={
+        'alice':{
+            'uid':'kc-1','username':'alice','is_active':True,'is_staff':False,'is_superuser':False,
+            'first_name':'Alice','last_name':'Operator','email':'alice@example.com',
+            'roles':['scenescape-viewer'],'scenes':['scene-1'],
+            'acls':[{'topic':'DATA_SCENE','access':1}],
+        }
+    }
+    monkeypatch.setattr(app_module,'keycloak_list_users',lambda:list(users.values()))
+    monkeypatch.setattr(app_module,'keycloak_get_user',lambda username:users[username] if username in users else (_ for _ in ()).throw(__import__('fastapi').HTTPException(404,'User not found')))
+    monkeypatch.setattr(app_module,'keycloak_create_user',lambda body:users.setdefault(body['username'],{
+        'uid':'kc-2','username':body['username'],'is_active':True,'is_staff':False,'is_superuser':False,
+        'first_name':'','last_name':'','email':'','roles':['scenescape-viewer'],'scenes':[],'acls':[]
+    }))
+    monkeypatch.setattr(app_module,'keycloak_update_user',lambda username,body:{**users[username],**body})
+    monkeypatch.setattr(app_module,'keycloak_delete_user',lambda username:{'success':users.pop(username,None) is not None})
+
+    listing=client.get('/api/v2/users',headers=h)
+    assert listing.status_code==200 and listing.json()[0]['roles']==['scenescape-viewer']
+    created=client.post('/api/v2/users',headers=h,json={'username':'bob','password':'pw'})
+    assert created.status_code==200 and created.json()['username']=='bob'
+
+    service=client.post('/api/v1/auth',data={'username':'svc','password':'pw'}).json()['token']
+    legacy={'Authorization':'Token '+service}
+    v1=client.get('/api/v1/users',headers=legacy)
+    assert v1.status_code==200
+    alice=next(item for item in v1.json()['results'] if item['username']=='alice')
+    assert 'roles' not in alice and 'scenes' not in alice
+    assert alice['acls']==[{'topic':'DATA_SCENE','access':1}]
+
+    updated=client.post('/api/v1/user/alice',headers=legacy,json={'first_name':'Updated','is_superuser':True})
+    assert updated.status_code==200
+    assert updated.json()['first_name']=='Updated'
+    assert updated.json()['is_superuser'] is False
+
+
+def test_native_user_mutation_requires_admin(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch)
+    import time, jwt
+    viewer=jwt.encode({
+        'sub':'viewer','name':'Viewer','roles':['scenescape-viewer'],'scenes':['scene-a'],
+        'iat':int(time.time()),'exp':int(time.time())+300,'aud':'scenescape-api'
+    },'test-signing-key-abcdefghijklmnopqrstuvwxyz',algorithm='HS256')
+    h={'Authorization':'Bearer '+viewer}
+    import scenescape_api.app as app_module
+    monkeypatch.setattr(app_module,'keycloak_list_users',lambda:[])
+    assert client.get('/api/v2/users',headers=h).status_code==200
+    assert client.post('/api/v2/users',headers=h,json={'username':'x','password':'y'}).status_code==403
+    assert client.put('/api/v2/users/x',headers=h,json={'first_name':'x'}).status_code==403
+    assert client.delete('/api/v2/users/x',headers=h).status_code==403
+    assert client.get('/api/v2/security/topics',headers=h).status_code==403
+
+
+def test_aclcheck_compatibility_contract(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch)
+    import scenescape_api.app as app_module
+    monkeypatch.setattr(app_module,'acl_check',lambda username,topic,access:(True,4) if username=='reader' else (False,None))
+    allowed=client.post('/api/v1/aclcheck',data={'username':'reader','topic':'scenescape/data/scene/s1/person','acc':'1'})
+    assert allowed.status_code==200 and allowed.json()=={'result':'allow','acc':4}
+    denied=client.post('/api/v1/aclcheck',json={'username':'nobody','topic':'scenescape/data/scene/s1/person','acc':1})
+    assert denied.status_code==403 and denied.json()=={'result':'deny'}
+    assert client.post('/api/v1/aclcheck',json={'topic':'x','acc':1}).status_code==400
+    assert client.post('/api/v1/aclcheck',json={'username':'x','topic':'x','acc':'bad'}).status_code==400
+
+
+def test_service_and_browser_token_schemes_remain_separate(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch)
+    service_token=client.post('/api/v1/auth',data={'username':'svc','password':'pw'}).json()['token']
+    assert client.get('/api/v1/scenes',headers={'Authorization':'Token '+service_token}).status_code==200
+    assert client.get('/api/v1/scenes',headers={'Authorization':'Bearer '+service_token}).status_code==401
