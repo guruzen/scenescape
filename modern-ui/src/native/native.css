@@ -28,3 +28,5 @@
 .file-field{display:flex;gap:8px;align-items:center}
 .file-field input{max-width:240px}
 @media(max-width:1200px){.sensor-lifecycle-layout,.sensor-editor-grid{grid-template-columns:1fr}.sensor-map-column{border-left:0;border-top:1px solid rgb(var(--line))}}
+
+.sensor-map-icon{pointer-events:none}
