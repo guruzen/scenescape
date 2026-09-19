@@ -110,8 +110,27 @@ def _nonnull(value: dict):
     }
 
 
+def _sensor_value(value: dict, *, native: bool) -> dict:
+    result = dict(value)
+    uid = str(result.get("uid") or result.get("sensor_id") or "")
+    if uid:
+        result["uid"] = uid
+        result["sensor_id"] = uid
+    center = result.get("center")
+    if isinstance(center, (list, tuple)) and len(center) == 2 and center[0] is not None and center[1] is not None:
+        result["translation"] = [center[0], center[1], 0.0]
+    elif "translation" not in result:
+        result["translation"] = [None, None, 0.0]
+    if not native:
+        result.pop("icon", None)
+    return result
+
+
 def _legacy_clean(row):
+    kind = row.kind if isinstance(row, Resource) else str(row.get("kind") or "")
     value = to_dict(row) if isinstance(row, Resource) else dict(row)
+    if kind == "sensor":
+        value = _sensor_value(value, native=False)
     value.pop("kind", None)
     value.pop("revision", None)
     return _nonnull(value)
