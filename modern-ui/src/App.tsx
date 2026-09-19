@@ -135,7 +135,7 @@ function Map2D({ bundle, live, onPoint }: { bundle: Bundle; live: Row; onPoint?:
           ? sensor.center
           : Array.isArray(sensor.translation) && sensor.translation[0] != null
             ? sensor.translation.slice(0, 2)
-            : Array.isArray(sensor.x) ? sensor.x : null
+            : sensor.x != null && sensor.y != null ? [sensor.x, sensor.y] : null
         const polygon = Array.isArray(sensor.points) ? sensor.points.map((point: any) => xy(point).join(',')).join(' ') : ''
         const position = center ? xy(center) : (sensor.x != null && sensor.y != null ? xy([sensor.x,sensor.y]) : null)
         return <g key={`child-sensor-${rowId(sensor)||i}`}>
