@@ -116,6 +116,10 @@ modernUI:
   auth:
     realm: scenescape
     clientId: scenescape-ui
+    # Optional external browser origin and embedded-Keycloak public URL.
+    # Defaults remain https://<certdomain> and https://<certdomain>/auth.
+    browserOrigin: ""
+    publicKeycloakUrl: ""
     # Required when keycloak.enabled=false. This is the browser-visible
     # Keycloak base URL, for example https://id.example.com/auth.
     keycloakUrl: ""
