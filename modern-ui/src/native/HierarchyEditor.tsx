@@ -26,8 +26,9 @@ export default function HierarchyEditor({scenes,isAdmin,initialParent=''}:{scene
     setSelected(row)
     if(row){
       const t=transformOf(row)
-      setDraft({...defaultDraft,...row,transform:{translation:vector(t.translation,3,[0,0,0]),rotation:vector(t.rotation,3,[0,0,0]),scale:vector(t.scale,3,[1,1,1])}})
-    }else setDraft({...defaultDraft,parent})
+      const matrix=Array.from({length:16},(_,index)=>Number(row[`transform${index+1}`]??identity[index]))
+      setDraft({...defaultDraft,...row,matrix,transform:{translation:vector(t.translation,3,[0,0,0]),rotation:vector(t.rotation,3,[0,0,0]),scale:vector(t.scale,3,[1,1,1])}})
+    }else setDraft({...defaultDraft,parent,matrix:[...identity]})
     setMessage('');setError('')
   }
   const field=(key:string,value:any)=>setDraft((old)=>({...old,[key]:value}))
