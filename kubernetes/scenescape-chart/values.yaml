@@ -81,6 +81,9 @@ web:
 native:
   enabled: false
   migrateLegacy: false
+  # Optional one-time Retail seed for fresh/lab installs. Production deployments
+  # normally leave this false and create/import configuration explicitly.
+  seedSample: false
   image:
     repository: intel/scenescape-control-api
     tag: ""
