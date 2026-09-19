@@ -199,3 +199,63 @@ def test_pre_1c_scene_parent_artifact_is_read_and_canonicalized(tmp_path, monkey
         assert 'scene' not in row.payload
         assert resolve_child_link(db,'B').uid=='legacy-link'
         assert cascade_scene_links(db,'C')==['legacy-link']
+
+
+def test_retrack_false_and_quaternion_transform_are_preserved(tmp_path, monkeypatch):
+    d=make_db(tmp_path,monkeypatch); scene(d,'A'); scene(d,'B')
+    from scenescape_api.hierarchy import create_child_link, child_to_dict
+    with d.sessions()() as db:
+        row=create_child_link(db,{
+            'child_type':'local','parent':'A','child':'B','retrack':False,
+            'transform':{
+                'translation':[1,2,3],
+                'rotation':[0,0,0,1],
+                'scale':[1.5,1.5,1.5],
+            },
+        },actor(),legacy=False)
+        db.commit()
+        value=child_to_dict(db,row,native=True)
+    assert value['retrack'] is False
+    assert value['transform_type']=='quaternion'
+    assert value['transform']['translation']==[1.0,2.0,3.0]
+    assert value['transform']['rotation']==pytest.approx([0.0,0.0,0.0])
+    assert value['transform']['scale']==[1.5,1.5,1.5]
+    assert [value[f'transform{i}'] for i in range(4,8)]==[0.0,0.0,0.0,1.0]
+
+
+def test_retrack_string_false_is_not_coerced_true(tmp_path, monkeypatch):
+    d=make_db(tmp_path,monkeypatch); scene(d,'A'); scene(d,'B')
+    from scenescape_api.hierarchy import create_child_link, child_to_dict
+    with d.sessions()() as db:
+        row=create_child_link(db,{'child_type':'local','parent':'A','child':'B','retrack':'false'},actor(),legacy=False)
+        db.commit()
+        value=child_to_dict(db,row,native=True)
+    assert value['retrack'] is False
+
+
+def test_child_matrix_transform_round_trip(tmp_path, monkeypatch):
+    d=make_db(tmp_path,monkeypatch); scene(d,'A'); scene(d,'B')
+    from scenescape_api.hierarchy import create_child_link, child_to_dict
+    matrix=[
+        1,0,0,10,
+        0,1,0,20,
+        0,0,1,30,
+        0,0,0,1,
+    ]
+    body={'child_type':'local','parent':'A','child':'B','transform_type':'matrix'}
+    body.update({f'transform{i+1}':value for i,value in enumerate(matrix)})
+    with d.sessions()() as db:
+        row=create_child_link(db,body,actor(),legacy=False); db.commit()
+        value=child_to_dict(db,row,native=True)
+    assert value['transform_type']=='matrix'
+    assert value['transform']['translation']==[10.0,20.0,30.0]
+    assert value['transform']['scale']==pytest.approx([1.0,1.0,1.0])
+    assert [value[f'transform{i}'] for i in range(1,17)]==[float(x) for x in matrix]
+
+
+def test_invalid_retrack_value_is_rejected(tmp_path, monkeypatch):
+    d=make_db(tmp_path,monkeypatch); scene(d,'A'); scene(d,'B')
+    from scenescape_api.hierarchy import create_child_link
+    with d.sessions()() as db:
+        with pytest.raises(HTTPException):
+            create_child_link(db,{'child_type':'local','parent':'A','child':'B','retrack':'sometimes'},actor(),legacy=False)
