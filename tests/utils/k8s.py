@@ -118,6 +118,17 @@ class K8sScenescapeEnv:
         "-n", self.namespace, "--kubeconfig", self.kubeconfig,
         "--timeout=120s",
       ])
+      _run([
+        "kubectl", "rollout", "restart",
+        f"deployment/{self.release_name}-native-worker",
+        "-n", self.namespace, "--kubeconfig", self.kubeconfig,
+      ])
+      _run([
+        "kubectl", "rollout", "status",
+        f"deployment/{self.release_name}-native-worker",
+        "-n", self.namespace, "--kubeconfig", self.kubeconfig,
+        "--timeout=120s",
+      ])
       return
 
     manage = "$SCENESCAPE_HOME/manage.py"
@@ -523,6 +534,20 @@ class K8sManager:
 
     # Wait for DL Streamer to load models and start producing inference.
     self._wait_for_inference_warmup()
+
+  def _get_pod_name(self, app_label):
+    result = _run([
+      "kubectl", "get", "pods",
+      "-l", f"app={app_label}",
+      "-n", _NAMESPACE,
+      "--kubeconfig", self.kubeconfig,
+      "--field-selector=status.phase=Running",
+      "-o", "jsonpath={.items[0].metadata.name}",
+    ])
+    pod = result.stdout.strip()
+    if not pod:
+      raise RuntimeError(f"No running pod found with app={app_label}")
+    return pod
 
   def _provision_native_keycloak_user(self):
     """Create the test realm administrator without storing it in chart values."""
