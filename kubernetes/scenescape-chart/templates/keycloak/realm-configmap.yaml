@@ -28,8 +28,8 @@ data:
           "standardFlowEnabled": true,
           "directAccessGrantsEnabled": false,
           "implicitFlowEnabled": false,
-          "redirectUris": ["https://{{ .Values.certdomain }}/*"],
-          "webOrigins": ["https://{{ .Values.certdomain }}"],
+          "redirectUris": ["{{ default (printf "https://%s" .Values.certdomain) .Values.modernUI.auth.browserOrigin }}/*"],
+          "webOrigins": ["{{ default (printf "https://%s" .Values.certdomain) .Values.modernUI.auth.browserOrigin }}"],
           "attributes": {
             "pkce.code.challenge.method": "S256",
             "post.logout.redirect.uris": "https://{{ .Values.certdomain }}/*"
