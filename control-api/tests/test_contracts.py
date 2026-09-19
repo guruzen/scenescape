@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 
 import pytest
@@ -184,3 +187,51 @@ def test_camera_duplicate_name_rejected_on_create(tmp_path, monkeypatch):
         upsert(db,'camera','c1',{'name':'Same'},actor()); db.commit()
     with d.sessions()() as db:
         with pytest.raises(HTTPException): normalize_resource(db,'camera',{'name':'Same'},creating=True,legacy=True)
+
+
+def test_scene_advanced_calibration_contract(tmp_path, monkeypatch):
+    d=make_db(tmp_path,monkeypatch)
+    from scenescape_api.contracts import normalize_resource
+    advanced={
+        'name':'Advanced',
+        'regulated_rate':12.5,
+        'external_update_rate':7.5,
+        'camera_calibration':'Markerless',
+        'apriltag_size':0.25,
+        'number_of_localizations':75,
+        'global_feature':'netvlad',
+        'local_feature':{'sift':{'max_keypoints':4096}},
+        'matcher':{'NN-ratio':{'ratio':0.8}},
+        'minimum_number_of_matches':24,
+        'inlier_threshold':0.7,
+    }
+    with d.sessions()() as db:
+        body,_=normalize_resource(db,'scene',advanced,creating=True,legacy=True)
+    assert body['camera_calibration']=='Markerless'
+    assert body['number_of_localizations']==75
+    assert body['local_feature']['sift']['max_keypoints']==4096
+    assert body['matcher']['NN-ratio']['ratio']==0.8
+    assert body['minimum_number_of_matches']==24
+
+    with d.sessions()() as db:
+        for field,value in [
+            ('apriltag_size',0),
+            ('number_of_localizations',-1),
+            ('minimum_number_of_matches',-1),
+            ('local_feature',[]),
+            ('matcher','bad'),
+        ]:
+            with pytest.raises(HTTPException):
+                normalize_resource(db,'scene',{'name':'Bad '+field,field:value},creating=True,legacy=True)
+
+
+def test_scene_advanced_change_invalidates_processed_map(tmp_path, monkeypatch):
+    d=make_db(tmp_path,monkeypatch)
+    put_scene(d, camera_calibration='Manual', map_processed='2026-01-01T00:00:00Z')
+    from scenescape_api.contracts import normalize_resource
+    with d.sessions()() as db:
+        body,_=normalize_resource(
+            db,'scene',{'camera_calibration':'AprilTag'},uid='scene-1',creating=False,legacy=True
+        )
+    assert body['camera_calibration']=='AprilTag'
+    assert body['map_processed'] is None
