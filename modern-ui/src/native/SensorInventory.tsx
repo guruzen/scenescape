@@ -86,7 +86,7 @@ export default function SensorInventory({isAdmin}:{isAdmin:boolean}){
   const scene=scenes.find((item)=>idOf(item)===String(draft.scene||''))||null
 
   const open=(row:Row|null)=>{
-    const value=row?{...row}:{uid:'',name:'',scene:'',area:'scene',singleton_type:'environmental',visible:false,radius:1}
+    const value: Row = row ? { ...row } : { uid:'',name:'',scene:'',area:'scene',singleton_type:'environmental',visible:false,radius:1 }
     setSelected(row);setDraft(value)
     const c=Array.isArray(value.center)?value.center:(Array.isArray(value.translation)&&value.translation[0]!=null?[value.translation[0],value.translation[1]]:null)
     setCenter(c?c.map(Number):null)
