@@ -38,6 +38,14 @@ const editablePayload = (row: Row) => {
   return copy
 }
 
+const isImageMediaPath = (value: string) => /\.(?:png|jpe?g|webp)(?:$|\?)/i.test(value)
+const scene2DMapCandidates = (scene: Row) => {
+  const map = String(scene.map || '')
+  const thumbnail = String(scene.thumbnail || '')
+  const preferred = isImageMediaPath(map) ? [map, thumbnail] : [thumbnail]
+  return preferred.filter((value, index, values) => value.startsWith('/media/') && values.indexOf(value) === index)
+}
+
 function Header({ title, kicker, children }: { title: string; kicker: string; children?: ReactNode }) {
   return <div className="page-header"><div><div className="kicker">{kicker}</div><h1>{title}</h1></div><div className="header-actions">{children}</div></div>
 }
@@ -46,23 +54,41 @@ function Map2D({ bundle, live, onPoint }: { bundle: Bundle; live: Row; onPoint?:
   const scene = bundle.scene
   const [mapUrl, setMapUrl] = useState('')
   const [size, setSize] = useState<[number, number]>([1000, 700])
-  const mapPath = String(scene.thumbnail || scene.map || '')
+  const mapCandidates = scene2DMapCandidates(scene)
+  const mapKey = mapCandidates.join('\n')
   const scale = Math.max(1, Number(scene.scale || 100))
 
   useEffect(() => {
     let alive = true
     let url = ''
-    if (!mapPath.startsWith('/media/')) { setMapUrl(''); return }
-    void apiObjectUrl(mapPath).then((value) => {
-      if (!alive) { URL.revokeObjectURL(value); return }
-      url = value
-      setMapUrl(value)
-      const image = new Image()
-      image.onload = () => alive && setSize([Math.max(1, image.naturalWidth), Math.max(1, image.naturalHeight)])
-      image.src = value
-    }).catch(() => setMapUrl(''))
+    setMapUrl('')
+
+    const load = async () => {
+      for (const path of mapCandidates) {
+        try {
+          const value = await apiObjectUrl(path)
+          if (!alive) { URL.revokeObjectURL(value); return }
+          const image = new Image()
+          const loaded = await new Promise<boolean>((resolve) => {
+            image.onload = () => resolve(true)
+            image.onerror = () => resolve(false)
+            image.src = value
+          })
+          if (!alive) { URL.revokeObjectURL(value); return }
+          if (!loaded) { URL.revokeObjectURL(value); continue }
+          url = value
+          setSize([Math.max(1, image.naturalWidth), Math.max(1, image.naturalHeight)])
+          setMapUrl(value)
+          return
+        } catch {
+          // Try the next renderable scene-media candidate.
+        }
+      }
+    }
+
+    void load()
     return () => { alive = false; if (url) URL.revokeObjectURL(url) }
-  }, [mapPath])
+  }, [mapKey])
 
   const xy = (point: any): [number, number] => {
     const x = Number(point?.[0] || 0) * scale
@@ -93,7 +119,7 @@ function Map2D({ bundle, live, onPoint }: { bundle: Bundle; live: Row; onPoint?:
         return <g key={String(object.id ?? i)}><circle cx={x} cy={y} r="7" className="track-dot"/><text x={x + 10} y={y + 4} className="map-label">{String(object.category || object.id || 'object')}</text></g>
       })}
     </svg>
-    {!mapUrl && <div className="map-watermark">No protected scene map is available; geometry and live coordinates are still shown.</div>}
+    {!mapUrl && <div className="map-watermark">No renderable 2D scene map is available; geometry and live coordinates are still shown.</div>}
   </div>
 }
 
@@ -176,7 +202,7 @@ function SceneWorkspace({ scene, onBack }: { scene: Row; onBack: () => void }) {
   }, [id])
 
   if (!bundle) return <><button className="btn" onClick={onBack}>← Back to scenes</button><div className="center-panel">Loading native scene workspace…{message && <div className="error-box">{message}</div>}</div></>
-  const mapPath = String(bundle.scene.thumbnail || bundle.scene.map || '')
+  const map3DPath = String(bundle.scene.map || bundle.scene.thumbnail || '')
 
   const saveTripwire = async () => {
     if (drawn.length < 2) { setMessage('Click at least two points on the map.'); return }
@@ -204,7 +230,7 @@ function SceneWorkspace({ scene, onBack }: { scene: Row; onBack: () => void }) {
     <div className="tabs">{['Live 2D','Live 3D','Camera feeds','Geometry','Camera calibration','History & replay','Trends & analytics'].map((name) => <button key={name} className={tab === name ? 'btn active-tab' : 'btn'} onClick={() => setTab(name)}>{name}</button>)}</div>
     {message && <div className="notice-box">{message}</div>}
     {tab === 'Live 2D' && <Map2D bundle={bundle} live={live}/>} 
-    {tab === 'Live 3D' && <ThreeScene mapPath={mapPath} objects={live.objects || []} scale={Number(bundle.scene.scale || 100)}/>} 
+    {tab === 'Live 3D' && <ThreeScene mapPath={map3DPath} objects={live.objects || []} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale}/>} 
     {tab === 'Camera feeds' && <CameraFeeds cameras={bundle.cameras}/>} 
     {tab === 'Geometry' && <div className="workspace-grid"><section className="panel"><div className="panel-title"><div><h2>Draw tripwire</h2><p>Click points directly on the native scene map.</p></div></div><div className="form-row"><label>Name<input value={tripName} onChange={(e) => setTripName(e.target.value)} /></label><button className="btn" onClick={() => setDrawn([])}>Clear points</button><button className="btn btn-primary" onClick={() => void saveTripwire()}>Save to scene</button></div><Map2D bundle={bundle} live={live} onPoint={(point) => setDrawn((old) => [...old, point])}/><div className="point-strip">{drawn.map((point, i) => <code key={i}>{point.map((v) => v.toFixed(2)).join(', ')}</code>)}</div></section><section className="panel"><div className="panel-title"><div><h2>Configured geometry</h2><p>Persisted through FastAPI.</p></div></div><div className="stack-list">{bundle.regions.map((r) => <div key={rowId(r)}><b>{rowName(r)}</b><span>Region · {(r.points || []).length} points</span></div>)}{bundle.tripwires.map((r) => <div key={rowId(r)}><b>{rowName(r)}</b><span>Tripwire · {(r.points || []).length} points</span></div>)}</div></section></div>}
     {tab === 'Camera calibration' && <section className="panel editor-panel"><div className="panel-title"><div><h2>Native camera pose</h2><p>{bundle.cameras[0] ? rowName(bundle.cameras[0]) : 'No camera configured'}</p></div></div><textarea aria-label="Camera pose: translation, rotation, scale" value={pose} onChange={(e) => setPose(e.target.value)} /><div className="editor-actions"><button className="btn btn-primary" onClick={() => void savePose()}>Save camera pose</button></div></section>}

@@ -48,6 +48,7 @@ def test_recover_legacy_data_exports_then_imports_without_volume_deletion(tmp_pa
     monkeypatch.setattr(rt,'compose',fake_compose)
     monkeypatch.setattr(rt,'run',Mock(return_value=SimpleNamespace(returncode=0,stdout=b'')))
     (root/'tools').mkdir(parents=True,exist_ok=True)
+    (root/'sample_data').mkdir(parents=True,exist_ok=True)
     (root/'tools/export_legacy.py').write_text('print("fixture")\n')
     native_data.recover_legacy({'COMPOSE_PROJECT_NAME':'test'})
     assert any(kwargs.get('native') is False and '--entrypoint' in args for args,kwargs in calls)
@@ -80,3 +81,26 @@ def test_repair_media_copies_only_missing_packaged_media(tmp_path, monkeypatch):
     assert 'cp "$f" "/dest/$name"' in script
     assert '[ ! -e "/dest/$name" ]' in script
     assert 'rm -' not in script
+
+
+def test_repair_media_restores_recorded_legacy_backup_without_overwrite(tmp_path, monkeypatch):
+    root=prepare(tmp_path, monkeypatch)
+    backup=root/'.scenescape-runtime/backups/cutover'
+    backup.mkdir(parents=True)
+    archive=backup/'media.tar.gz'
+    archive.write_bytes(b'fixture')
+    rt.save_state({'mode':'native','installed':True,'backup':'.scenescape-runtime/backups/cutover'})
+    (root/'sample_data').mkdir()
+    run=Mock(return_value=SimpleNamespace(returncode=0, stdout=b''))
+    monkeypatch.setattr(rt,'run',run)
+    native_data.repair_media({'COMPOSE_PROJECT_NAME':'demo'})
+    assert run.call_count==2
+    restore_args=run.call_args_list[0].args[0]
+    assert f"{archive}:/backup/media.tar.gz:ro" in restore_args
+    assert 'demo_vol-media:/dest' in restore_args
+    restore_script=restore_args[-1]
+    assert '[ ! -e "$dest" ]' in restore_script
+    assert 'cp "$f" "$dest"' in restore_script
+    assert 'rm -rf /dest' not in restore_script
+    packaged_args=run.call_args_list[1].args[0]
+    assert f"{root/'sample_data'}:/source:ro" in packaged_args

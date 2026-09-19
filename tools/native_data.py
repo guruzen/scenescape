@@ -40,6 +40,42 @@ def repair_media(config):
     if not source.is_dir():
         rt.fail(f"Packaged sample media directory is missing: {source}")
     volume = f"{project}_vol-media"
+
+    state = rt.read_state()
+    recorded_backup = state.get("backup")
+    if recorded_backup:
+        archive = (rt.ROOT / recorded_backup / "media.tar.gz").resolve()
+        try:
+            archive.relative_to(rt.ROOT.resolve())
+        except ValueError:
+            rt.fail("Recorded migration backup path escapes the repository root.")
+        if archive.is_file():
+            restore_script = """
+set -eu
+rm -rf /tmp/legacy-media
+mkdir -p /tmp/legacy-media
+tar xzf /backup/media.tar.gz -C /tmp/legacy-media
+find /tmp/legacy-media -type f -exec sh -c '
+  f="$1"
+  rel="${f#/tmp/legacy-media/}"
+  dest="/dest/$rel"
+  if [ ! -e "$dest" ]; then
+    mkdir -p "$(dirname "$dest")"
+    cp "$f" "$dest"
+    chmod 0644 "$dest" || true
+    chown 1000:1000 "$dest" || true
+    echo "restored-legacy: $rel"
+  fi
+' sh {} \;
+"""
+            rt.log(f"Restoring missing legacy media from recorded backup {archive}; existing files are preserved")
+            rt.run([
+                "docker", "run", "--rm",
+                "-v", f"{archive}:/backup/media.tar.gz:ro",
+                "-v", f"{volume}:/dest",
+                "alpine:3.23", "sh", "-c", restore_script,
+            ])
+
     script = """
 set -eu
 copied=0

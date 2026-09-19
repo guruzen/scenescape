@@ -6,7 +6,21 @@ import { apiObjectUrl } from '../api/client'
 
 type Row = Record<string, any>
 
-export default function ThreeScene({ mapPath, objects, scale = 100 }: { mapPath?: string; objects: Row[]; scale?: number }) {
+export default function ThreeScene({
+  mapPath,
+  objects,
+  scale = 100,
+  meshTranslation,
+  meshRotation,
+  meshScale,
+}: {
+  mapPath?: string
+  objects: Row[]
+  scale?: number
+  meshTranslation?: number[]
+  meshRotation?: number[]
+  meshScale?: number[]
+}) {
   const host = useRef<HTMLDivElement | null>(null)
   const surface = useRef<HTMLDivElement | null>(null)
   const objectGroup = useRef<THREE.Group | null>(null)
@@ -75,6 +89,20 @@ export default function ThreeScene({ mapPath, objects, scale = 100 }: { mapPath?
         if (/\.glb(?:$|\?)/i.test(mapPath)) {
           new GLTFLoader().load(mediaUrl, (gltf) => {
             if (disposed) return
+            const translation = Array.isArray(meshTranslation) ? meshTranslation : [0, 0, 0]
+            const rotation = Array.isArray(meshRotation) ? meshRotation : [0, 0, 0]
+            const objectScale = Array.isArray(meshScale) ? meshScale : [1, 1, 1]
+            gltf.scene.position.set(Number(translation[0] || 0), Number(translation[1] || 0), Number(translation[2] || 0))
+            gltf.scene.rotation.set(
+              THREE.MathUtils.degToRad(Number(rotation[0] || 0)),
+              THREE.MathUtils.degToRad(Number(rotation[1] || 0)),
+              THREE.MathUtils.degToRad(Number(rotation[2] || 0)),
+            )
+            gltf.scene.scale.set(
+              Number(objectScale[0] ?? 1),
+              Number(objectScale[1] ?? 1),
+              Number(objectScale[2] ?? 1),
+            )
             scene.add(gltf.scene)
             fit(gltf.scene)
           }, undefined, () => setError('The GLB map could not be rendered. Live data is still available in 2D.'))
@@ -128,7 +156,13 @@ export default function ThreeScene({ mapPath, objects, scale = 100 }: { mapPath?
       if (mediaUrl) URL.revokeObjectURL(mediaUrl)
       objectGroup.current = null
     }
-  }, [mapPath, scale])
+  }, [
+    mapPath,
+    scale,
+    meshTranslation?.[0], meshTranslation?.[1], meshTranslation?.[2],
+    meshRotation?.[0], meshRotation?.[1], meshRotation?.[2],
+    meshScale?.[0], meshScale?.[1], meshScale?.[2],
+  ])
 
   useEffect(() => {
     const group = objectGroup.current
