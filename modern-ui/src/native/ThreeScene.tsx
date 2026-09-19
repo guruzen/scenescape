@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
@@ -23,6 +26,9 @@ export default function ThreeScene({
   childSensors = [],
   mediaOverrideUrl,
   previewAsset,
+  showTrackedObjects = true,
+  showSpatial = true,
+  showFloor = true,
 }: {
   mapPath?: string
   objects: Row[]
@@ -40,6 +46,9 @@ export default function ThreeScene({
   childSensors?: Row[]
   mediaOverrideUrl?: string
   previewAsset?: Row
+  showTrackedObjects?: boolean
+  showSpatial?: boolean
+  showFloor?: boolean
 }) {
   const host = useRef<HTMLDivElement | null>(null)
   const surface = useRef<HTMLDivElement | null>(null)
@@ -134,6 +143,7 @@ export default function ThreeScene({
     scene.add(sun)
     const grid = new THREE.GridHelper(20, 20, 0x3a6168, 0x244047)
     grid.rotation.x = Math.PI / 2
+    grid.visible = showFloor
     scene.add(grid)
     const group = new THREE.Group()
     objectGroup.current = group
@@ -260,6 +270,7 @@ export default function ThreeScene({
     meshRotation?.[0], meshRotation?.[1], meshRotation?.[2],
     meshScale?.[0], meshScale?.[1], meshScale?.[2],
     mediaOverrideUrl,
+    showFloor,
   ])
 
   useEffect(() => {
@@ -329,10 +340,10 @@ export default function ThreeScene({
 
     if (previewAsset) {
       renderItem({ id: 'preview', category: previewAsset.name, translation: [0, 0, 0] }, 0)
-    } else {
+    } else if (showTrackedObjects) {
       ;(objects || []).forEach(renderItem)
     }
-  }, [objects, assets, assetVersion, mapPath, previewAsset])
+  }, [objects, assets, assetVersion, mapPath, previewAsset, showTrackedObjects])
 
   useEffect(() => {
     const group = spatialGroup.current
@@ -357,6 +368,8 @@ export default function ThreeScene({
       const mesh = new THREE.Mesh(geometry, material)
       group.add(mesh)
     }
+
+    if (!showSpatial) return
 
     for (const region of regions) {
       if (!region.visible) continue
@@ -455,7 +468,7 @@ export default function ThreeScene({
         group.add(marker)
       }
     }
-  }, [regions, tripwires, sensors, childRegions, childTripwires, childSensors, mapPath])
+  }, [regions, tripwires, sensors, childRegions, childTripwires, childSensors, mapPath, showSpatial])
 
   useEffect(() => {
     const group = calibrationGroup.current
