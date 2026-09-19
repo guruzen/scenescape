@@ -613,11 +613,13 @@ def native_export_scene(scene_id: str, p=Depends(current_principal), db=Depends(
     )
 
 
+@app.get("/mapping-service/status/")
 @app.get("/api/v2/mapping/health")
 def native_mapping_health(p=Depends(current_principal)):
     return mapping_health()
 
 
+@app.post("/scene/generate-mesh/{scene_id}/")
 @app.post("/api/v2/scenes/{scene_id}/mesh")
 async def native_generate_mesh(scene_id: str, request: Request, p=Depends(current_principal), db=Depends(db_dep)):
     if not p.is_admin:
@@ -645,6 +647,7 @@ async def native_generate_mesh(scene_id: str, request: Request, p=Depends(curren
     return result
 
 
+@app.get("/scene/generate-mesh-status/{scene_id}/")
 @app.get("/api/v2/scenes/{scene_id}/mesh/status")
 def native_generate_mesh_status(scene_id: str, request_id: str = Query(...), p=Depends(current_principal), db=Depends(db_dep)):
     if not p.is_admin:
