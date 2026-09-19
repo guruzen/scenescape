@@ -119,20 +119,31 @@ async def legacy_aclcheck(request: Request):
     return {"result": "allow", "acc": granted}
 
 
+def _legacy_user_value(value: dict) -> dict:
+    result = {
+        key: value.get(key)
+        for key in ("uid", "username", "is_active", "is_staff", "is_superuser", "first_name", "last_name", "email")
+        if value.get(key) is not None
+    }
+    if value.get("acls"):
+        result["acls"] = value["acls"]
+    return result
+
+
 @app.get("/api/v1/users")
 def legacy_users(p=Depends(service_principal)):
-    rows = keycloak_list_users()
+    rows = [_legacy_user_value(row) for row in keycloak_list_users()]
     return {"count": len(rows), "next": None, "previous": None, "results": rows}
 
 
 @app.get("/api/v1/user/{username}")
 def legacy_user_get(username: str, p=Depends(service_principal)):
-    return keycloak_get_user(username)
+    return _legacy_user_value(keycloak_get_user(username))
 
 
 @app.post("/api/v1/user")
 def legacy_user_create(body: dict, p=Depends(service_principal)):
-    value = keycloak_create_user(body)
+    value = _legacy_user_value(keycloak_create_user(body))
     return Response(content=json.dumps(value), media_type="application/json", status_code=201)
 
 
@@ -144,7 +155,7 @@ def legacy_user_update(username: str, body: dict, p=Depends(service_principal)):
     legacy.pop("is_staff", None)
     legacy.pop("is_superuser", None)
     legacy.pop("roles", None)
-    return keycloak_update_user(username, legacy)
+    return _legacy_user_value(keycloak_update_user(username, legacy))
 
 
 @app.delete("/api/v1/user/{username}")
