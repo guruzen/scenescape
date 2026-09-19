@@ -51,6 +51,14 @@ _SCENESCAPE_IMAGES = [
   "intel/scenescape-controller",
   "intel/scenescape-manager",
 ]
+_NATIVE_IMAGES = [
+  "intel/scenescape-control-api",
+  "intel/scenescape-modern-ui",
+]
+
+
+def _env_true(name: str) -> bool:
+  return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 def _run(cmd, **kwargs):
   """Run a subprocess command, raising on failure with stderr included."""
@@ -85,10 +93,33 @@ class K8sScenescapeEnv:
   repo_root: str
   secrets_dir: str
   supass: str
+  native_mode: bool = False
 
   def restore_db(self):
     """Restore the database to baseline state via kubectl exec."""
     web_pod = self._get_pod_name(f"{self.release_name}-web")
+    if self.native_mode:
+      self._kubectl_exec(
+        web_pod,
+        "sample=$(find /data/samples -type f -name Retail.json -print -quit); "
+        "test -n \"$sample\"; "
+        "SCENESCAPE_ALLOW_RESET=1 python -m scenescape_api.cli reset \"$sample\"",
+      )
+      logger.info("Native database restored from Retail sample.")
+      logger.info("Restarting scene controller...")
+      _run([
+        "kubectl", "rollout", "restart",
+        f"deployment/{self.release_name}-scene-dep",
+        "-n", self.namespace, "--kubeconfig", self.kubeconfig,
+      ])
+      _run([
+        "kubectl", "rollout", "status",
+        f"deployment/{self.release_name}-scene-dep",
+        "-n", self.namespace, "--kubeconfig", self.kubeconfig,
+        "--timeout=120s",
+      ])
+      return
+
     manage = "$SCENESCAPE_HOME/manage.py"
 
     self._kubectl_exec(web_pod, f"python {manage} flush --no-input")
@@ -170,12 +201,14 @@ class K8sManager:
     self._cluster = None
     self._port_forwards = []  # PortForwarding objects
     self._env = None
+    self.native_mode = _env_true("SCENESCAPE_K8S_NATIVE")
 
     # Populated during setup
     self.auth_file = None
     self.cert_file = None
     self.mqtt_port = None
     self.web_port = None
+    self.ui_port = None
     self.kubeconfig = None
 
   def setup(self):
@@ -261,7 +294,9 @@ class K8sManager:
     logger.info("Setting up port-forwarding...")
     self.mqtt_port = self._port_forward("svc/broker", 1883, 1883)
     self.web_port = self._port_forward("svc/web", 9443, 443)
-    logger.info("MQTT port: %d, Web port: %d", self.mqtt_port, self.web_port)
+    if self.native_mode:
+      self.ui_port = self._port_forward("svc/modern-ui", 8088, 8080)
+    logger.info("MQTT port: %d, API port: %d, UI port: %s", self.mqtt_port, self.web_port, self.ui_port)
 
     # Build the environment object
     self._env = K8sScenescapeEnv(
@@ -271,6 +306,7 @@ class K8sManager:
       repo_root=self._repo_root,
       secrets_dir=str(tmp_dir),
       supass=self._supass,
+      native_mode=self.native_mode,
     )
 
     logger.info("=" * 60)
@@ -333,7 +369,8 @@ class K8sManager:
     version_file = Path(self._repo_root) / "version.txt"
     version = version_file.read_text().strip()
 
-    for image_name in _SCENESCAPE_IMAGES:
+    images = [*_SCENESCAPE_IMAGES, *(_NATIVE_IMAGES if self.native_mode else [])]
+    for image_name in images:
       old_tag = f"{image_name}:latest"
       new_tag = f"{image_name}:{version}"
 
@@ -395,6 +432,17 @@ class K8sManager:
       f'httpProxy: "{os.getenv("HTTP_PROXY", "")}"\n'
       f'httpsProxy: "{os.getenv("HTTPS_PROXY", "")}"\n'
       f'noProxy: "{os.getenv("NO_PROXY", "")}"\n'
+      + (
+        f'native:\n'
+        f'  enabled: true\n'
+        f'  seedSample: true\n'
+        f'modernUI:\n'
+        f'  enabled: true\n'
+        f'keycloak:\n'
+        f'  enabled: true\n'
+        f'  bootstrapAdminPassword: "{self._supass}"\n'
+        if self.native_mode else ""
+      )
     )
     values_file.write_text(values_content)
     return str(values_file)
@@ -420,6 +468,8 @@ class K8sManager:
     ])
     logger.info("Helm chart installed. Waiting for core services...")
     self._wait_for_core_services()
+    if self.native_mode:
+      self._provision_native_keycloak_user()
     logger.info("Helm chart deployed successfully.")
 
   def _wait_for_core_services(self):
@@ -438,6 +488,12 @@ class K8sManager:
       f"deployment/{_RELEASE_NAME}-broker",
       f"statefulset/{_RELEASE_NAME}-pgserver",
     ]
+    if self.native_mode:
+      _CORE_RESOURCES.extend([
+        f"deployment/{_RELEASE_NAME}-modern-ui",
+        f"deployment/{_RELEASE_NAME}-keycloak",
+        f"deployment/{_RELEASE_NAME}-native-worker",
+      ])
 
     logger.info("Waiting for core services...")
     for resource in _CORE_RESOURCES:
@@ -467,6 +523,51 @@ class K8sManager:
 
     # Wait for DL Streamer to load models and start producing inference.
     self._wait_for_inference_warmup()
+
+  def _provision_native_keycloak_user(self):
+    """Create the test realm administrator without storing it in chart values."""
+    pod = self._get_pod_name(f"{_RELEASE_NAME}-keycloak")
+    base = [
+      "kubectl", "exec", pod,
+      "-n", _NAMESPACE, "--kubeconfig", self.kubeconfig,
+      "--", "/opt/keycloak/bin/kcadm.sh",
+    ]
+    config = "/tmp/scenescape-test-kcadm.config"
+    _run(base + [
+      "config", "credentials",
+      "--server", "http://127.0.0.1:8080/auth",
+      "--realm", "master",
+      "--user", "admin",
+      "--password", self._supass,
+      "--config", config,
+    ])
+    query = _run(base + [
+      "get", "users", "-r", "scenescape",
+      "-q", "username=admin",
+      "--config", config,
+    ])
+    users = json.loads(query.stdout or "[]")
+    if not any(item.get("username") == "admin" for item in users):
+      _run(base + [
+        "create", "users", "-r", "scenescape",
+        "-s", "username=admin", "-s", "enabled=true",
+        "-s", "email=admin@domain.com",
+        "--config", config,
+      ])
+    _run(base + [
+      "set-password", "-r", "scenescape",
+      "--username", "admin",
+      "--new-password", self._supass,
+      "--config", config,
+    ])
+    for role in ("scenescape-viewer", "scenescape-admin"):
+      _run(base + [
+        "add-roles", "-r", "scenescape",
+        "--uusername", "admin",
+        "--rolename", role,
+        "--config", config,
+      ])
+    logger.info("Provisioned native Keycloak realm administrator.")
 
   def _log_resource_failure(self, resource: str):
     """Emit describe/logs for a failed rollout so CI failures are actionable."""
