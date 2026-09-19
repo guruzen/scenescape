@@ -61,7 +61,7 @@ export default function AssetInventory({isAdmin}:{isAdmin:boolean}){
     try{
       const form=new FormData()
       const payload=body()
-      Object.entries(payload).forEach(([key,value])=>form.append(key,typeof value==='string'?value:JSON.stringify(value)))
+      Object.entries(payload).forEach(([key,value])=>form.append(key,typeof value==='string'?value:(JSON.stringify(value)??'')))
       if(modelFile)form.append('model_3d',modelFile)
       let saved:Row
       if(selected)saved=await apiFetch<Row>(`/api/v2/assets/${encodeURIComponent(idOf(selected))}?revision=${selected.revision}`,{method:'PUT',body:form})
