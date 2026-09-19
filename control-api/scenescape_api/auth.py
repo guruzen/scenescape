@@ -24,6 +24,10 @@ def _principal(data):
     realm=data.get("realm_access") or {}; roles.update(realm.get("roles") or [])
     for client in (data.get("resource_access") or {}).values(): roles.update(client.get("roles") or [])
     scenes=data.get("scenes") or data.get("scene_scopes") or []
+    if isinstance(scenes, str):
+        scenes=[scenes]
+    elif not isinstance(scenes, (list, tuple, set)):
+        scenes=[]
     return Principal(str(data.get("sub")),str(data.get("name") or data.get("preferred_username") or data.get("sub")),frozenset(roles),frozenset(map(str,scenes)),int(data.get("exp",0)))
 def current_principal(authorization:str|None=Header(default=None)):
     if not authorization or not authorization.startswith("Bearer "): raise HTTPException(401,"Bearer token required")
