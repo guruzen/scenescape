@@ -50,7 +50,9 @@ def normalize_snapshot(data):
         if plural not in KINDS or not isinstance(item, dict):
             return
         row = deepcopy(item)
-        if scene_uid and plural not in ("scenes", "assets"):
+        if scene_uid and plural == "children":
+            row.setdefault("parent", scene_uid)
+        elif scene_uid and plural not in ("scenes", "assets"):
             row.setdefault("scene", scene_uid)
         kind = KINDS[plural]
         key = str(_uid(row, kind) or json.dumps(row, sort_keys=True, default=str))

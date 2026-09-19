@@ -13,6 +13,7 @@ from .camera_io import CameraSnapshotError, fetch_camera_snapshot
 from .contracts import normalize_resource
 from .mqtt_commands import notify_camera_change, notify_config_change
 from .database import Event, Heartbeat, Incident, Observation, Resource, sessions
+from .hierarchy import cascade_scene_links, child_to_dict, create_child_link, resolve_child_link, transform_dict, update_child_link
 from .resources import ALIASES, delete_resource, get_resource, list_resources, to_dict, upsert
 
 app = FastAPI(title="SceneScape Native Control API", version="0.2")
@@ -119,9 +120,20 @@ def _legacy_filter(items, request: Request):
     return result
 
 
-def _legacy_scene(db, row):
+def _legacy_scene(db, row, seen=None):
     scene = _legacy_clean(row)
     scene_id = str(scene.get("uid") or "")
+    seen = set(seen or ())
+    seen.add(scene_id)
+
+    # SceneSerializer exposes the incoming local link as parent + transform.
+    for link_row in _legacy_rows(db, "child"):
+        payload = link_row.payload or {}
+        if str(payload.get("child_type") or "local") == "local" and str(payload.get("child") or "") == scene_id:
+            scene["parent"] = str(payload.get("parent") or "")
+            scene["transform"] = transform_dict(payload)
+            break
+
     for plural, kind in (("cameras","camera"),("sensors","sensor"),("regions","region"),("tripwires","tripwire")):
         nested = []
         for item in _legacy_rows(db, kind):
@@ -129,11 +141,23 @@ def _legacy_scene(db, row):
             if str(payload.get("scene") or payload.get("scene_id") or "") == scene_id:
                 nested.append(_legacy_clean(item))
         scene[plural] = nested
+
     children = []
-    for item in _legacy_rows(db, "child"):
-        payload = item.payload or {}
-        if str(payload.get("parent") or payload.get("scene") or "") == scene_id:
-            children.append(_legacy_clean(item))
+    for link_row in _legacy_rows(db, "child"):
+        payload = link_row.payload or {}
+        if str(payload.get("parent") or payload.get("scene") or "") != scene_id:
+            continue
+        link = child_to_dict(db, link_row)
+        if str(payload.get("child_type") or "local") == "remote":
+            children.append({"name": link.get("name", "")})
+            continue
+        child_id = str(payload.get("child") or "")
+        child_row = db.scalar(select(Resource).where(Resource.kind == "scene", Resource.uid == child_id))
+        if child_row is None or child_id in seen:
+            continue
+        child_scene = _legacy_scene(db, child_row, seen)
+        child_scene["link"] = link
+        children.append(child_scene)
     scene["children"] = children
     return scene
 
@@ -147,7 +171,7 @@ def legacy_scenes(request: Request, p=Depends(service_principal), db=Depends(db_
 
 @app.get("/api/v1/scenes/child")
 def legacy_children(request: Request, p=Depends(service_principal), db=Depends(db_dep)):
-    rows = _legacy_filter(_legacy_rows(db, "child"), request)
+    rows = _legacy_filter([child_to_dict(db, row) for row in _legacy_rows(db, "child")], request)
     return {"count": len(rows), "next": None, "previous": None, "results": rows}
 
 
@@ -175,8 +199,12 @@ def legacy_get(thing: str, uid: str, p=Depends(service_principal), db=Depends(db
     kind = LEGACY_V1.get(thing)
     if not kind:
         raise HTTPException(404)
-    row = get_resource(db, kind, uid)
-    return _legacy_scene(db, row) if kind == "scene" else _legacy_clean(row)
+    row = resolve_child_link(db, uid) if kind == "child" else get_resource(db, kind, uid)
+    if kind == "scene":
+        return _legacy_scene(db, row)
+    if kind == "child":
+        return child_to_dict(db, row)
+    return _legacy_clean(row)
 
 
 @app.post("/api/v1/{thing}/{uid}")
@@ -185,6 +213,15 @@ def legacy_update(thing: str, uid: str, body: dict, p=Depends(service_principal)
     kind = LEGACY_V1.get(thing)
     if not kind:
         raise HTTPException(404)
+    if kind == "child":
+        current = resolve_child_link(db, uid)
+        row, notify = update_child_link(db, current, body, p, legacy=True, expected_revision=current.revision)
+        db.commit()
+        value = child_to_dict(db, row)
+        if notify:
+            notify_config_change(kind, row.uid)
+        return value
+
     current = get_resource(db, kind, uid)
     previous = _legacy_clean(current) if kind == "camera" else None
     body, resolved_uid = normalize_resource(db, kind, body, uid=uid, creating=False, legacy=True)
@@ -202,6 +239,13 @@ def legacy_create(thing: str, body: dict, p=Depends(service_principal), db=Depen
     kind = LEGACY_V1.get(thing)
     if not kind:
         raise HTTPException(404)
+    if kind == "child":
+        row = create_child_link(db, body, p, legacy=True)
+        db.commit()
+        value = child_to_dict(db, row)
+        notify_config_change(kind, row.uid)
+        return Response(content=json.dumps(value), media_type="application/json", status_code=201)
+
     body, resolved_uid = normalize_resource(db, kind, body, uid=None, creating=True, legacy=True)
     row = upsert(db, kind, resolved_uid, body, p)
     db.commit()
@@ -217,8 +261,18 @@ def legacy_delete(thing: str, uid: str, p=Depends(service_principal), db=Depends
     kind = LEGACY_V1.get(thing)
     if not kind:
         raise HTTPException(404)
+    if kind == "child":
+        row = resolve_child_link(db, uid)
+        link_uid = row.uid
+        db.delete(row)
+        db.commit()
+        notify_config_change(kind, link_uid)
+        return {"pk": link_uid}
+
     current = get_resource(db, kind, uid)
     previous = _legacy_clean(current) if kind == "camera" else None
+    if kind == "scene":
+        cascade_scene_links(db, uid)
     result = delete_resource(db, kind, uid)
     db.commit()
     notify_config_change(kind, uid)
@@ -256,7 +310,10 @@ def scene_bundle(scene_id: str, p=Depends(current_principal), db=Depends(db_dep)
     for plural in ("cameras", "sensors", "regions", "tripwires", "children", "markers"):
         kind = ALIASES[plural]
         rows = db.scalars(select(Resource).where(Resource.kind == kind).order_by(Resource.id)).all()
-        result[plural] = [to_dict(row) for row in rows if _scene_matches(row, scene_id)]
+        if plural == "children":
+            result[plural] = [child_to_dict(db, row, native=True) for row in rows if _scene_matches(row, scene_id)]
+        else:
+            result[plural] = [to_dict(row) for row in rows if _scene_matches(row, scene_id)]
     return result
 
 
@@ -387,7 +444,12 @@ def incident_action(incident_id: int, body: dict, p=Depends(current_principal), 
 
 @app.get("/api/v2/{plural}")
 def list_any(plural: str, p=Depends(current_principal), db=Depends(db_dep)):
-    rows = list_resources(db, _kind(plural))
+    kind = _kind(plural)
+    if kind == "child":
+        db_rows = db.scalars(select(Resource).where(Resource.kind == "child").order_by(Resource.id)).all()
+        rows = [child_to_dict(db, row, native=True) for row in db_rows]
+    else:
+        rows = list_resources(db, kind)
     if p.is_admin or "*" in p.scene_scopes:
         return rows
     if plural == "scenes":
@@ -397,7 +459,11 @@ def list_any(plural: str, p=Depends(current_principal), db=Depends(db_dep)):
 
 @app.get("/api/v2/{plural}/{uid}")
 def get_any(plural: str, uid: str, p=Depends(current_principal), db=Depends(db_dep)):
-    row = to_dict(get_resource(db, _kind(plural), uid))
+    kind = _kind(plural)
+    if kind == "child":
+        row = child_to_dict(db, resolve_child_link(db, uid), native=True)
+    else:
+        row = to_dict(get_resource(db, kind, uid))
     if not (p.is_admin or "*" in p.scene_scopes):
         scene_id = uid if plural == "scenes" else str(row.get("scene") or row.get("scene_id") or row.get("parent") or "")
         _scene_allowed(p, scene_id)
@@ -409,6 +475,13 @@ def create_any(plural: str, body: dict, p=Depends(current_principal), db=Depends
     if not p.is_admin:
         raise HTTPException(403, "Administrator role required")
     kind = _kind(plural)
+    if kind == "child":
+        row = create_child_link(db, body, p, legacy=False)
+        db.commit()
+        value = child_to_dict(db, row, native=True)
+        notify_config_change(kind, row.uid)
+        return value
+
     body, resolved_uid = normalize_resource(db, kind, body, uid=None, creating=True, legacy=False)
     row = upsert(db, kind, resolved_uid, body, p)
     db.commit()
@@ -431,6 +504,15 @@ def update_any(
     if not p.is_admin:
         raise HTTPException(403, "Administrator role required")
     kind = _kind(plural)
+    if kind == "child":
+        current = resolve_child_link(db, uid)
+        row, notify = update_child_link(db, current, body, p, legacy=False, expected_revision=revision)
+        db.commit()
+        value = child_to_dict(db, row, native=True)
+        if notify:
+            notify_config_change(kind, row.uid)
+        return value
+
     current = get_resource(db, kind, uid)
     previous = to_dict(current) if kind == "camera" else None
     body, resolved_uid = normalize_resource(db, kind, body, uid=uid, creating=False, legacy=False)
@@ -448,8 +530,18 @@ def delete_any(plural: str, uid: str, p=Depends(current_principal), db=Depends(d
     if not p.is_admin:
         raise HTTPException(403, "Administrator role required")
     kind = _kind(plural)
+    if kind == "child":
+        row = resolve_child_link(db, uid)
+        link_uid = row.uid
+        db.delete(row)
+        db.commit()
+        notify_config_change(kind, link_uid)
+        return {"deleted": True, "uid": link_uid, "kind": kind}
+
     current = get_resource(db, kind, uid)
     previous = to_dict(current) if kind == "camera" else None
+    if kind == "scene":
+        cascade_scene_links(db, uid)
     result = delete_resource(db, kind, uid)
     db.commit()
     notify_config_change(kind, uid)
