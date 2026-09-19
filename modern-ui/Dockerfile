@@ -6,6 +6,7 @@ COPY public ./public
 COPY src ./src
 RUN npm install --no-audit --no-fund && npm run build
 FROM nginx:1.29-alpine
+ENV NGINX_ENVSUBST_FILTER="^SCENESCAPE_"
 COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
 COPY docker-entrypoint.d/10-runtime-config.sh /docker-entrypoint.d/10-runtime-config.sh
 COPY --from=build /app/dist /usr/share/nginx/html
