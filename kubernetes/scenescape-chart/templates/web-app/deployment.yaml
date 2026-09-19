@@ -82,6 +82,18 @@ spec:
             value: "http://keycloak.{{ .Release.Namespace }}.svc.cluster.local:8080/auth/realms/{{ .Values.modernUI.auth.realm }}/protocol/openid-connect/certs"
           - name: KEYCLOAK_URL
             value: "http://keycloak.{{ .Release.Namespace }}.svc.cluster.local:8080/auth"
+          - name: KEYCLOAK_ADMIN_URL
+            value: "http://keycloak.{{ .Release.Namespace }}.svc.cluster.local:8080/auth"
+          - name: KEYCLOAK_ADMIN_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ if .Values.keycloak.existingSecret }}{{ .Values.keycloak.existingSecret }}{{ else }}{{ .Release.Name }}-keycloak-bootstrap{{ end }}
+                key: username
+          - name: KEYCLOAK_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ if .Values.keycloak.existingSecret }}{{ .Values.keycloak.existingSecret }}{{ else }}{{ .Release.Name }}-keycloak-bootstrap{{ end }}
+                key: password
           {{- else }}
           - name: KEYCLOAK_ISSUER_URL
             value: {{ required "modernUI.auth.issuerUrl is required when embedded keycloak is disabled" .Values.modernUI.auth.issuerUrl | quote }}
