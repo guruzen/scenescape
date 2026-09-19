@@ -228,7 +228,7 @@ function SceneWorkspace({ scene, onBack, isAdmin, initialTab = 'Live 2D' }: { sc
     <div className="tabs">{['Live 2D','Live 3D','Camera feeds','Geometry','Camera calibration','History & replay','Trends & analytics'].map((name) => <button key={name} className={tab === name ? 'btn active-tab' : 'btn'} onClick={() => setTab(name)}>{name}</button>)}</div>
     {message && <div className="notice-box">{message}</div>}
     {tab === 'Live 2D' && <Map2D bundle={bundle} live={live}/>} 
-    {tab === 'Live 3D' && <ThreeScene mapPath={map3DPath} objects={live.objects || []} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale}/>} 
+    {tab === 'Live 3D' && <ThreeScene mapPath={map3DPath} objects={live.objects || []} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors}/>} 
     {tab === 'Camera feeds' && <CameraFeeds cameras={bundle.cameras}/>} 
     {tab === 'Geometry' && <SpatialEditor scene={bundle.scene} regions={bundle.regions} tripwires={bundle.tripwires} isAdmin={isAdmin} onSaved={loadBundle}/>}
     {tab === 'Camera calibration' && <CameraCalibration scene={bundle.scene} cameras={bundle.cameras} isAdmin={isAdmin} onSaved={loadBundle}/>}
