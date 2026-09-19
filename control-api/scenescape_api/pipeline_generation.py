@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 import json
@@ -24,39 +27,63 @@ DEFAULT_PARAMS = {
 SUPPORTED_MODEL_TYPES = {"detect", "classify", "inference", "track"}
 
 
-def _config_root() -> Path:
-    return Path(os.getenv("MODEL_CONFIGS_FOLDER", "/app/model_configs")).resolve()
+def _config_roots() -> list[Path]:
+  primary = Path(os.getenv("MODEL_CONFIGS_FOLDER", "/app/model_configs")).resolve()
+  fallback = Path(os.getenv("MODEL_CONFIGS_FALLBACK_FOLDER", "/app/model_configs")).resolve()
+  return list(dict.fromkeys((primary, fallback)))
+
+
+def list_model_configs() -> list[str]:
+  """Discover JSON model configurations, preferring the shared models PVC."""
+  configs: set[str] = set()
+  for root in _config_roots():
+    if not root.is_dir():
+      continue
+    for path in root.rglob("*.json"):
+      if path.is_symlink() or not path.is_file():
+        continue
+      try:
+        resolved = path.resolve()
+        resolved.relative_to(root)
+      except (OSError, ValueError):
+        continue
+      configs.add(path.relative_to(root).as_posix())
+  return sorted(configs, key=str.lower)
+
+
+def _model_config_path(modelconfig_name=None) -> Path:
+  name = str(modelconfig_name or "model_config.json")
+  if not name or "\\" in name:
+    raise PipelineGenerationValueError("Invalid model configuration filename")
+  relative = Path(name)
+  if relative.is_absolute() or ".." in relative.parts:
+    raise PipelineGenerationValueError("Invalid model configuration filename")
+  for root in _config_roots():
+    path = (root / relative).resolve()
+    try:
+      path.relative_to(root)
+    except ValueError:
+      continue
+    if path.is_file():
+      return path
+  raise PipelineGenerationValueError(f"Model configuration not found: {name}")
 
 
 def load_model_config(modelconfig_name=None) -> dict:
-    root = _config_root()
-    filename = Path(modelconfig_name or "model_config.json").name
-    if not filename or filename in {".", ".."}:
-        raise PipelineGenerationValueError("Model config filename cannot be empty.")
-    path = (root / filename).resolve()
-    try:
-        path.relative_to(root)
-    except ValueError as exc:
-        raise PipelineGenerationValueError("Invalid model config path.") from exc
-    if not path.is_file():
-        raise PipelineGenerationValueError(f"Model config file '{filename}' does not exist.")
-    try:
-        value = json.loads(path.read_text())
-    except json.JSONDecodeError as exc:
-        raise PipelineGenerationValueError("Model config file is not valid JSON.") from exc
-    except OSError as exc:
-        raise PipelineGenerationValueError("Unable to read model config file.") from exc
-    if not isinstance(value, dict):
-        raise PipelineGenerationValueError(
-            "Model config file must contain a JSON object mapping model names to their config."
-        )
-    for name, entry in value.items():
-        if not isinstance(entry, dict):
-            raise PipelineGenerationValueError(
-                f"Model config entry for '{name}' must be a JSON object."
-            )
-    return value
-
+  path = _model_config_path(modelconfig_name)
+  filename = str(modelconfig_name or "model_config.json")
+  try:
+    value = json.loads(path.read_text(encoding="utf-8"))
+  except (OSError, json.JSONDecodeError) as exc:
+    raise PipelineGenerationValueError(f"Invalid model configuration {filename}: {exc}") from exc
+  if not isinstance(value, dict):
+    raise PipelineGenerationValueError("Model configuration must contain a JSON object")
+  for name, entry in value.items():
+    if not isinstance(entry, dict):
+      raise PipelineGenerationValueError(
+        f"Model config entry for '{name}' must be a JSON object."
+      )
+  return value
 
 def _format_value(value):
     if isinstance(value, str) and (any(c in value for c in " ;!") or value == ""):
