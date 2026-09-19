@@ -67,3 +67,16 @@ export async function apiJsonStream<T>(path: string, onData: (value: T) => void,
     reader.releaseLock()
   }
 }
+
+
+export async function apiBlob(path: string, init: RequestInit = {}): Promise<Blob> {
+  const token = await tokenSupplier()
+  const headers = new Headers(init.headers)
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const response = await fetch(resolveUrl(path), { ...init, headers, credentials: 'same-origin' })
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(body || `SceneScape API returned ${response.status}`)
+  }
+  return await response.blob()
+}
