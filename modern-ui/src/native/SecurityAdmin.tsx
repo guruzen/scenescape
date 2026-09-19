@@ -98,6 +98,7 @@ export default function SecurityAdmin({ scenes }: { scenes: Row[] }) {
       }
       if (String(draft.password || '')) payload.password = String(draft.password)
       if (!selected && !payload.password) throw new Error('A password is required when creating a user.')
+      if (selected) delete payload.username
       const saved = selected
         ? await apiFetch<Row>(`/api/v2/users/${encodeURIComponent(usernameOf(selected))}`, { method: 'PUT', body: JSON.stringify(payload) })
         : await apiFetch<Row>('/api/v2/users', { method: 'POST', body: JSON.stringify(payload) })
