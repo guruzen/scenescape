@@ -22,7 +22,7 @@ from .mqtt_commands import notify_camera_change, notify_config_change
 from .database import Event, Heartbeat, Incident, Observation, Resource, sessions
 from .hierarchy import cascade_scene_links, child_metadata_for_parent, child_to_dict, create_child_link, resolve_child_link, transform_dict, update_child_link
 from .intrinsics import calculate_camera_intrinsics
-from .keycloak_admin import TOPIC_TEMPLATES, acl_check, create_user as keycloak_create_user, delete_user as keycloak_delete_user, get_user as keycloak_get_user, list_users as keycloak_list_users, update_user as keycloak_update_user
+from .keycloak_admin import TOPIC_TEMPLATES, acl_check, create_user as keycloak_create_user, delete_user as keycloak_delete_user, get_service_identity, get_user as keycloak_get_user, list_service_identities, list_users as keycloak_list_users, update_user as keycloak_update_user
 from .markers import marker_to_dict, normalize_marker, resolve_marker
 from .media_files import delete_media, save_upload, store_bytes
 from .scene_config import apply_uploaded_map_semantics
@@ -135,13 +135,14 @@ def _legacy_user_value(value: dict) -> dict:
 
 @app.get("/api/v1/users")
 def legacy_users(p=Depends(service_principal)):
-    rows = [_legacy_user_value(row) for row in keycloak_list_users()]
+    rows = [_legacy_user_value(row) for row in [*list_service_identities(), *keycloak_list_users()]]
     return {"count": len(rows), "next": None, "previous": None, "results": rows}
 
 
 @app.get("/api/v1/user/{username}")
 def legacy_user_get(username: str, p=Depends(service_principal)):
-    return _legacy_user_value(keycloak_get_user(username))
+    service = get_service_identity(username)
+    return _legacy_user_value(service if service is not None else keycloak_get_user(username))
 
 
 @app.post("/api/v1/user")
@@ -153,6 +154,8 @@ def legacy_user_create(body: dict, p=Depends(service_principal)):
 @app.post("/api/v1/user/{username}")
 @app.put("/api/v1/user/{username}")
 def legacy_user_update(username: str, body: dict, p=Depends(service_principal)):
+    if get_service_identity(username) is not None:
+        raise HTTPException(400, "Service identities are managed by mounted auth secrets")
     legacy = dict(body)
     # Django serializer treated privilege flags as read-only.
     legacy.pop("is_staff", None)
@@ -163,6 +166,8 @@ def legacy_user_update(username: str, body: dict, p=Depends(service_principal)):
 
 @app.delete("/api/v1/user/{username}")
 def legacy_user_delete(username: str, p=Depends(service_principal)):
+    if get_service_identity(username) is not None:
+        raise HTTPException(400, "Service identities are managed by mounted auth secrets")
     keycloak_delete_user(username)
     return {"username": username}
 
@@ -207,6 +212,13 @@ def native_security_topics(p=Depends(current_principal)):
     if not p.is_admin:
         raise HTTPException(403, "Administrator role required")
     return [{"topic": name, "template": template} for name, template in TOPIC_TEMPLATES.items()]
+
+
+@app.get("/api/v2/security/services")
+def native_security_services(p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    return list_service_identities()
 
 
 LEGACY_V1 = {
