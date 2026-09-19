@@ -133,6 +133,15 @@ export default function CameraInventory({ isAdmin }: { isAdmin: boolean }) {
     setBusy(true); setError(''); setMessage('')
     try {
       const payload = body()
+      if (payload.command && payload.camerachain) {
+        const validated = await apiFetch<Row>('/api/v2/camera-pipeline/preview', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        })
+        if (!draft.use_camera_pipeline) {
+          setPipeline(String(validated.pipeline || ''))
+        }
+      }
       let saved: Row
       if (selected) {
         saved = await apiFetch<Row>(`/api/v2/cameras/${encodeURIComponent(idOf(selected))}?revision=${selected.revision}`, { method:'PUT', body:JSON.stringify(payload) })
@@ -160,10 +169,12 @@ export default function CameraInventory({ isAdmin }: { isAdmin: boolean }) {
   }
 
   const previewPipeline = async () => {
-    if (!selected) return
     setBusy(true); setError('')
     try {
-      const value = await apiFetch<Row>(`/api/v2/cameras/${encodeURIComponent(idOf(selected))}/pipeline-preview`, {method:'POST',body:JSON.stringify(body())})
+      const payload = body()
+      const value = selected
+        ? await apiFetch<Row>(`/api/v2/cameras/${encodeURIComponent(idOf(selected))}/pipeline-preview`, {method:'POST',body:JSON.stringify(payload)})
+        : await apiFetch<Row>('/api/v2/camera-pipeline/preview', {method:'POST',body:JSON.stringify(payload)})
       setPipeline(String(value.pipeline || ''))
       field('camera_pipeline', String(value.pipeline || ''))
       setMessage('Pipeline preview generated from the current camera settings.')
@@ -215,7 +226,7 @@ export default function CameraInventory({ isAdmin }: { isAdmin: boolean }) {
           </div>
           <aside className="camera-preview-panel">
             <div className="camera-feed-frame">{snapshot ? <img src={snapshot} alt={selected?nameOf(selected):'Camera preview'}/> : <div className="camera-feed-placeholder">{selected?'Waiting for live JPEG…':'Save the camera to enable live preview.'}</div>}</div>
-            {selected && <div className="editor-actions"><button className="btn" disabled={busy} onClick={()=>void previewPipeline()}>Generate pipeline preview</button><button className="btn" disabled={busy} onClick={()=>void downloadVideo()}>Download camera video</button></div>}
+            <div className="editor-actions"><button className="btn" disabled={busy || !draft.command || !draft.camerachain} onClick={()=>void previewPipeline()}>Generate pipeline preview</button>{selected && <button className="btn" disabled={busy} onClick={()=>void downloadVideo()}>Download camera video</button>}</div>
           </aside>
         </div>
         <div className="editor-actions camera-save-actions">{selected && <button className="btn danger-button" disabled={busy} onClick={()=>void remove()}>Delete</button>}{isAdmin && <button className="btn btn-primary" disabled={busy} onClick={()=>void save()}>{busy?'Working…':'Save camera'}</button>}</div>
