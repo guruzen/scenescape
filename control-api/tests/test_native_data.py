@@ -54,3 +54,9 @@ def test_recover_legacy_data_exports_then_imports_without_volume_deletion(tmp_pa
     assert any(kwargs.get('native') is True and 'scenescape_api.migrate_legacy' in args for args,kwargs in calls)
     assert all('--volumes' not in args for args,_ in calls)
     state=rt.read_state(); assert state['mode']=='native' and state.get('legacy_recovery_snapshot')
+
+
+def test_legacy_export_uses_real_manager_settings_module():
+    source = (TOOLS / 'export_legacy.py').read_text()
+    assert 'manager.settings' in source
+    assert 'sscape.settings' not in source

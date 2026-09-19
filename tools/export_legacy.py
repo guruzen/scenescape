@@ -9,7 +9,7 @@ import os
 import sys
 from datetime import datetime, timezone
 
-os.environ["DJANGO_SETTINGS_MODULE"] = "sscape.settings"
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "manager.settings")
 os.environ.pop("BROKER", None)
 sys.argv = ["migration-export", "--dbtype", "postgres"]
 
