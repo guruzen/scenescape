@@ -224,8 +224,8 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
         const status = await apiFetch<Row>(`/api/v2/scenes/${encodeURIComponent(idOf(selected))}/mesh/status?request_id=${encodeURIComponent(requestId)}`)
         setMapping(status)
         if (status.state === 'complete') {
-          if (!status.finalized && status.result?.success === false) {
-            throw new Error(String(status.result?.error || 'Mapping reconstruction failed'))
+          if (status.success === false || (!status.finalized && status.result?.success === false)) {
+            throw new Error(String(status.error || status.result?.error || 'Mapping reconstruction failed'))
           }
           load()
           const refreshed = await apiFetch<Row>(`/api/v2/scenes/${encodeURIComponent(idOf(selected))}`)
@@ -254,7 +254,7 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
   return <>
     <div className="page-header"><div><div className="kicker">Configuration · control plane</div><h1>Sites, floors & scenes</h1></div>
       <div className="header-actions">
-        <label className="btn">Import ZIP<input className="hidden-file" type="file" accept=".zip" onChange={(e) => { const file=e.target.files?.[0]; if(file) void importScene(file); e.currentTarget.value='' }}/></label>
+        {isAdmin && <label className="btn">Import ZIP<input className="hidden-file" type="file" accept=".zip" onChange={(e) => { const file=e.target.files?.[0]; if(file) void importScene(file); e.currentTarget.value='' }}/></label>}
         {isAdmin && <button className="btn btn-primary" onClick={() => open(null)}>New scene</button>}
       </div>
     </div>
