@@ -20,7 +20,7 @@ from .camera_service import update_camera_resource
 from .contracts import normalize_resource
 from .mqtt_commands import notify_camera_change, notify_config_change
 from .database import Event, Heartbeat, Incident, Observation, Resource, sessions
-from .hierarchy import cascade_scene_links, child_to_dict, create_child_link, resolve_child_link, transform_dict, update_child_link
+from .hierarchy import cascade_scene_links, child_metadata_for_parent, child_to_dict, create_child_link, resolve_child_link, transform_dict, update_child_link
 from .intrinsics import calculate_camera_intrinsics
 from .markers import marker_to_dict, normalize_marker, resolve_marker
 from .media_files import delete_media, save_upload, store_bytes
@@ -938,6 +938,10 @@ def scene_bundle(scene_id: str, p=Depends(current_principal), db=Depends(db_dep)
             result[plural] = [_sensor_value(to_dict(row), native=True) for row in rows if _scene_matches(row, scene_id)]
         else:
             result[plural] = [to_dict(row) for row in rows if _scene_matches(row, scene_id)]
+    child_meta = child_metadata_for_parent(db, scene_id)
+    result["child_regions"] = child_meta["regions"]
+    result["child_tripwires"] = child_meta["tripwires"]
+    result["child_sensors"] = child_meta["sensors"]
     return result
 
 
