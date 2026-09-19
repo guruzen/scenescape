@@ -14,7 +14,9 @@ from sqlalchemy import func, or_, select
 
 from .auth import Principal, current_principal, issue_token, service_principal, verify_service
 from .asset_service import cleanup_replaced_asset_media, create_asset, delete_asset, update_asset
-from .camera_io import CameraSnapshotError, fetch_camera_snapshot
+from .calibration_service import camera_calibration as proxy_camera_calibration, scene_registration as proxy_scene_registration, service_status as proxy_calibration_status
+from .camera_io import CameraSnapshotError, fetch_camera_calibration, fetch_camera_snapshot, request_camera_frame, request_camera_video, update_camera_runtime
+from .camera_service import update_camera_resource
 from .contracts import normalize_resource
 from .mqtt_commands import notify_camera_change, notify_config_change
 from .database import Event, Heartbeat, Incident, Observation, Resource, sessions
@@ -25,6 +27,7 @@ from .media_files import delete_media, save_upload, store_bytes
 from .scene_config import apply_uploaded_map_semantics
 from .scene_import_native import import_scene_archive
 from .mapping_service import mapping_health, mesh_generation_status, start_mesh_generation
+from .pipeline_generation import pipeline_preview
 from .scene_service import cleanup_scene_media, create_scene, delete_scene, delete_scene_media, update_scene
 from .resources import ALIASES, delete_resource, get_resource, list_resources, to_dict, upsert
 
@@ -291,6 +294,79 @@ def legacy_calculate_intrinsics(body: dict, p=Depends(service_principal)):
     return calculate_camera_intrinsics(body)
 
 
+@app.post("/api/v2/calculateintrinsics")
+def native_calculate_intrinsics(body: dict, p=Depends(current_principal)):
+    return calculate_camera_intrinsics(body)
+
+
+@app.get("/api/v1/frame")
+def legacy_camera_frame(
+    camera: str = Query(...),
+    timestamp: str | None = Query(default=None),
+    type: str | None = Query(default=None),
+    p=Depends(service_principal),
+):
+    try:
+        return request_camera_frame(camera, timestamp=timestamp, frame_type=type)
+    except CameraSnapshotError:
+        raise HTTPException(404)
+
+
+@app.get("/api/v1/video")
+def legacy_camera_video(camera: str = Query(...), p=Depends(service_principal)):
+    try:
+        data = request_camera_video(camera)
+    except CameraSnapshotError:
+        raise HTTPException(404)
+    return Response(
+        content=data,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename={camera}.mp4"},
+    )
+
+
+@app.get("/api/v1/autocalibration/status")
+@app.get("/api/v2/autocalibration/status")
+def autocalibration_status(p=Depends(current_principal)):
+    return proxy_calibration_status()
+
+
+@app.get("/api/v1/autocalibration/scenes/{scene_id}/registration")
+@app.get("/api/v2/autocalibration/scenes/{scene_id}/registration")
+def autocalibration_scene_registration_get(scene_id: str, p=Depends(current_principal)):
+    return proxy_scene_registration(scene_id, "GET")
+
+
+@app.post("/api/v1/autocalibration/scenes/{scene_id}/registration")
+@app.post("/api/v2/autocalibration/scenes/{scene_id}/registration")
+def autocalibration_scene_registration_post(scene_id: str, p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    return proxy_scene_registration(scene_id, "POST")
+
+
+@app.patch("/api/v1/autocalibration/scenes/{scene_id}/registration")
+@app.patch("/api/v2/autocalibration/scenes/{scene_id}/registration")
+def autocalibration_scene_registration_patch(scene_id: str, p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    return proxy_scene_registration(scene_id, "PATCH")
+
+
+@app.get("/api/v1/autocalibration/cameras/{camera_id}/calibration")
+@app.get("/api/v2/autocalibration/cameras/{camera_id}/calibration")
+def autocalibration_camera_get(camera_id: str, p=Depends(current_principal)):
+    return proxy_camera_calibration(camera_id, "GET")
+
+
+@app.post("/api/v1/autocalibration/cameras/{camera_id}/calibration")
+@app.post("/api/v2/autocalibration/cameras/{camera_id}/calibration")
+def autocalibration_camera_post(camera_id: str, body: dict, p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    return proxy_camera_calibration(camera_id, "POST", body)
+
+
 @app.post("/api/v1/import-scene/")
 async def legacy_import_scene(zipFile: UploadFile = File(...), p=Depends(service_principal), db=Depends(db_dep)):
     raw = await zipFile.read(int(os.getenv("MAX_UPLOAD_BYTES", str(512 * 1024 * 1024))) + 1)
@@ -430,8 +506,11 @@ def legacy_update(thing: str, uid: str, body: dict, p=Depends(service_principal)
 
     current = get_resource(db, kind, uid)
     previous = _legacy_clean(current) if kind == "camera" else None
-    body, resolved_uid = normalize_resource(db, kind, body, uid=uid, creating=False, legacy=True)
-    row = upsert(db, kind, resolved_uid or uid, body, p, current.revision)
+    if kind == "camera":
+        row, _ = update_camera_resource(db, uid, body, p, legacy=True, expected_revision=current.revision)
+    else:
+        body, resolved_uid = normalize_resource(db, kind, body, uid=uid, creating=False, legacy=True)
+        row = upsert(db, kind, resolved_uid or uid, body, p, current.revision)
     db.commit()
     value = _legacy_scene(db, row) if kind == "scene" else _legacy_clean(row)
     notify_config_change(kind, row.uid)
@@ -829,6 +908,74 @@ def camera_snapshot(camera_id: str, p=Depends(current_principal), db=Depends(db_
     return Response(content=image, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 
+@app.get("/api/v2/cameras/{camera_id}/calibration-frame")
+def camera_calibration_frame(camera_id: str, p=Depends(current_principal), db=Depends(db_dep)):
+    camera = to_dict(get_resource(db, "camera", camera_id))
+    scene_id = str(camera.get("scene") or camera.get("scene_id") or "")
+    if scene_id:
+        _scene_allowed(p, scene_id)
+    try:
+        return fetch_camera_calibration(camera_id)
+    except CameraSnapshotError as exc:
+        raise HTTPException(504, str(exc)) from exc
+
+
+@app.get("/api/v2/cameras/{camera_id}/frame")
+def native_camera_frame(
+    camera_id: str,
+    timestamp: str | None = Query(default=None),
+    type: str | None = Query(default=None),
+    p=Depends(current_principal),
+    db=Depends(db_dep),
+):
+    camera = to_dict(get_resource(db, "camera", camera_id))
+    scene_id = str(camera.get("scene") or camera.get("scene_id") or "")
+    if scene_id:
+        _scene_allowed(p, scene_id)
+    try:
+        return request_camera_frame(camera_id, timestamp=timestamp, frame_type=type)
+    except CameraSnapshotError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.get("/api/v2/cameras/{camera_id}/video")
+def native_camera_video(camera_id: str, p=Depends(current_principal), db=Depends(db_dep)):
+    camera = to_dict(get_resource(db, "camera", camera_id))
+    scene_id = str(camera.get("scene") or camera.get("scene_id") or "")
+    if scene_id:
+        _scene_allowed(p, scene_id)
+    try:
+        data = request_camera_video(camera_id)
+    except CameraSnapshotError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return Response(
+        content=data,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename={camera_id}.mp4"},
+    )
+
+
+@app.post("/api/v2/cameras/{camera_id}/runtime-update")
+def native_camera_runtime_update(camera_id: str, body: dict, p=Depends(current_principal), db=Depends(db_dep)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    get_resource(db, "camera", camera_id)
+    result = update_camera_runtime(camera_id, body)
+    if not result.get("ok"):
+        raise HTTPException(503, result.get("error") or "Failed to update camera runtime")
+    return result
+
+
+@app.post("/cam/generate_pipeline/{camera_id}")
+@app.post("/api/v2/cameras/{camera_id}/pipeline-preview")
+def native_camera_pipeline_preview(camera_id: str, body: dict, p=Depends(current_principal), db=Depends(db_dep)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    camera = to_dict(get_resource(db, "camera", camera_id))
+    merged = {**camera, **body}
+    return pipeline_preview(merged)
+
+
 @app.get("/api/v2/incidents")
 def incidents(p=Depends(current_principal), db=Depends(db_dep)):
     rows = db.scalars(select(Incident).order_by(Incident.id.desc())).all()
@@ -970,8 +1117,11 @@ def update_any(
 
     current = get_resource(db, kind, uid)
     previous = to_dict(current) if kind == "camera" else None
-    body, resolved_uid = normalize_resource(db, kind, body, uid=uid, creating=False, legacy=False)
-    row = upsert(db, kind, resolved_uid or uid, body, p, revision)
+    if kind == "camera":
+        row, _ = update_camera_resource(db, uid, body, p, legacy=False, expected_revision=revision)
+    else:
+        body, resolved_uid = normalize_resource(db, kind, body, uid=uid, creating=False, legacy=False)
+        row = upsert(db, kind, resolved_uid or uid, body, p, revision)
     db.commit()
     value = to_dict(row)
     notify_config_change(kind, row.uid)
