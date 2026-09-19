@@ -22,6 +22,7 @@ const usernameOf = (row: Row) => String(row.username || '')
 export default function SecurityAdmin({ scenes }: { scenes: Row[] }) {
   const [users, setUsers] = useState<Row[]>([])
   const [topics, setTopics] = useState<Topic[]>([])
+  const [services, setServices] = useState<Row[]>([])
   const [selected, setSelected] = useState<Row | null>(null)
   const [draft, setDraft] = useState<Row>({ ...blankUser })
   const [query, setQuery] = useState('')
@@ -32,6 +33,7 @@ export default function SecurityAdmin({ scenes }: { scenes: Row[] }) {
   const load = () => {
     void apiFetch<Row[]>('/api/v2/users').then(setUsers).catch((e) => setError(String(e)))
     void apiFetch<Topic[]>('/api/v2/security/topics').then(setTopics).catch((e) => setError(String(e)))
+    void apiFetch<Row[]>('/api/v2/security/services').then(setServices).catch((e) => setError(String(e)))
   }
   useEffect(load, [])
 
@@ -138,6 +140,7 @@ export default function SecurityAdmin({ scenes }: { scenes: Row[] }) {
         <span><b>{usernameOf(row)}</b><small>{row.email || row.uid}</small></span>
         <span><small>{Array.isArray(row.roles) ? row.roles.join(', ') : 'authenticated'} · {row.is_active ? 'active' : 'disabled'}</small></span>
       </button>)}{!filtered.length && <div className="table-empty">No Keycloak users found.</div>}</div>
+      <div className="service-identity-list"><h3>Service identities</h3>{services.map((service) => <div key={usernameOf(service)}><span><b>{usernameOf(service)}</b><small>{String(service.service_type || 'service')} · mounted secret</small></span><span>{Array.isArray(service.acls) ? service.acls.length : 0} ACLs</span></div>)}{!services.length && <div className="table-empty">No mounted service identities.</div>}</div>
     </section>
 
     <section className="panel security-user-editor">
