@@ -101,6 +101,20 @@ spec:
             value: {{ default (printf "%s/protocol/openid-connect/certs" (trimSuffix "/" .Values.modernUI.auth.issuerUrl)) .Values.modernUI.auth.jwksUrl | quote }}
           - name: KEYCLOAK_URL
             value: {{ required "modernUI.auth.keycloakUrl is required when embedded keycloak is disabled" .Values.modernUI.auth.keycloakUrl | quote }}
+          {{- if .Values.modernUI.auth.adminSecret }}
+          - name: KEYCLOAK_ADMIN_URL
+            value: {{ .Values.modernUI.auth.keycloakUrl | quote }}
+          - name: KEYCLOAK_ADMIN_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.modernUI.auth.adminSecret | quote }}
+                key: {{ .Values.modernUI.auth.adminUsernameKey | quote }}
+          - name: KEYCLOAK_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.modernUI.auth.adminSecret | quote }}
+                key: {{ .Values.modernUI.auth.adminPasswordKey | quote }}
+          {{- end }}
           {{- end }}
           {{- end }}
           {{- if .Values.mapping.enabled }}
