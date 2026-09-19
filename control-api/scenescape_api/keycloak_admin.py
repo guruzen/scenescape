@@ -36,6 +36,62 @@ TOPIC_TEMPLATES = {
 }
 VALID_ACCESS = {0, 1, 2, 3}
 
+SERVICE_ACL_POLICY = {
+    "browser": [
+        ("DATA_CAMERA", 1), ("CHANNEL", 1), ("IMAGE_CAMERA", 1), ("IMAGE_CALIBRATE", 1),
+        ("CMD_DATABASE", 3), ("CMD_CAMERA", 3), ("DATA_AUTOCALIB_CAM_POSE", 1),
+        ("CMD_KUBECLIENT", 3), ("EVENT", 1), ("SYS_CHILDSCENE_STATUS", 3),
+        ("DATA_REGULATED", 1), ("DATA_EXTERNAL", 1),
+    ],
+    "calibration": [
+        ("IMAGE_CALIBRATE", 1), ("CMD_SCENE_UPDATE", 1), ("DATA_AUTOCALIB_CAM_POSE", 2),
+    ],
+    "controller": [
+        ("CMD_CAMERA", 3), ("IMAGE_CALIBRATE", 1), ("CMD_DATABASE", 3), ("DATA_REGULATED", 2),
+        ("DATA_SCENE", 2), ("DATA_AUTOCALIB_CAM_POSE", 2), ("CMD_KUBECLIENT", 3),
+        ("CMD_SCENE_UPDATE", 3), ("DATA_EXTERNAL", 3), ("DATA_REGION", 2), ("DATA_SENSOR", 1),
+        ("EVENT", 3), ("SYS_CHILDSCENE_STATUS", 3), ("DATA_CAMERA", 1),
+    ],
+}
+
+
+def _service_identities() -> dict[str, dict]:
+    result = {}
+    for item in filter(None, os.getenv("SERVICE_AUTH_FILES", "").replace(",", os.pathsep).split(os.pathsep)):
+        path = os.path.basename(item).lower()
+        policy = "controller" if "controller" in path else "calibration" if "calibration" in path else "browser" if "browser" in path else ""
+        if not policy:
+            continue
+        try:
+            data = json.loads(open(item, encoding="utf-8").read())
+        except Exception:
+            continue
+        username = str(data.get("user") or "").strip()
+        if username:
+            result[username] = {
+                "uid": f"service:{policy}",
+                "username": username,
+                "is_active": True,
+                "is_staff": False,
+                "is_superuser": False,
+                "first_name": "",
+                "last_name": "",
+                "email": "",
+                "service_type": policy,
+                "roles": ["scenescape-service"],
+                "scenes": ["*"],
+                "acls": [{"topic": topic, "access": access} for topic, access in SERVICE_ACL_POLICY[policy]],
+            }
+    return result
+
+
+def list_service_identities() -> list[dict]:
+    return list(_service_identities().values())
+
+
+def get_service_identity(username: str) -> dict | None:
+    return _service_identities().get(username)
+
 
 def _base_url() -> str:
     explicit = os.getenv("KEYCLOAK_ADMIN_URL", "").strip()
@@ -363,16 +419,12 @@ def _clear_acl_cache() -> None:
     _acl_identity_snapshot.cache_clear()
 
 
-def acl_check(username: str, topic: str, access: int) -> tuple[bool, int | None]:
-    ttl = max(1, int(os.getenv("MQTT_ACL_CACHE_SECONDS", "5")))
-    roles, acl_pairs = _acl_identity_snapshot(username, int(time.monotonic() // ttl))
-    if "scenescape-admin" in roles:
-        return True, 3
+def _acl_decision(acl_pairs, topic: str, access: int) -> tuple[bool, int | None]:
     matched = None
     for acl_topic, acl_access in acl_pairs:
-        template = TOPIC_TEMPLATES.get(acl_topic)
+        template = TOPIC_TEMPLATES.get(str(acl_topic))
         if template and match_topic(template, topic):
-            matched = {"topic": acl_topic, "access": acl_access}
+            matched = {"topic": acl_topic, "access": int(acl_access)}
     if not matched:
         return False, None
     granted = int(matched["access"])
@@ -386,3 +438,25 @@ def acl_check(username: str, topic: str, access: int) -> tuple[bool, int | None]
     if granted == 1 and requested == 4:
         return True, 4
     return False, None
+
+
+def service_acl_check(username: str, topic: str, access: int) -> tuple[bool, int | None] | None:
+    identity = get_service_identity(username)
+    if identity is None:
+        return None
+    return _acl_decision(
+        [(item["topic"], item["access"]) for item in identity["acls"]],
+        topic,
+        access,
+    )
+
+
+def acl_check(username: str, topic: str, access: int) -> tuple[bool, int | None]:
+    service_result = service_acl_check(username, topic, access)
+    if service_result is not None:
+        return service_result
+    ttl = max(1, int(os.getenv("MQTT_ACL_CACHE_SECONDS", "5")))
+    roles, acl_pairs = _acl_identity_snapshot(username, int(time.monotonic() // ttl))
+    if "scenescape-admin" in roles:
+        return True, 3
+    return _acl_decision(acl_pairs, topic, access)
