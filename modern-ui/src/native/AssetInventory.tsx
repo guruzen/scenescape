@@ -113,7 +113,7 @@ export default function AssetInventory({isAdmin}:{isAdmin:boolean}){
             </div></div>
             <div className="scene-subsection"><h3>3D model</h3><div className="asset-upload-row"><label className="file-field">GLB model<input type="file" accept=".glb,model/gltf-binary" onChange={(e)=>setModelFile(e.target.files?.[0]||null)}/></label>{draft.model_3d&&<button className="btn" onClick={clearModel}>Remove model</button>}<code>{modelFile?.name||draft.model_3d||'Default box geometry'}</code></div></div>
           </div>
-          <aside className="asset-preview-panel"><div className="asset-preview-label">Live preview</div><ThreeScene objects={[]} scale={1} mediaOverrideUrl={modelUrl||undefined} previewAsset={{...draft,model_3d:modelUrl?'preview.glb':draft.model_3d}}/></aside>
+          <aside className="asset-preview-panel"><div className="asset-preview-label">Live preview</div><ThreeScene objects={[]} scale={1} mediaOverrideUrl={modelUrl||undefined} previewAsset={draft}/></aside>
         </div>
         <div className="editor-actions camera-save-actions">{selected&&<button className="btn danger-button" disabled={busy} onClick={()=>void remove()}>Delete</button>}{isAdmin&&<button className="btn btn-primary" disabled={busy} onClick={()=>void save()}>{busy?'Working…':'Save object class'}</button>}</div>
       </section>
