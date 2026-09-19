@@ -98,7 +98,7 @@ export default function HierarchyEditor({scenes,isAdmin,initialParent=''}:{scene
       {message&&<div className="notice-box hierarchy-message">{message}</div>}{error&&<div className="error-box hierarchy-message">{error}</div>}
       <div className="scene-form-grid">
         <label>Type<select value={String(draft.child_type||'local')} onChange={(e)=>field('child_type',e.target.value)}><option value="local">Local</option><option value="remote">Remote</option></select></label>
-        <label>Parent scene<select value={String(draft.parent||'')} onChange={(e)=>field('parent',e.target.value)}><option value="">Select parent</option>{scenes.map((scene)=><option key={idOf(scene)} value={idOf(scene)}>{nameOf(scene)}</option>)}</select></label>
+        <label>Parent scene<select value={String(draft.parent||'')} disabled={Boolean(initialParent)} onChange={(e)=>field('parent',e.target.value)}><option value="">Select parent</option>{scenes.map((scene)=><option key={idOf(scene)} value={idOf(scene)}>{nameOf(scene)}</option>)}</select></label>
         {draft.child_type==='local'?<label className="wide">Child scene<select value={String(draft.child||'')} onChange={(e)=>field('child',e.target.value)}><option value="">Select child</option>{localOptions.map((scene)=><option key={idOf(scene)} value={idOf(scene)}>{nameOf(scene)}</option>)}</select></label>:<>
           <label>Remote child name<input value={String(draft.child_name||'')} onChange={(e)=>field('child_name',e.target.value)}/></label>
           <label>Remote child UUID<input value={String(draft.remote_child_id||'')} onChange={(e)=>field('remote_child_id',e.target.value)}/></label>
