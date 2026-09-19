@@ -65,7 +65,7 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-      {{ if .Values.native.seedSample }}
+      {{ if and .Values.native.seedSample (not .Values.native.migrateLegacy) }}
         - name: seed-native-sample
           image: "{{ .Values.native.image.repository }}:{{ default .Chart.AppVersion .Values.native.image.tag }}"
           imagePullPolicy: {{ .Values.native.image.pullPolicy }}
