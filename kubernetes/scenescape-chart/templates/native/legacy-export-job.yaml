@@ -1,0 +1,125 @@
+{{- if and .Values.native.enabled .Values.native.migrateLegacy }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-native-export-legacy
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-native-migration
+    spec:
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: export-legacy
+          image: {{ .Values.repository }}/{{ .Values.web.image }}:{{ .Chart.AppVersion }}
+          imagePullPolicy: {{ .Values.web.pullPolicy }}
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              set -eu
+              cat >/tmp/export_legacy.py <<'PY'
+              import contextlib
+              import importlib.util
+              import json
+              import os
+              import sys
+              from datetime import datetime, timezone
+              from pathlib import Path
+
+              project_root = Path(os.environ.get("SCENESCAPE_HOME", "/home/scenescape/Scenescape"))
+              if not (project_root / "manager" / "settings.py").is_file():
+                  raise RuntimeError(f"Legacy manager sources are missing under {project_root}")
+              sys.path.insert(0, str(project_root))
+              os.chdir(project_root)
+
+              import manager
+
+              secret_path = Path("/run/secrets/django/secrets.py")
+              if importlib.util.find_spec("manager.secrets") is None:
+                  spec = importlib.util.spec_from_file_location("manager.secrets", secret_path)
+                  if spec is None or spec.loader is None:
+                      raise RuntimeError("Cannot load legacy Django secrets")
+                  module = importlib.util.module_from_spec(spec)
+                  sys.modules["manager.secrets"] = module
+                  setattr(manager, "secrets", module)
+                  spec.loader.exec_module(module)
+
+              os.environ.setdefault("DJANGO_SETTINGS_MODULE", "manager.settings")
+              os.environ.pop("BROKER", None)
+              sys.argv = ["migration-export", "--dbtype", "postgres"]
+
+              with contextlib.redirect_stdout(sys.stderr):
+                  import django
+                  django.setup()
+                  from django.db import transaction
+                  from manager import models, serializers
+                  resources = {
+                      "scenes": (models.Scene, serializers.SceneSerializer),
+                      "cameras": (models.Cam, serializers.CamSerializer),
+                      "sensors": (models.SingletonSensor, serializers.SingletonSerializer),
+                      "regions": (models.Region, serializers.RegionSerializer),
+                      "tripwires": (models.Tripwire, serializers.TripwireSerializer),
+                      "assets": (models.Asset3D, serializers.Asset3DSerializer),
+                      "children": (models.ChildScene, serializers.ChildSceneSerializer),
+                      "calibrationmarkers": (models.CalibrationMarker, serializers.CalibrationMarkerSerializer),
+                  }
+                  with transaction.atomic():
+                      payload = {name: list(serializer(model.objects.all(), many=True).data)
+                                 for name, (model, serializer) in resources.items()}
+                      payload["_migration"] = {
+                          "format": "scenescape-2026.2-export/1",
+                          "exported_at": datetime.now(timezone.utc).isoformat(),
+                          "counts": {name: len(payload[name]) for name in resources},
+                      }
+              print(json.dumps(payload, default=str, allow_nan=False))
+              PY
+              tmp=/workspace/migrations/native-snapshot.json.tmp
+              out=/workspace/migrations/native-snapshot.json
+              rm -f "$tmp"
+              python3 /tmp/export_legacy.py > "$tmp"
+              python3 - "$tmp" <<'PY'
+              import json,sys
+              payload=json.load(open(sys.argv[1],encoding="utf-8"))
+              assert isinstance(payload.get("scenes"),list)
+              assert payload.get("_migration",{}).get("format")=="scenescape-2026.2-export/1"
+              PY
+              mv "$tmp" "$out"
+              rm -f /workspace/migrations/native-import-complete
+              echo "Legacy configuration snapshot prepared at $out"
+          env:
+            - name: DBHOST
+              value: pgserver.{{ .Release.Namespace }}.svc.cluster.local
+            - name: DBPORT
+              value: "5432"
+            - name: SUPASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-supass
+                  key: supass
+          volumeMounts:
+            - mountPath: /run/secrets/django/secrets.py
+              subPath: secrets.py
+              name: secrets-py
+              readOnly: true
+            - mountPath: /workspace/migrations
+              name: migrations-storage
+          securityContext:
+            allowPrivilegeEscalation: false
+      volumes:
+        - name: secrets-py
+          secret:
+            secretName: {{ .Release.Name }}-secrets-py
+        - name: migrations-storage
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-migrations-pvc
+{{- end }}
