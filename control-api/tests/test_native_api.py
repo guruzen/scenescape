@@ -213,3 +213,33 @@ def test_media_falls_back_to_packaged_sample_root(tmp_path, monkeypatch):
     r=client.get('/media/HazardZoneSceneLarge.png',headers=h)
     assert r.status_code==200
     assert r.content==b'png-fixture'
+
+
+def test_resource_mutations_emit_config_invalidation(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    import scenescape_api.app as app_module
+    calls=[]
+    monkeypatch.setattr(app_module,'notify_config_change',lambda kind,uid=None: calls.append((kind,uid)) or {'ok':True})
+    created=client.post('/api/v2/scenes',headers=h,json={'uid':'notify-scene','name':'Notify'})
+    assert created.status_code==200
+    updated=client.put('/api/v2/scenes/notify-scene',headers=h,json={'name':'Notify 2'})
+    assert updated.status_code==200
+    deleted=client.delete('/api/v2/scenes/notify-scene',headers=h)
+    assert deleted.status_code==200
+    assert calls==[('scene','notify-scene'),('scene','notify-scene'),('scene','notify-scene')]
+
+
+def test_v1_mutations_emit_config_invalidation(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch)
+    service=client.post('/api/v1/auth',data={'username':'svc','password':'pw'})
+    h={'Authorization':'Token '+service.json()['token']}
+    import scenescape_api.app as app_module
+    calls=[]
+    monkeypatch.setattr(app_module,'notify_config_change',lambda kind,uid=None: calls.append((kind,uid)) or {'ok':True})
+    created=client.post('/api/v1/camera',headers=h,json={'uid':'notify-cam','name':'Notify camera'})
+    assert created.status_code==201
+    updated=client.post('/api/v1/camera/notify-cam',headers=h,json={'name':'Notify camera 2'})
+    assert updated.status_code==200
+    deleted=client.delete('/api/v1/camera/notify-cam',headers=h)
+    assert deleted.status_code==200
+    assert calls==[('camera','notify-cam'),('camera','notify-cam'),('camera','notify-cam')]

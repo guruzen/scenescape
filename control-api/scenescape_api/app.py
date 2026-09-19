@@ -10,6 +10,7 @@ from sqlalchemy import func, or_, select
 
 from .auth import Principal, current_principal, issue_token, service_principal, verify_service
 from .camera_io import CameraSnapshotError, fetch_camera_snapshot
+from .mqtt_commands import notify_config_change
 from .database import Event, Heartbeat, Incident, Observation, Resource, sessions
 from .resources import ALIASES, delete_resource, get_resource, list_resources, to_dict, upsert
 
@@ -186,6 +187,7 @@ def legacy_update(thing: str, uid: str, body: dict, p=Depends(service_principal)
     current = get_resource(db, kind, uid)
     row = upsert(db, kind, uid, body, p, current.revision)
     db.commit()
+    notify_config_change(kind, row.uid)
     return _legacy_scene(db, row) if kind == "scene" else _legacy_clean(row)
 
 
@@ -196,6 +198,7 @@ def legacy_create(thing: str, body: dict, p=Depends(service_principal), db=Depen
         raise HTTPException(404)
     row = upsert(db, kind, None, body, p)
     db.commit()
+    notify_config_change(kind, row.uid)
     value = _legacy_scene(db, row) if kind == "scene" else _legacy_clean(row)
     return Response(content=json.dumps(value), media_type="application/json", status_code=201)
 
@@ -207,6 +210,7 @@ def legacy_delete(thing: str, uid: str, p=Depends(service_principal), db=Depends
         raise HTTPException(404)
     result = delete_resource(db, kind, uid)
     db.commit()
+    notify_config_change(kind, uid)
     return result
 
 
@@ -391,8 +395,10 @@ def get_any(plural: str, uid: str, p=Depends(current_principal), db=Depends(db_d
 def create_any(plural: str, body: dict, p=Depends(current_principal), db=Depends(db_dep)):
     if not p.is_admin:
         raise HTTPException(403, "Administrator role required")
-    row = upsert(db, _kind(plural), None, body, p)
+    kind = _kind(plural)
+    row = upsert(db, kind, None, body, p)
     db.commit()
+    notify_config_change(kind, row.uid)
     return to_dict(row)
 
 
@@ -407,8 +413,10 @@ def update_any(
 ):
     if not p.is_admin:
         raise HTTPException(403, "Administrator role required")
-    row = upsert(db, _kind(plural), uid, body, p, revision)
+    kind = _kind(plural)
+    row = upsert(db, kind, uid, body, p, revision)
     db.commit()
+    notify_config_change(kind, row.uid)
     return to_dict(row)
 
 
@@ -416,8 +424,10 @@ def update_any(
 def delete_any(plural: str, uid: str, p=Depends(current_principal), db=Depends(db_dep)):
     if not p.is_admin:
         raise HTTPException(403, "Administrator role required")
-    result = delete_resource(db, _kind(plural), uid)
+    kind = _kind(plural)
+    result = delete_resource(db, kind, uid)
     db.commit()
+    notify_config_change(kind, uid)
     return result
 
 
