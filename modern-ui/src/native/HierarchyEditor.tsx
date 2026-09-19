@@ -27,7 +27,10 @@ export default function HierarchyEditor({scenes,isAdmin,initialParent=''}:{scene
     if(row){
       const t=transformOf(row)
       const matrix=Array.from({length:16},(_,index)=>Number(row[`transform${index+1}`]??identity[index]))
-      setDraft({...defaultDraft,...row,matrix,transform:{translation:vector(t.translation,3,[0,0,0]),rotation:vector(t.rotation,3,[0,0,0]),scale:vector(t.scale,3,[1,1,1])}})
+      const quaternion=row.transform_type==='quaternion'
+        ? [4,5,6,7].map((index)=>Number(row[`transform${index}`]??(index===7?1:0)))
+        : [0,0,0,1]
+      setDraft({...defaultDraft,...row,matrix,quaternion,transform:{translation:vector(t.translation,3,[0,0,0]),rotation:vector(t.rotation,3,[0,0,0]),scale:vector(t.scale,3,[1,1,1])}})
     }else setDraft({...defaultDraft,parent,matrix:[...identity]})
     setMessage('');setError('')
   }
@@ -57,7 +60,7 @@ export default function HierarchyEditor({scenes,isAdmin,initialParent=''}:{scene
     }else{
       body.transform={
         translation:vector(draft.transform?.translation,3,[0,0,0]),
-        rotation:vector(draft.transform?.rotation,3,[0,0,0]),
+        rotation:body.transform_type==='quaternion'?vector(draft.quaternion,4,[0,0,0,1]):vector(draft.transform?.rotation,3,[0,0,0]),
         scale:vector(draft.transform?.scale,3,[1,1,1]),
       }
     }
@@ -107,7 +110,11 @@ export default function HierarchyEditor({scenes,isAdmin,initialParent=''}:{scene
         <label>Transform<select value={String(draft.transform_type||'euler')} onChange={(e)=>field('transform_type',e.target.value)}><option value="euler">Euler</option><option value="quaternion">Quaternion</option><option value="matrix">Matrix</option></select></label>
       </div>
       {draft.transform_type==='matrix'?<div className="scene-subsection"><h3>4×4 transform matrix</h3><div className="matrix-grid">{(Array.isArray(draft.matrix)&&draft.matrix.length===16?draft.matrix:identity).map((value:number,index:number)=><input key={index} type="number" step="any" value={Number(value)} onChange={(e)=>{const next=Array.isArray(draft.matrix)&&draft.matrix.length===16?[...draft.matrix]:[...identity];next[index]=Number(e.target.value);field('matrix',next)}}/>)}</div></div>:<div className="scene-subsection"><h3>Child → parent transform</h3><div className="transform-vector-grid">
-        {(['translation','rotation','scale'] as const).map((key)=><div key={key}><b>{key}</b>{vector(draft.transform?.[key],3,key==='scale'?[1,1,1]:[0,0,0]).map((value,index)=><label key={index}>{key==='rotation'?['X°','Y°','Z°'][index]:['X','Y','Z'][index]}<input type="number" step="any" value={value} onChange={(e)=>tfield(key,index,Number(e.target.value))}/></label>)}</div>)}
+        <div><b>translation</b>{vector(draft.transform?.translation,3,[0,0,0]).map((value,index)=><label key={index}>{['X','Y','Z'][index]}<input type="number" step="any" value={value} onChange={(e)=>tfield('translation',index,Number(e.target.value))}/></label>)}</div>
+        {draft.transform_type==='quaternion'
+          ? <div className="quaternion-row"><b>quaternion</b>{vector(draft.quaternion,4,[0,0,0,1]).map((value,index)=><label key={index}>{['X','Y','Z','W'][index]}<input type="number" step="any" value={value} onChange={(e)=>{const next=vector(draft.quaternion,4,[0,0,0,1]);next[index]=Number(e.target.value);field('quaternion',next)}}/></label>)}</div>
+          : <div><b>rotation</b>{vector(draft.transform?.rotation,3,[0,0,0]).map((value,index)=><label key={index}>{['X°','Y°','Z°'][index]}<input type="number" step="any" value={value} onChange={(e)=>tfield('rotation',index,Number(e.target.value))}/></label>)}</div>}
+        <div><b>scale</b>{vector(draft.transform?.scale,3,[1,1,1]).map((value,index)=><label key={index}>{['X','Y','Z'][index]}<input type="number" step="any" value={value} onChange={(e)=>tfield('scale',index,Number(e.target.value))}/></label>)}</div>
       </div></div>}
       {draft.child_type==='remote'&&<div className="hierarchy-runtime"><div><span>Cached child ROIs</span><b>{Array.isArray(draft.cached_rois)?draft.cached_rois.length:0}</b></div><div><span>Cached child tripwires</span><b>{Array.isArray(draft.cached_tripwires)?draft.cached_tripwires.length:0}</b></div><p>Remote geometry catalog updates are persisted without forcing a controller configuration reload. Source timestamps remain on the child stream; <b>Retrack</b> controls whether parent tracking assigns new parent tracks.</p></div>}
       <div className="editor-actions camera-save-actions">{selected&&<button className="btn danger-button" disabled={busy} onClick={()=>void remove()}>Delete link</button>}{isAdmin&&<button className="btn btn-primary" disabled={busy} onClick={()=>void save()}>{busy?'Working…':'Save hierarchy link'}</button>}</div>
