@@ -5,7 +5,7 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 command -v python3 >/dev/null 2>&1 || { echo 'python3 is required.' >&2; exit 1; }
 case "${1:-}" in
-  recover-legacy-data|seed-native-data)
+  recover-legacy-data|seed-native-data|repair-native-media)
     exec python3 "${ROOT_DIR}/tools/native_data.py" "$1"
     ;;
   *)

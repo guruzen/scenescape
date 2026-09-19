@@ -64,3 +64,19 @@ def test_legacy_export_bootstraps_manager_package_and_secrets():
     assert '/run/secrets/django/secrets.py' in source
     assert 'sys.path.insert(0, str(project_root))' in source
     assert 'spec_from_file_location("manager.secrets"' in source
+
+
+def test_repair_media_copies_only_missing_packaged_media(tmp_path, monkeypatch):
+    root=prepare(tmp_path, monkeypatch)
+    (root/'sample_data').mkdir()
+    run=Mock(return_value=SimpleNamespace(returncode=0, stdout=b''))
+    monkeypatch.setattr(rt,'run',run)
+    native_data.repair_media({'COMPOSE_PROJECT_NAME':'demo'})
+    args=run.call_args.args[0]
+    assert args[:3]==['docker','run','--rm']
+    assert f"{root/'sample_data'}:/source:ro" in args
+    assert 'demo_vol-media:/dest' in args
+    script=args[-1]
+    assert 'cp "$f" "/dest/$name"' in script
+    assert '[ ! -e "/dest/$name" ]' in script
+    assert 'rm -' not in script

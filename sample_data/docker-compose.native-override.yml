@@ -26,6 +26,7 @@ services:
       DBUSER: scenescape
       DBPASSWORD: ${DATABASE_PASSWORD:?Database password is required}
       MEDIA_ROOT: /data/media
+      MEDIA_FALLBACK_ROOT: /data/samples
       OIDC_ISSUER: ${SCENESCAPE_PUBLIC_URL:-http://localhost:8088}/auth/realms/scenescape
       OIDC_JWKS_URL: http://keycloak:8080/auth/realms/scenescape/protocol/openid-connect/certs
       OIDC_AUDIENCE: scenescape-api

@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 def boot(tmp_path, monkeypatch):
     monkeypatch.setenv('DATABASE_URL', f'sqlite:///{tmp_path}/api.db')
     monkeypatch.setenv('MEDIA_ROOT', str(tmp_path/'media')); (tmp_path/'media').mkdir()
+    monkeypatch.setenv('MEDIA_FALLBACK_ROOT', str(tmp_path/'samples')); (tmp_path/'samples').mkdir()
     monkeypatch.setenv('API_SIGNING_KEY', 'test-signing-key-abcdefghijklmnopqrstuvwxyz')
     auth=tmp_path/'service.json'; auth.write_text(json.dumps({'user':'svc','password':'pw'})); monkeypatch.setenv('SERVICE_AUTH_FILES', str(auth))
     import scenescape_api.database as d
@@ -204,3 +205,11 @@ def test_v1_health_not_shadowed_by_compat_routes(tmp_path, monkeypatch):
     client,d=boot(tmp_path,monkeypatch)
     r=client.get('/api/v1/health')
     assert r.status_code==200 and r.json()['status']=='ok'
+
+
+def test_media_falls_back_to_packaged_sample_root(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    (tmp_path/'samples'/'HazardZoneSceneLarge.png').write_bytes(b'png-fixture')
+    r=client.get('/media/HazardZoneSceneLarge.png',headers=h)
+    assert r.status_code==200
+    assert r.content==b'png-fixture'

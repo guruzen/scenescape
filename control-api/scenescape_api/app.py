@@ -421,13 +421,25 @@ def delete_any(plural: str, uid: str, p=Depends(current_principal), db=Depends(d
     return result
 
 
+def _media_target(path: str):
+    relative = Path(path)
+    roots = [Path(os.getenv("MEDIA_ROOT", "./media")).resolve()]
+    fallback = os.getenv("MEDIA_FALLBACK_ROOT")
+    if fallback:
+        roots.append(Path(fallback).resolve())
+    for root in roots:
+        target = (root / relative).resolve()
+        if root not in target.parents and target != root:
+            continue
+        if target.is_file():
+            return target
+    return None
+
+
 @app.get("/media/{path:path}")
 def media(path: str, p=Depends(current_principal), db=Depends(db_dep)):
-    root = Path(os.getenv("MEDIA_ROOT", "./media")).resolve()
-    target = (root / path).resolve()
-    if root not in target.parents and target != root:
-        raise HTTPException(404)
-    if not target.is_file():
+    target = _media_target(path)
+    if target is None:
         raise HTTPException(404)
     if not (p.is_admin or "*" in p.scene_scopes):
         request_path = "/media/" + path.lstrip("/")
