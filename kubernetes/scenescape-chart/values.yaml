@@ -74,6 +74,29 @@ web:
   image: intel/scenescape-manager
   pullPolicy: IfNotPresent
 
+# Native control-plane replacement for the Django manager. Disabled by default
+# so a 2026.2 installation only cuts over when explicitly requested. Enabling
+# this preserves the existing web Service, PostgreSQL data and media PVC names,
+# which makes Helm rollback safe.
+native:
+  enabled: false
+  migrateLegacy: false
+  image:
+    repository: intel/scenescape-control-api
+    tag: ""
+    pullPolicy: IfNotPresent
+  signingKey: ""
+  existingSecret: ""
+  signingKeyKey: signing-key
+  historySampleSeconds: 1
+  historyRetentionDays: 7
+  eventRetentionDays: 90
+  worker:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  resources: {}
+
 # Modern browser UI. Disabled by default so the base 2026.2.0 deployment
 # remains unchanged until a modern-ui image is available to the cluster.
 modernUI:
