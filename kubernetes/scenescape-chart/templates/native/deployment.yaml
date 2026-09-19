@@ -218,7 +218,7 @@ spec:
             {{ end }}
             {{ if .Values.keycloak.enabled }}
             - name: OIDC_ISSUER
-              value: "https://{{ .Values.certdomain }}/auth/realms/{{ .Values.modernUI.auth.realm }}"
+              value: "{{ default (printf "https://%s/auth" .Values.certdomain) .Values.modernUI.auth.publicKeycloakUrl }}/realms/{{ .Values.modernUI.auth.realm }}"
             - name: OIDC_JWKS_URL
               value: "http://keycloak.{{ .Release.Namespace }}.svc.cluster.local:8080/auth/realms/{{ .Values.modernUI.auth.realm }}/protocol/openid-connect/certs"
             - name: KEYCLOAK_ADMIN_URL
