@@ -42,6 +42,7 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
   const [meshScale, setMeshScale] = useState('[1,1,1]')
   const [mapFile, setMapFile] = useState<File | null>(null)
   const [polycamFile, setPolycamFile] = useState<File | null>(null)
+  const [mappingVideo, setMappingVideo] = useState<File | null>(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [mapping, setMapping] = useState<Row | null>(null)
@@ -62,6 +63,7 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
     setMeshScale(jsonText(value.mesh_scale, [1,1,1]))
     setMapFile(null)
     setPolycamFile(null)
+    setMappingVideo(null)
     setMessage('')
     setError('')
     setMapping(null)
@@ -214,6 +216,7 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
     try {
       const form = new FormData()
       form.append('mesh_type', 'mesh')
+      if (mappingVideo) form.append('map', mappingVideo)
       const start = await apiFetch<Row>(`/api/v2/scenes/${encodeURIComponent(idOf(selected))}/mesh`, { method: 'POST', body: form })
       const requestId = String(start.request_id)
       for (let attempt = 0; attempt < 150; attempt += 1) {
@@ -224,10 +227,15 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
           if (!status.finalized && status.result?.success === false) {
             throw new Error(String(status.result?.error || 'Mapping reconstruction failed'))
           }
-          setMessage('Generated mesh finalized and scene/camera geometry refreshed.')
           load()
           const refreshed = await apiFetch<Row>(`/api/v2/scenes/${encodeURIComponent(idOf(selected))}`)
-          open(refreshed)
+          setSelected(refreshed)
+          setDraft(refreshed)
+          setTranslation(jsonText(refreshed.mesh_translation, [0,0,0]))
+          setRotation(jsonText(refreshed.mesh_rotation, [0,0,0]))
+          setMeshScale(jsonText(refreshed.mesh_scale, [1,1,1]))
+          setMappingVideo(null)
+          setMessage('Generated mesh finalized and scene/camera geometry refreshed.')
           return
         }
         if (status.state === 'failed' || status.success === false) {
@@ -267,7 +275,7 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
             <label>Map type<select value={String(draft.map_type || 'map_upload')} onChange={(e)=>field('map_type',e.target.value)}><option value="map_upload">Upload map</option><option value="geospatial_map">Geospatial map</option></select></label>
             <label>Scale (pixels/m)<input type="number" step="any" value={draft.scale ?? ''} onChange={(e)=>field('scale',numberOrNull(e.target.value))}/></label>
             <label className="checkbox-label"><input type="checkbox" checked={Boolean(draft.use_tracker)} onChange={(e)=>field('use_tracker',e.target.checked)}/>Use tracker</label>
-            <label>Scene map<input type="file" accept=".png,.jpg,.jpeg,.webp,.glb,.ply,.zip" onChange={(e)=>setMapFile(e.target.files?.[0] || null)}/></label>
+            <label>Scene map<input type="file" accept=".png,.jpg,.jpeg,.glb,.ply,.zip" onChange={(e)=>setMapFile(e.target.files?.[0] || null)}/></label>
             <label>Polycam data<input type="file" accept=".zip" onChange={(e)=>setPolycamFile(e.target.files?.[0] || null)}/></label>
           </div>
           {draft.map_type === 'geospatial_map' && <div className="scene-subsection"><h3>Geospatial configuration</h3><div className="scene-form-grid">
@@ -289,6 +297,8 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
           <div className="editor-actions scene-editor-actions">
             {selected && <button className="btn" onClick={() => void exportScene()}>Export ZIP</button>}
             {selected && <button className="btn" onClick={() => void checkMapping()}>Mapping status</button>}
+            {selected && <label className="btn">Optional mapping video<input className="hidden-file" type="file" accept=".mp4,.mov,.mkv,.webm,.avi" onChange={(e)=>setMappingVideo(e.target.files?.[0] || null)}/></label>}
+            {selected && mappingVideo && <span className="muted">{mappingVideo.name}</span>}
             {selected && <button className="btn" disabled={busy} onClick={() => void generateMesh()}>Generate mesh</button>}
             {selected && selected.map && <button className="btn" disabled={busy} onClick={() => void clearMap()}>Remove map</button>}
             {selected && <button className="btn danger-button" disabled={busy} onClick={() => void remove()}>Delete</button>}
