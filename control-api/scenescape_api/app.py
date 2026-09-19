@@ -22,6 +22,7 @@ from .mqtt_commands import notify_camera_change, notify_config_change
 from .database import Event, Heartbeat, Incident, Observation, Resource, sessions
 from .hierarchy import cascade_scene_links, child_metadata_for_parent, child_to_dict, create_child_link, resolve_child_link, transform_dict, update_child_link
 from .intrinsics import calculate_camera_intrinsics
+from .keycloak_admin import TOPIC_TEMPLATES, acl_check, create_user as keycloak_create_user, delete_user as keycloak_delete_user, get_user as keycloak_get_user, list_users as keycloak_list_users, update_user as keycloak_update_user
 from .markers import marker_to_dict, normalize_marker, resolve_marker
 from .media_files import delete_media, save_upload, store_bytes
 from .scene_config import apply_uploaded_map_semantics
@@ -87,6 +88,107 @@ def service_auth(username: str = Form(...), password: str = Form(...)):
     if not verify_service(username, password):
         raise HTTPException(401, "Invalid service credentials")
     return {"token": issue_token(username)}
+
+
+@app.post("/api/v1/aclcheck")
+async def legacy_aclcheck(request: Request):
+    try:
+        form = await request.form()
+        payload = dict(form)
+    except Exception:
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = {}
+    username = str(payload.get("username") or "")
+    topic = str(payload.get("topic") or "")
+    if not username or not topic:
+        raise HTTPException(400, "Missing required parameters.")
+    try:
+        access = int(payload.get("acc"))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Missing or invalid acc parameter.")
+    try:
+        allowed, granted = acl_check(username, topic, access)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return Response(content=json.dumps({"result": "deny"}), media_type="application/json", status_code=403)
+        raise
+    if not allowed:
+        return Response(content=json.dumps({"result": "deny"}), media_type="application/json", status_code=403)
+    return {"result": "allow", "acc": granted}
+
+
+@app.get("/api/v1/users")
+def legacy_users(p=Depends(service_principal)):
+    rows = keycloak_list_users()
+    return {"count": len(rows), "next": None, "previous": None, "results": rows}
+
+
+@app.get("/api/v1/user/{username}")
+def legacy_user_get(username: str, p=Depends(service_principal)):
+    return keycloak_get_user(username)
+
+
+@app.post("/api/v1/user")
+def legacy_user_create(body: dict, p=Depends(service_principal)):
+    value = keycloak_create_user(body)
+    return Response(content=json.dumps(value), media_type="application/json", status_code=201)
+
+
+@app.post("/api/v1/user/{username}")
+@app.put("/api/v1/user/{username}")
+def legacy_user_update(username: str, body: dict, p=Depends(service_principal)):
+    legacy = dict(body)
+    # Django serializer treated privilege flags as read-only.
+    legacy.pop("is_staff", None)
+    legacy.pop("is_superuser", None)
+    legacy.pop("roles", None)
+    return keycloak_update_user(username, legacy)
+
+
+@app.delete("/api/v1/user/{username}")
+def legacy_user_delete(username: str, p=Depends(service_principal)):
+    keycloak_delete_user(username)
+    return {"username": username}
+
+
+@app.get("/api/v2/users")
+def native_users(p=Depends(current_principal)):
+    return keycloak_list_users()
+
+
+@app.get("/api/v2/users/{username}")
+def native_user_get(username: str, p=Depends(current_principal)):
+    return keycloak_get_user(username)
+
+
+@app.post("/api/v2/users")
+def native_user_create(body: dict, p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    return keycloak_create_user(body)
+
+
+@app.put("/api/v2/users/{username}")
+def native_user_update(username: str, body: dict, p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    return keycloak_update_user(username, body)
+
+
+@app.delete("/api/v2/users/{username}")
+def native_user_delete(username: str, p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    return keycloak_delete_user(username)
+
+
+@app.get("/api/v2/security/topics")
+def native_security_topics(p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    return [{"topic": name, "template": template} for name, template in TOPIC_TEMPLATES.items()]
 
 
 LEGACY_V1 = {
