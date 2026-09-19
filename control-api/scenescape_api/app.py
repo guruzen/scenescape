@@ -970,6 +970,13 @@ def native_camera_runtime_update(camera_id: str, body: dict, p=Depends(current_p
     return result
 
 
+@app.post("/api/v2/camera-pipeline/preview")
+def native_camera_pipeline_preview_unsaved(body: dict, p=Depends(current_principal)):
+    if not p.is_admin:
+        raise HTTPException(403, "Administrator role required")
+    return pipeline_preview(body)
+
+
 @app.post("/cam/generate_pipeline/{camera_id}")
 @app.post("/api/v2/cameras/{camera_id}/pipeline-preview")
 def native_camera_pipeline_preview(camera_id: str, body: dict, p=Depends(current_principal), db=Depends(db_dep)):
