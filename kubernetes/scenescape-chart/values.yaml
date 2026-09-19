@@ -146,6 +146,10 @@ keycloak:
   bootstrapAdminUsername: admin
   # Empty causes the chart to generate and retain a random bootstrap password.
   bootstrapAdminPassword: ""
+  persistence:
+    enabled: true
+    storageClassName: ""
+    size: 1Gi
   resources: {}
 
 scene:
