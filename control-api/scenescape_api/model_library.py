@@ -19,6 +19,7 @@ from fastapi import HTTPException
 
 _FORBIDDEN = re.compile(r'[\\:*?"<>|\x00-\x1f]')
 _CHUNK = 1024 * 1024
+_DEFAULT_ZIP_RATIO = 200
 
 
 def model_root() -> Path:
@@ -215,8 +216,8 @@ def _zip_parts(info: zipfile.ZipInfo) -> tuple[str, ...]:
   if not parts or any(part in {".", ".."} or _FORBIDDEN.search(part) for part in parts):
     raise HTTPException(400, f"Unsafe ZIP member path: {raw!r}")
   mode = (info.external_attr >> 16) & 0o170000
-  if mode == stat.S_IFLNK:
-    raise HTTPException(400, f"ZIP symbolic links are not supported: {raw!r}")
+  if mode not in (0, stat.S_IFREG, stat.S_IFDIR):
+    raise HTTPException(400, f"ZIP links and special files are not supported: {raw!r}")
   return parts
 
 
@@ -267,8 +268,17 @@ async def extract_zip(
         raise HTTPException(413, f"ZIP contains more than {member_max} entries")
       if sum(info.file_size for info in members) > extract_max:
         raise HTTPException(413, f"ZIP expands beyond the {extract_max}-byte limit")
+      max_ratio = _limit("MODEL_ZIP_MAX_COMPRESSION_RATIO", _DEFAULT_ZIP_RATIO)
+      seen_members = set()
       for info in members:
-        destination = temp_dir.joinpath(*_zip_parts(info)).resolve(strict=False)
+        parts = _zip_parts(info)
+        normalized = "/".join(parts)
+        if normalized in seen_members:
+          raise HTTPException(400, f"Duplicate ZIP member: {info.filename!r}")
+        seen_members.add(normalized)
+        if info.file_size > _CHUNK and (info.file_size / max(1, info.compress_size)) > max_ratio:
+          raise HTTPException(413, f"ZIP member exceeds the {max_ratio}:1 compression-ratio limit")
+        destination = temp_dir.joinpath(*parts).resolve(strict=False)
         try:
           destination.relative_to(temp_dir)
         except ValueError as exc:
