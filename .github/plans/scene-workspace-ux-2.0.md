@@ -587,6 +587,19 @@ The primary objective is monitoring, not full editing.
 
 Evidence: `.github/evidence/scene-workspace-ux/UX-100-UX-107-incidents-evidence.md`.
 
+### Phase 11 — Visual design system refresh
+
+- [ ] **UX-110** Establish neutral spatial-operations design tokens for light and dark themes.
+- [ ] **UX-111** Reduce accent-color saturation/usage and reserve semantic colors for status/alerts.
+- [ ] **UX-112** Modernize sidebar, brand, top bar, and navigation hierarchy without changing routes.
+- [ ] **UX-113** Modernize page typography and replace console-oriented control-plane/data-plane labels in the global shell.
+- [ ] **UX-114** Reduce border density and introduce restrained surface/elevation hierarchy for panels, cards, lists, and tables.
+- [ ] **UX-115** Modernize buttons, inputs, selects, pills, selected states, and focus treatment.
+- [ ] **UX-116** Refresh Incidents/list-detail presentation and shared operational metadata styling.
+- [ ] **UX-117** Preserve responsive behavior, accessibility contrast, and existing theme IDs/localStorage compatibility.
+- [ ] **UX-118** Run UX contract, TypeScript, production build, browser smoke, and integrated native smoke regression gates.
+- [ ] **UX-119** Capture visual evidence, document design decisions, and mark the visual refresh complete.
+
 ---
 
 ## 17. Detailed functional regression checklist
