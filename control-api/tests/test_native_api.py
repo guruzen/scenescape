@@ -1183,3 +1183,33 @@ def test_media_endpoint_denies_unreferenced_files_and_scopes_sensor_icons(tmp_pa
     assert client.get(icon,headers=scoped).status_code==403
     assert client.get('/media/orphan.bin',headers=scoped).status_code==404
     assert client.get('/media/orphan.bin',headers=admin).status_code==200
+
+
+def test_native_updates_require_revision_and_reject_stale_writes(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    created=client.post('/api/v2/scenes',headers=h,json={'uid':'cas-scene','name':'CAS'})
+    assert created.status_code==200
+    assert created.json()['revision']==1
+    assert client.put('/api/v2/scenes/cas-scene',headers=h,json={'name':'Missing revision'}).status_code==422
+    first=client.put('/api/v2/scenes/cas-scene?revision=1',headers=h,json={'name':'First'})
+    assert first.status_code==200 and first.json()['revision']==2
+    stale=client.put('/api/v2/scenes/cas-scene?revision=1',headers=h,json={'name':'Stale'})
+    assert stale.status_code==409
+    current=client.get('/api/v2/scenes/cas-scene',headers=h).json()
+    assert current['name']=='First' and current['revision']==2
+
+
+def test_resource_kind_uid_unique_index_survives_migrate(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch)
+    from scenescape_api.cli import migrate
+    from scenescape_api.database import Resource
+    from sqlalchemy.exc import IntegrityError
+    migrate()
+    with d.sessions()() as db:
+        db.add(Resource(kind='scene',uid='duplicate-cas',payload={'uid':'duplicate-cas'},revision=1))
+        db.commit()
+    with d.sessions()() as db:
+        db.add(Resource(kind='scene',uid='duplicate-cas',payload={'uid':'duplicate-cas'},revision=1))
+        with pytest.raises(IntegrityError):
+            db.commit()
+        db.rollback()
