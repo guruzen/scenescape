@@ -168,7 +168,15 @@ function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = fals
       {(live.objects || []).map((object: Row, i: number) => {
         const [x, y] = xy(object.translation || [i + 1, i + 1])
         const label = String(object.category || object.id || 'object')
-        const telemetry = showTelemetry ? [object.id != null ? `#${object.id}` : '', Array.isArray(object.velocity) ? `v ${object.velocity.slice(0,2).map((v:any)=>Number(v).toFixed(2)).join(',')}` : ''].filter(Boolean).join(' · ') : ''
+        const activeDwells = object.regions && typeof object.regions === 'object'
+          ? Object.values(object.regions as Row).filter((value:any)=>value?.entered && value?.dwell != null).map((value:any)=>Number(value.dwell))
+          : []
+        const dwell = activeDwells.length ? Math.max(...activeDwells) : null
+        const telemetry = showTelemetry ? [
+          object.id != null ? `#${object.id}` : '',
+          Array.isArray(object.velocity) ? `v ${object.velocity.slice(0,2).map((v:any)=>Number(v).toFixed(2)).join(',')}` : '',
+          dwell != null && Number.isFinite(dwell) ? `dwell ${dwell.toFixed(1)}s` : '',
+        ].filter(Boolean).join(' · ') : ''
         return <g key={String(object.id ?? i)}><circle cx={x} cy={y} r="7" className="track-dot"/><text x={x + 10} y={y + 4} className="map-label">{label}</text>{telemetry && <text x={x + 10} y={y + 18} className="map-telemetry">{telemetry}</text>}</g>
       })}
     </svg>
