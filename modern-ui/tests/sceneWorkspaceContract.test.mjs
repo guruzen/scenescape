@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import { deriveSceneStatus } from "../src/ux/sceneStatus.ts"
+
 import {
   DEFAULT_SCENE_DESTINATION,
   DEFAULT_VIEW_BY_MODE,
@@ -85,4 +87,30 @@ test("regression: the pre-overhaul scene workspace capability baseline is locked
   ]
   assert.deepEqual([...SCENE_WORKSPACE_CAPABILITIES].sort(), required.sort())
   assert.deepEqual(DEFAULT_SCENE_DESTINATION, { mode: "Monitor", view: "2D Scene" })
+})
+
+
+test("unit: scene status distinguishes live degraded stale and unknown health", () => {
+  const live = deriveSceneStatus({
+    stale: false, observedAt: "2026-09-20T03:00:00Z", nowMs: Date.parse("2026-09-20T03:00:02Z"),
+    sceneRate: 29.8, objectCount: 85, cameraCount: 2, cameraRates: { cam1: 30, cam2: 29.7 }, mqttState: "connected",
+  })
+  assert.equal(live.state, "LIVE")
+  assert.equal(live.cameraHealthy, 2)
+  assert.equal(live.ageSeconds, 2)
+
+  const degradedMqtt = deriveSceneStatus({ stale: false, cameraCount: 0, mqttState: "disconnected" })
+  assert.equal(degradedMqtt.state, "DEGRADED")
+
+  const degradedCamera = deriveSceneStatus({ stale: false, cameraCount: 2, cameraRates: { cam1: 30 }, mqttState: "connected" })
+  assert.equal(degradedCamera.state, "DEGRADED")
+  assert.equal(degradedCamera.cameraHealthy, 1)
+
+  const stale = deriveSceneStatus({ stale: true, cameraCount: 2, mqttState: "connected" })
+  assert.equal(stale.state, "STALE/OFFLINE")
+
+  const unknown = deriveSceneStatus({ stale: false, cameraCount: 2, cameraRates: null, mqttState: null })
+  assert.equal(unknown.state, "LIVE")
+  assert.equal(unknown.cameraHealthy, null)
+  assert.equal(unknown.mqtt, "Unknown")
 })
