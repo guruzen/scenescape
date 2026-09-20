@@ -1,0 +1,94 @@
+---
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: "Temporary DRF security verification"
+
+on:
+  push:
+    branches:
+      - feature/react-keycloak-modern-ui
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Verify Django REST Framework runtime imports
+        shell: bash
+        run: |
+          python3 -m venv .venv-drf-verify
+          . .venv-drf-verify/bin/activate
+          python -m pip install --upgrade pip
+          pip install "Django==5.2.16" "djangorestframework==3.17.2" "PyJWT[crypto]==2.13.0"
+          python - <<'PY'
+          import django
+          import jwt
+          import rest_framework
+          print("django=" + django.get_version())
+          print("djangorestframework=" + rest_framework.VERSION)
+          print("pyjwt=" + jwt.__version__)
+          assert rest_framework.VERSION == "3.17.2"
+          assert jwt.__version__ == "2.13.0"
+          PY
+
+      - name: Install Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sudo sh -s -- -b /usr/local/bin
+          grype version
+
+      - name: Verify important vulnerability findings are cleared
+        env:
+          GRYPE_DB_AUTO_UPDATE: "true"
+        run: |
+          grype dir:. -o json > grype-drf-verification.json
+          python3 - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          data = json.loads(Path("grype-drf-verification.json").read_text())
+          rows = []
+          seen = set()
+          for match in data.get("matches", []):
+              vuln = match.get("vulnerability", {}) or {}
+              art = match.get("artifact", {}) or {}
+              key = (vuln.get("id"), art.get("name"), art.get("version"), art.get("type"))
+              if key in seen:
+                  continue
+              seen.add(key)
+              rows.append((vuln.get("severity") or "Unknown", vuln.get("id") or "", art.get("name") or "", art.get("version") or ""))
+
+          counts = Counter(row[0] for row in rows)
+          print("DRF_GRYPE_VERIFY_BEGIN")
+          print("total=" + str(len(rows)))
+          for sev in ["Critical", "High", "Medium", "Low", "Negligible", "Unknown"]:
+              print(sev.lower() + "=" + str(counts.get(sev, 0)))
+          for row in rows:
+              print("FINDING|" + "|".join(row))
+          print("DRF_GRYPE_VERIFY_END")
+
+          blocked = {"GHSA-2m8g-3cmr-wg3w", "GHSA-g47c-3xmw-q6m2"}
+          remaining = [row for row in rows if row[1] in blocked]
+          if remaining:
+              raise SystemExit("DRF security findings remain: " + repr(remaining))
+          if counts.get("Critical", 0) or counts.get("High", 0):
+              raise SystemExit("Critical/High finding reintroduced")
+          PY
+
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: drf-grype-verification
+          path: grype-drf-verification.json
+          if-no-files-found: error
+          retention-days: 14
