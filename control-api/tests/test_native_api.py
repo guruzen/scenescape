@@ -1035,3 +1035,40 @@ def test_nested_model_config_paths_are_supported_and_bounded(tmp_path, monkeypat
     assert 'person' in load_model_config('tenant/camera.json')
     with pytest.raises(PipelineGenerationValueError):
         load_model_config('../outside.json')
+
+
+def test_native_camera_telemetry_is_scoped_and_camera_id_safe(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); admin=headers(client)
+    assert client.post('/api/v2/scenes',headers=admin,json={'uid':'scene-a','name':'A'}).status_code==200
+    assert client.post('/api/v2/scenes',headers=admin,json={'uid':'scene-b','name':'B'}).status_code==200
+    assert client.post('/api/v2/cameras',headers=admin,json={'uid':'cam_1','name':'Cam 1','scene':'scene-a'}).status_code==200
+    assert client.post('/api/v2/cameras',headers=admin,json={'uid':'camX1','name':'Cam X1','scene':'scene-b'}).status_code==200
+
+    from scenescape_api.ingest import persist
+    with d.sessions()() as db:
+        persist(db,'scenescape/data/camera/cam_1/person',json.dumps({
+            'id':'cam_1','timestamp':'2026-01-01T00:00:00Z','objects':{'person':[{'id':1}]}
+        }).encode())
+        persist(db,'scenescape/data/camera/cam_1/person',json.dumps({
+            'id':'cam_1','timestamp':'2026-01-01T00:00:01Z','objects':{'person':[{'id':2},{'id':3}]}
+        }).encode())
+        persist(db,'scenescape/data/camera/camX1/person',json.dumps({
+            'id':'camX1','timestamp':'2026-01-01T00:00:01Z','objects':{'person':[{'id':9},{'id':10},{'id':11}]}
+        }).encode())
+        db.commit()
+
+    value=client.get('/api/v2/cameras/cam_1/telemetry',headers=admin)
+    assert value.status_code==200,value.text
+    body=value.json()
+    assert body['samples']==2
+    assert body['fps']==1.0
+    assert body['detections']==2
+
+    import time, jwt
+    viewer=jwt.encode({
+        'sub':'viewer','name':'Viewer','roles':['scenescape-viewer'],'scenes':['scene-b'],
+        'iat':int(time.time()),'exp':int(time.time())+300,'aud':'scenescape-api'
+    },'test-signing-key-abcdefghijklmnopqrstuvwxyz',algorithm='HS256')
+    scoped={'Authorization':'Bearer '+viewer}
+    assert client.get('/api/v2/cameras/cam_1/telemetry',headers=scoped).status_code==403
+    assert client.get('/api/v2/cameras/camX1/telemetry',headers=scoped).status_code==200
