@@ -12,6 +12,8 @@ import AssetInventory from './native/AssetInventory'
 import HierarchyEditor from './native/HierarchyEditor'
 import SecurityAdmin from './native/SecurityAdmin'
 import ModelLibrary from './native/ModelLibrary'
+import SceneStatusHeader from './ux/SceneStatusHeader'
+import { deriveSceneStatus } from './ux/sceneStatus'
 import {
   DEFAULT_SCENE_DESTINATION,
   PRIMARY_MODES,
@@ -380,6 +382,14 @@ function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab
   const loadBundle = () => void apiFetch<Bundle>(`/api/v2/scenes/${id}/bundle`).then(setBundle).catch((e) => setMessage(String(e)))
 
   useEffect(() => {
+    let active = true
+    const refreshRuntime = () => void apiFetch<Row>('/api/v2/overview').then((value) => active && setRuntimeOverview(value)).catch(() => {})
+    refreshRuntime()
+    const timer = window.setInterval(refreshRuntime, 5000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [id])
+
+  useEffect(() => {
     loadBundle()
     let active = true
     let fallbackTimer = 0
@@ -408,12 +418,21 @@ function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab
 
   if (!bundle) return <><button className="btn" onClick={onBack}>← Back to scenes</button><div className="center-panel">Loading native scene workspace…{message && <div className="error-box">{message}</div>}</div></>
   const map3DPath = String(bundle.scene.map || bundle.scene.thumbnail || '')
+  const sceneStatus = deriveSceneStatus({
+    stale: Boolean(live.stale),
+    observedAt: live.observed_at ? String(live.observed_at) : null,
+    sceneRate: live.scene_rate,
+    objectCount: (live.objects || []).length,
+    cameraCount: bundle.cameras.length,
+    cameraRates: live.rate && typeof live.rate === 'object' ? live.rate : null,
+    mqttState: runtimeOverview?.health?.mqtt ? String(runtimeOverview.health.mqtt) : null,
+  })
 
   return <>
     <Header kicker="Operations · native scene workspace" title={rowName(bundle.scene)}>
       <button className="btn" onClick={onBack}>← All scenes</button>
-      <span className={live.stale ? 'status-pill warning-pill' : 'status-pill ok-pill'}>{live.stale ? 'No live feed' : `${(live.objects || []).length} live objects · ${Number(live.scene_rate || 0).toFixed(1)} Hz`}</span>
     </Header>
+    <SceneStatusHeader sceneName={rowName(bundle.scene)} sceneId={id} status={sceneStatus}/>
     <div className="scene-summary">
       <div><span>Scene ID</span><b>{id}</b></div><div><span>Cameras</span><b>{bundle.cameras.length}</b></div><div><span>Sensors</span><b>{bundle.sensors.length}</b></div><div><span>Spatial rules</span><b>{bundle.regions.length + bundle.tripwires.length + (bundle.child_regions?.length||0) + (bundle.child_tripwires?.length||0)}</b></div>
     </div>
