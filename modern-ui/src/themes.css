@@ -1,125 +1,132 @@
 :root[data-theme="light-air"] .app-shell {
-  grid-template-columns: 286px minmax(0, 1fr);
+  grid-template-columns: 272px minmax(0, 1fr);
 }
 :root[data-theme="light-air"] .sidebar {
-  padding: 24px 18px;
-  background: linear-gradient(180deg, rgb(var(--panel)), rgb(var(--soft)));
+  padding: 22px 16px;
+  background: color-mix(in srgb, rgb(var(--panel)) 96%, rgb(var(--soft)));
   border-right-color: transparent;
-  box-shadow: 8px 0 30px rgba(37, 69, 77, 0.05);
+  box-shadow: 8px 0 28px rgba(var(--shadow), 0.04);
 }
 :root[data-theme="light-air"] .nav-item {
-  padding: 11px 12px;
-  border-radius: 12px;
+  padding: 10px 11px;
+  border-radius: 9px;
 }
 :root[data-theme="light-air"] .topbar {
-  height: 72px;
-  padding: 0 34px;
+  height: 64px;
+  padding: 0 32px;
   border-bottom-color: transparent;
 }
 :root[data-theme="light-air"] main {
-  max-width: 1680px;
-  padding: 38px 42px 48px;
+  max-width: 1720px;
+  padding: 38px 40px 48px;
 }
 :root[data-theme="light-air"] .panel,
 :root[data-theme="light-air"] .metric {
-  border-radius: 18px;
-  border-color: transparent;
-  box-shadow: 0 8px 30px rgba(42, 68, 75, 0.07);
+  border-radius: 14px;
+  border-color: color-mix(in srgb, rgb(var(--line)) 45%, transparent);
+  box-shadow: 0 10px 34px rgba(var(--shadow), 0.055);
 }
 :root[data-theme="light-air"] .metric {
-  min-height: 142px;
-  padding: 21px 22px;
+  min-height: 136px;
+  padding: 20px 21px;
 }
 :root[data-theme="light-air"] .workspace-grid {
-  gap: 22px;
+  gap: 20px;
 }
 :root[data-theme="light-air"] .btn,
 :root[data-theme="light-air"] input,
 :root[data-theme="light-air"] select {
-  border-radius: 11px;
+  border-radius: 9px;
 }
+
 :root[data-theme="dark-command"] .app-shell {
-  grid-template-columns: 208px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
 }
 :root[data-theme="dark-command"] .sidebar {
-  padding: 12px 9px;
-  background: #070d11;
+  padding: 14px 10px;
+  background: color-mix(in srgb, rgb(var(--panel)) 92%, rgb(var(--bg)));
 }
 :root[data-theme="dark-command"] .brand {
-  padding: 2px 7px 14px;
+  padding: 3px 7px 14px;
+  margin-bottom: 3px;
 }
 :root[data-theme="dark-command"] .brand-mark {
   width: 30px;
   height: 30px;
-  border-radius: 4px;
-  color: #071012;
-  box-shadow: 0 0 24px rgba(78, 209, 206, 0.15);
+  border-radius: 7px;
+  box-shadow: none;
 }
 :root[data-theme="dark-command"] .nav-label {
-  margin: 15px 8px 5px;
-  font-size: 8px;
+  margin: 16px 8px 5px;
+  font-size: 9px;
 }
 :root[data-theme="dark-command"] .nav-item {
   padding: 7px 8px;
   margin: 1px 0;
-  border-radius: 3px;
+  border-radius: 6px;
   font-size: 11px;
 }
 :root[data-theme="dark-command"] .topbar {
-  height: 52px;
-  padding: 0 18px;
-  background: rgba(9, 16, 20, 0.94);
+  height: 56px;
+  padding: 0 20px;
+  background: color-mix(in srgb, rgb(var(--bg)) 90%, transparent);
 }
 :root[data-theme="dark-command"] main {
   max-width: none;
-  padding: 18px 20px 28px;
+  padding: 22px 24px 32px;
+}
+:root[data-theme="dark-command"] .page-header {
+  margin-bottom: 18px;
 }
 :root[data-theme="dark-command"] .page-header h1 {
-  font-size: 23px;
+  font-size: 25px;
 }
 :root[data-theme="dark-command"] .btn {
-  min-height: 30px;
+  min-height: 31px;
   padding: 5px 8px;
-  border-radius: 3px;
-  font-size: 10px;
+  border-radius: 6px;
+  font-size: 10.5px;
 }
 :root[data-theme="dark-command"] .metric-grid {
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 9px;
+  margin-bottom: 12px;
 }
 :root[data-theme="dark-command"] .metric {
-  min-height: 94px;
-  padding: 11px 12px;
-  border-radius: 3px;
-  background: linear-gradient(180deg, rgb(var(--panel)), rgb(var(--soft)));
+  min-height: 98px;
+  padding: 12px 13px;
+  border-radius: 7px;
+  background: rgb(var(--panel));
+  box-shadow: none;
 }
 :root[data-theme="dark-command"] .metric strong {
-  font-size: 26px;
+  font-size: 27px;
   margin: 5px 0 1px;
 }
 :root[data-theme="dark-command"] .panel {
-  border-radius: 3px;
+  border-radius: 7px;
+  box-shadow: none;
 }
 :root[data-theme="dark-command"] .workspace-grid {
-  grid-template-columns: minmax(0, 1.75fr) minmax(280px, 0.55fr);
-  gap: 9px;
+  grid-template-columns: minmax(0, 1.72fr) minmax(280px, 0.58fr);
+  gap: 10px;
 }
 :root[data-theme="dark-command"] .card-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 9px;
 }
 :root[data-theme="dark-command"] .scene-card {
-  padding: 9px;
+  padding: 10px;
 }
 :root[data-theme="dark-command"] .mini-scene {
-  height: 130px;
-  border-radius: 2px;
-  margin-bottom: 8px;
+  height: 132px;
+  border-radius: 6px;
+  margin-bottom: 9px;
 }
 :root[data-theme="dark-command"] .map-frame,
 :root[data-theme="dark-command"] .three-viewer {
-  border-radius: 3px;
+  border-radius: 7px;
 }
+
 @media (max-width: 1100px) {
   :root[data-theme="light-air"] .workspace-grid,
   :root[data-theme="dark-command"] .workspace-grid {
