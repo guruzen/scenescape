@@ -87,3 +87,13 @@
 .sensor-runtime-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;padding:14px}.sensor-runtime-card{border:1px solid rgb(var(--line));border-radius:10px;padding:14px;background:rgb(var(--panel-2));display:grid;gap:10px}.sensor-runtime-card>div:first-child{display:flex;justify-content:space-between;gap:10px}.sensor-runtime-card code{font-size:10px;color:rgb(var(--muted))}.sensor-runtime-card dl{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;margin:0;font-size:11px}.sensor-runtime-card dt{color:rgb(var(--muted))}.sensor-runtime-card dd{margin:0;text-align:right}.sensor-runtime-values{display:grid;gap:5px}.sensor-runtime-values>div{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid rgb(var(--line));font-size:11px}.scene-workspace-visual:fullscreen{background:rgb(var(--bg));padding:14px;overflow:auto}.scene-workspace-visual:fullscreen .map-canvas,.scene-workspace-visual:fullscreen .three-viewer{height:calc(100vh - 28px);min-height:calc(100vh - 28px)}
 
 .camera-feed-controls{margin:0 0 10px}.camera-telemetry-strip{display:flex;gap:16px;align-items:center;padding:8px 12px;border-top:1px solid rgb(var(--line));font-size:11px;color:rgb(var(--muted));font-variant-numeric:tabular-nums}.camera-telemetry-strip b{color:rgb(var(--text));font-size:13px}.camera-telemetry-strip .ok-text{color:rgb(var(--ok))}.camera-telemetry-strip .warning-text{color:rgb(var(--warning))}
+
+.object-heatmap{fill:rgba(255,107,53,.16);stroke:rgba(255,107,53,.7);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
+.object-heatmap-core{fill:rgba(255,180,84,.2);stroke:none;pointer-events:none}
+.object-velocity{stroke:#ff7a35;stroke-width:3;vector-effect:non-scaling-stroke;pointer-events:none}
+.velocity-arrow-head{fill:#ff7a35}
+.scene-telemetry-hud{position:absolute;z-index:5;right:12px;top:12px;display:grid;gap:3px;min-width:180px;max-width:320px;padding:9px 11px;border:1px solid rgba(78,209,206,.5);border-radius:8px;background:rgba(7,17,21,.9);color:#e9f5f7;font-size:10px;line-height:1.35;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.22)}
+.scene-telemetry-hud b{font-size:11px;color:#7ee8e4;margin-bottom:2px}.scene-telemetry-hud span{display:block;overflow-wrap:anywhere}
+.visualization-status{position:absolute;z-index:5;left:12px;bottom:12px;display:flex;gap:10px;flex-wrap:wrap;padding:7px 9px;border-radius:7px;background:rgba(7,17,21,.86);color:#d7e6e9;font-size:10px;pointer-events:none}
+.map-frame{position:relative}
+.three-viewer{position:relative}
