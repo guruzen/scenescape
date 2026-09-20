@@ -1193,7 +1193,7 @@ function SceneWorkspace({
   return (
     <>
       <Header
-        kicker="Operations · native scene workspace"
+        kicker="Scene workspace"
         title={rowName(bundle.scene)}
       >
         <button className="btn" onClick={onBack}>
@@ -1832,7 +1832,7 @@ function Inventory({
   };
   return (
     <>
-      <Header kicker="Configuration · control plane" title={label}>
+      <Header kicker="Configuration" title={label}>
         {isAdmin && (
           <button className="btn btn-primary" onClick={() => open(null)}>
             Add native resource
@@ -1948,7 +1948,7 @@ function Zones({ goTo }: { goTo: (path: string) => void }) {
   return (
     <>
       <Header
-        kicker="Configuration · control plane"
+        kicker="Configuration"
         title="Zones & tripwires"
       />
       <div className="metric-grid compact">
@@ -2171,7 +2171,7 @@ function Incidents() {
   };
   return (
     <>
-      <Header kicker="Operations · data plane" title="Incidents" />
+      <Header kicker="Operations" title="Incidents" />
       <section className="panel incident-filters" aria-label="Incident filters">
         <div className="incident-filter-grid">
           <label className="incident-search">
@@ -2399,7 +2399,7 @@ function SceneAnalytics({
   return (
     <>
       <Header
-        kicker="Operations · data plane"
+        kicker="Operations"
         title={mode === "history" ? "History & replay" : "Trends & analytics"}
       >
         <select value={sceneId} onChange={(e) => setSceneId(e.target.value)}>
@@ -2528,7 +2528,7 @@ function App() {
   else if (path === "live")
     page = (
       <>
-        <Header kicker="Operations · data plane" title="Live scenes">
+        <Header kicker="Operations" title="Live scenes">
           <button className="btn" onClick={refresh}>
             Refresh
           </button>
@@ -2579,7 +2579,7 @@ function App() {
   else if (path === "health")
     page = (
       <>
-        <Header kicker="Operations · data plane" title="Feed & service health">
+        <Header kicker="Operations" title="Feed & service health">
           <button className="btn" onClick={refresh}>
             Refresh
           </button>
@@ -2621,7 +2621,7 @@ function App() {
     page = (
       <>
         <Header
-          kicker="Configuration · scene composition"
+          kicker="Configuration"
           title="Scene hierarchy"
         />
         <HierarchyEditor scenes={scenes} isAdmin={auth.isAdmin} />
@@ -2684,7 +2684,7 @@ function App() {
   else
     page = (
       <>
-        <Header kicker="Operations · data plane" title="Shift overview">
+        <Header kicker="Operations" title="Shift overview">
           <button className="btn" onClick={refresh}>
             Refresh
           </button>
@@ -2818,10 +2818,10 @@ function App() {
           <div className="brand-mark">S</div>
           <div>
             <b>SceneScape</b>
-            <span>Native operations console</span>
+            <span>Spatial operations</span>
           </div>
         </div>
-        <div className="nav-label">Operations · data plane</div>
+        <div className="nav-label">Operations</div>
         {operations.map(([key, label]) => (
           <button
             key={key}
@@ -2831,7 +2831,7 @@ function App() {
             {label}
           </button>
         ))}
-        <div className="nav-label">Configuration · control plane</div>
+        <div className="nav-label">Configuration</div>
         {configuration.map(([key, label]) => (
           <button
             key={key}
@@ -2853,7 +2853,7 @@ function App() {
         <header className="topbar">
           <div className="environment">
             <span className="status-dot" />
-            SceneScape 2026.2.0 · Native
+            SceneScape 2026.2 · Native
           </div>
           <div className="top-actions">
             <label className="theme-picker">
