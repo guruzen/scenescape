@@ -475,19 +475,19 @@ The primary objective is monitoring, not full editing.
 
 ### Phase 3 — Contextual view controls
 
-- [ ] **UX-30** Replace the flat checkbox row with structured Layers and Diagnostics controls.
-- [ ] **UX-31** Define common layer controls.
-- [ ] **UX-32** Define 2D-only controls.
-- [ ] **UX-33** Define 3D-only controls.
-- [ ] **UX-34** Hide controls that cannot affect the active renderer.
-- [ ] **UX-35** Add explicit availability/status messaging for data-dependent controls such as velocity.
-- [ ] **UX-36** Preserve fullscreen and current 3D camera/light controls in an appropriate advanced/view section.
+- [x] **UX-30** Replace the flat checkbox row with structured Layers and Diagnostics controls.
+- [x] **UX-31** Define common layer controls.
+- [x] **UX-32** Define 2D-only controls.
+- [x] **UX-33** Define 3D-only controls.
+- [x] **UX-34** Hide controls that cannot affect the active renderer.
+- [x] **UX-35** Add explicit availability/status messaging for data-dependent controls such as velocity.
+- [x] **UX-36** Preserve fullscreen and current 3D camera/light controls in an appropriate advanced/view section.
 
 **Acceptance gate — Phase 3**
 
-- [ ] No visible control silently has no effect.
-- [ ] 2D does not expose 3D-only controls.
-- [ ] 3D controls remain accessible without dominating the main toolbar.
+- [x] No visible control silently has no effect.
+- [x] 2D does not expose 3D-only controls.
+- [x] 3D controls remain accessible without dominating the main toolbar.
 
 ### Phase 4 — Contextual inspector
 
@@ -720,6 +720,7 @@ Scene Workspace UX 2.0 is complete only when:
 | 2026-09-20 | UX-01, UX-02 | `9cd022212cb8476c042271a3017f1a32d652b791` | Component/state map captured; zero-dependency UX contract suite added. Unit, integrity, and regression checks: 3 passed, 0 failed. |
 | 2026-09-20 | UX-10–UX-15 | `e5b8b39e9b2450828c6d589650e92bcf99cd7f63` | New primary/secondary navigation implemented; legacy tab row removed; direct-entry compatibility preserved. Unit/integrity/regression suite: 6 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-10-UX-15-navigation-evidence.md`. |
 | 2026-09-20 | UX-20–UX-24 | `b63a443477c81f0d0a1eb4bf0513805112f1c10c` | Persistent operational status header added with explicit LIVE/DEGRADED/STALE and Unknown semantics. Unit/integrity/regression suite: 7 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-20-UX-24-status-evidence.md`. |
+| 2026-09-20 | UX-30–UX-36 | `23ea0b7335d04c42c3d0bcbd528fb08f0485121f` | Flat live controls replaced with Layers/Diagnostics/2D/3D groups; data availability is explicit. Unit/integrity/regression suite: 9 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-30-UX-36-controls-evidence.md`. |
 
 ---
 
