@@ -155,26 +155,17 @@
   }
 }
 
-
 /* Liquid Glass: translucent chrome with crisp operational content. */
 :root[data-theme="liquid-glass"] body,
 :root[data-theme="liquid-glass"] #root {
   background:
-    radial-gradient(
-      circle at 12% 12%,
-      rgb(63 183 196 / 0.2),
-      transparent 34%
-    ),
+    radial-gradient(circle at 12% 12%, rgb(63 183 196 / 0.2), transparent 34%),
     radial-gradient(
       circle at 82% 18%,
       rgb(107 120 255 / 0.16),
       transparent 32%
     ),
-    radial-gradient(
-      circle at 72% 82%,
-      rgb(45 213 169 / 0.12),
-      transparent 38%
-    ),
+    radial-gradient(circle at 72% 82%, rgb(45 213 169 / 0.12), transparent 38%),
     linear-gradient(145deg, rgb(8 13 21), rgb(12 18 29) 45%, rgb(9 14 22));
   background-attachment: fixed;
 }

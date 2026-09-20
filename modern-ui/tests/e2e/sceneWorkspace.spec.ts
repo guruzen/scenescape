@@ -277,9 +277,7 @@ test("UX-120 Liquid Glass theme smoke: selectable, persistent and rendered", asy
     "liquid-glass",
   );
   await expect
-    .poll(() =>
-      page.evaluate(() => localStorage.getItem("scenescape-theme")),
-    )
+    .poll(() => page.evaluate(() => localStorage.getItem("scenescape-theme")))
     .toBe("liquid-glass");
 
   const glass = page.locator(".panel").first();

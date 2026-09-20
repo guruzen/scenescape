@@ -405,7 +405,13 @@ test("integrity: visual hierarchy and supported themes remain explicit", () => {
 test("integrity: visual design system uses neutral surfaces and restrained theme labels", () => {
   assert.deepEqual(
     SUPPORTED_UI_THEMES.map((theme) => theme.label),
-    ["Spatial Light", "Soft Light", "Spatial Dark", "Dense Dark", "Liquid Glass"],
+    [
+      "Spatial Light",
+      "Soft Light",
+      "Spatial Dark",
+      "Dense Dark",
+      "Liquid Glass",
+    ],
   );
 
   const css = readFileSync(
@@ -451,9 +457,18 @@ test("integrity: Liquid Glass keeps glass on chrome and visual content crisp", (
     new URL("../src/themes.css", import.meta.url),
     "utf8",
   );
-  assert.match(themeCss, /data-theme="liquid-glass"[^]*?backdrop-filter: blur\(30px\)/);
-  assert.match(themeCss, /data-theme="liquid-glass"[^]*?\.panel[^]*?backdrop-filter: blur\(22px\)/);
-  assert.match(themeCss, /data-theme="liquid-glass"[^]*?\.map-frame[^]*?backdrop-filter: none/);
+  assert.match(
+    themeCss,
+    /data-theme="liquid-glass"[^]*?backdrop-filter: blur\(30px\)/,
+  );
+  assert.match(
+    themeCss,
+    /data-theme="liquid-glass"[^]*?\.panel[^]*?backdrop-filter: blur\(22px\)/,
+  );
+  assert.match(
+    themeCss,
+    /data-theme="liquid-glass"[^]*?\.map-frame[^]*?backdrop-filter: none/,
+  );
   assert.match(themeCss, /@supports not \(\(backdrop-filter: blur\(1px\)\)\)/);
 });
 
