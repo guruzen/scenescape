@@ -118,7 +118,6 @@ jobs:
             control-api/tests/test_keycloak_admin.py \
             control-api/tests/test_runtime.py::test_native_operator_parity_surface_is_present
 
-
   integrated-browser:
     name: "Integrated native UI/API browser smoke"
     runs-on: ubuntu-latest
