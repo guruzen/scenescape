@@ -37,6 +37,35 @@ def test_crud_revision_and_live_history(tmp_path, monkeypatch):
     assert client.get('/api/v2/scenes/scene-1/live',headers=h).json()['objects'][0]['id']=='a'
     assert len(client.get('/api/v2/scenes/scene-1/history',headers=h).json())==1
 
+def test_scene_live_history_ignore_camera_observations(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    assert client.post('/api/v2/scenes',headers=h,json={'uid':'scene-isolated','name':'Isolated'}).status_code==200
+    assert client.post('/api/v2/cameras',headers=h,json={'uid':'cam-isolated','name':'Camera','scene':'scene-isolated'}).status_code==200
+    from scenescape_api.ingest import persist
+    with d.sessions()() as db:
+        persist(db,'scenescape/regulated/scene/scene-isolated',json.dumps({
+            'id':'scene-isolated','scene_rate':12.5,'objects':[{'id':'person-1','translation':[1,2,0]}]
+        }).encode())
+        persist(db,'scenescape/data/camera/cam-isolated',json.dumps({
+            'scene_id':'scene-isolated','objects':{'person':[{'id':'det-1'}]}
+        }).encode())
+        db.commit()
+
+    live=client.get('/api/v2/scenes/scene-isolated/live',headers=h)
+    assert live.status_code==200
+    assert isinstance(live.json()['objects'],list)
+    assert live.json()['objects'][0]['id']=='person-1'
+
+    history=client.get('/api/v2/scenes/scene-isolated/history',headers=h)
+    assert history.status_code==200
+    assert len(history.json())==1
+    assert history.json()[0]['payload']['objects'][0]['id']=='person-1'
+
+    trends=client.get('/api/v2/scenes/scene-isolated/trends',headers=h)
+    assert trends.status_code==200
+    assert sum(row['samples'] for row in trends.json())==1
+
+
 def test_incident_action_and_audit(tmp_path, monkeypatch):
     client,d=boot(tmp_path,monkeypatch); h=headers(client)
     from scenescape_api.ingest import persist
