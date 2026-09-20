@@ -1165,7 +1165,8 @@
 .scene-primary-nav-item.active {
   color: rgb(var(--text));
   background: color-mix(in srgb, rgb(var(--accent)) 8%, rgb(var(--panel)));
-  box-shadow: inset 0 -2px 0 color-mix(in srgb, rgb(var(--accent)) 82%, transparent);
+  box-shadow: inset 0 -2px 0
+    color-mix(in srgb, rgb(var(--accent)) 82%, transparent);
 }
 .scene-secondary-nav {
   display: flex;

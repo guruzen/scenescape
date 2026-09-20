@@ -1192,10 +1192,7 @@ function SceneWorkspace({
 
   return (
     <>
-      <Header
-        kicker="Scene workspace"
-        title={rowName(bundle.scene)}
-      >
+      <Header kicker="Scene workspace" title={rowName(bundle.scene)}>
         <button className="btn" onClick={onBack}>
           ← All scenes
         </button>
@@ -1947,10 +1944,7 @@ function Zones({ goTo }: { goTo: (path: string) => void }) {
   ];
   return (
     <>
-      <Header
-        kicker="Configuration"
-        title="Zones & tripwires"
-      />
+      <Header kicker="Configuration" title="Zones & tripwires" />
       <div className="metric-grid compact">
         <div className="metric">
           <span>Regions</span>
@@ -2025,7 +2019,9 @@ function Zones({ goTo }: { goTo: (path: string) => void }) {
 function incidentTimestamp(value: unknown) {
   if (!value) return "Time unavailable";
   const parsed = new Date(String(value));
-  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+  return Number.isNaN(parsed.getTime())
+    ? String(value)
+    : parsed.toLocaleString();
 }
 
 function Incidents() {
@@ -2051,7 +2047,10 @@ function Incidents() {
         new Map(
           rows
             .filter((row) => row.scene_id)
-            .map((row) => [String(row.scene_id), String(row.scene_name || row.scene_id)]),
+            .map((row) => [
+              String(row.scene_id),
+              String(row.scene_name || row.scene_id),
+            ]),
         ).entries(),
       ),
     [rows],
@@ -2073,7 +2072,9 @@ function Incidents() {
   const eventOptions = useMemo(
     () =>
       Array.from(
-        new Set(rows.map((row) => String(row.event_type || "")).filter(Boolean)),
+        new Set(
+          rows.map((row) => String(row.event_type || "")).filter(Boolean),
+        ),
       ).sort(),
     [rows],
   );
@@ -2101,18 +2102,23 @@ function Incidents() {
             : 0;
     return rows.filter((row) => {
       if (sceneFilter && String(row.scene_id) !== sceneFilter) return false;
-      if (ruleTypeFilter && String(row.rule_type) !== ruleTypeFilter) return false;
+      if (ruleTypeFilter && String(row.rule_type) !== ruleTypeFilter)
+        return false;
       if (ruleFilter && String(row.rule_id) !== ruleFilter) return false;
       if (eventFilter && String(row.event_type) !== eventFilter) return false;
       if (
         objectFilter &&
-        !(Array.isArray(row.object_types) && row.object_types.map(String).includes(objectFilter))
+        !(
+          Array.isArray(row.object_types) &&
+          row.object_types.map(String).includes(objectFilter)
+        )
       )
         return false;
       if (statusFilter && String(row.status) !== statusFilter) return false;
       if (maxAge) {
         const timestamp = Date.parse(String(row.timestamp || ""));
-        if (!Number.isFinite(timestamp) || now - timestamp > maxAge) return false;
+        if (!Number.isFinite(timestamp) || now - timestamp > maxAge)
+          return false;
       }
       if (needle) {
         const haystack = [
@@ -2192,7 +2198,9 @@ function Incidents() {
             >
               <option value="">All scenes</option>
               {sceneOptions.map(([id, name]) => (
-                <option key={id} value={id}>{name}</option>
+                <option key={id} value={id}>
+                  {name}
+                </option>
               ))}
             </select>
           </label>
@@ -2217,7 +2225,9 @@ function Incidents() {
             >
               <option value="">All rules</option>
               {ruleOptions.map(([id, name]) => (
-                <option key={id} value={id}>{name}</option>
+                <option key={id} value={id}>
+                  {name}
+                </option>
               ))}
             </select>
           </label>
@@ -2230,7 +2240,9 @@ function Incidents() {
             >
               <option value="">All events</option>
               {eventOptions.map((value) => (
-                <option key={value} value={value}>{value}</option>
+                <option key={value} value={value}>
+                  {value}
+                </option>
               ))}
             </select>
           </label>
@@ -2243,7 +2255,9 @@ function Incidents() {
             >
               <option value="">All object types</option>
               {objectOptions.map((value) => (
-                <option key={value} value={value}>{value}</option>
+                <option key={value} value={value}>
+                  {value}
+                </option>
               ))}
             </select>
           </label>
@@ -2277,11 +2291,17 @@ function Incidents() {
           </label>
         </div>
         <div className="incident-filter-summary">
-          <span>{filteredRows.length} of {rows.length} incidents</span>
-          <button className="btn" onClick={clearFilters}>Clear filters</button>
+          <span>
+            {filteredRows.length} of {rows.length} incidents
+          </span>
+          <button className="btn" onClick={clearFilters}>
+            Clear filters
+          </button>
         </div>
       </section>
-      <div className={selected ? "incident-layout has-detail" : "incident-layout"}>
+      <div
+        className={selected ? "incident-layout has-detail" : "incident-layout"}
+      >
         <section className="panel incident-list">
           {filteredRows.map((row) => (
             <button
@@ -2320,16 +2340,47 @@ function Incidents() {
             <div className="panel-title">
               <div>
                 <h2>{selected.title}</h2>
-                <p>Incident #{selected.id} · {incidentTimestamp(selected.timestamp)}</p>
+                <p>
+                  Incident #{selected.id} ·{" "}
+                  {incidentTimestamp(selected.timestamp)}
+                </p>
               </div>
             </div>
             <div className="incident-context-grid">
-              <div><span>Scene</span><b>{selected.scene_name || selected.scene_id || "Unknown"}</b></div>
-              <div><span>Rule</span><b>{selected.rule_name || selected.rule_id || "Scene event"}</b></div>
-              <div><span>Rule type</span><b>{selected.rule_type || "event"}</b></div>
-              <div><span>Event</span><b>{selected.action || selected.event_type || "activity"}</b></div>
-              <div><span>Object types</span><b>{Array.isArray(selected.object_types) && selected.object_types.length ? selected.object_types.join(", ") : "Unknown"}</b></div>
-              <div><span>Object IDs</span><b>{Array.isArray(selected.object_ids) && selected.object_ids.length ? selected.object_ids.join(", ") : "None retained"}</b></div>
+              <div>
+                <span>Scene</span>
+                <b>{selected.scene_name || selected.scene_id || "Unknown"}</b>
+              </div>
+              <div>
+                <span>Rule</span>
+                <b>{selected.rule_name || selected.rule_id || "Scene event"}</b>
+              </div>
+              <div>
+                <span>Rule type</span>
+                <b>{selected.rule_type || "event"}</b>
+              </div>
+              <div>
+                <span>Event</span>
+                <b>{selected.action || selected.event_type || "activity"}</b>
+              </div>
+              <div>
+                <span>Object types</span>
+                <b>
+                  {Array.isArray(selected.object_types) &&
+                  selected.object_types.length
+                    ? selected.object_types.join(", ")
+                    : "Unknown"}
+                </b>
+              </div>
+              <div>
+                <span>Object IDs</span>
+                <b>
+                  {Array.isArray(selected.object_ids) &&
+                  selected.object_ids.length
+                    ? selected.object_ids.join(", ")
+                    : "None retained"}
+                </b>
+              </div>
             </div>
             <label>
               Status
@@ -2620,10 +2671,7 @@ function App() {
   else if (path === "hierarchy")
     page = (
       <>
-        <Header
-          kicker="Configuration"
-          title="Scene hierarchy"
-        />
+        <Header kicker="Configuration" title="Scene hierarchy" />
         <HierarchyEditor scenes={scenes} isAdmin={auth.isAdmin} />
       </>
     );

@@ -408,22 +408,37 @@ test("integrity: visual design system uses neutral surfaces and restrained theme
     ["Spatial Light", "Soft Light", "Spatial Dark", "Dense Dark"],
   );
 
-  const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8");
+  const css = readFileSync(
+    new URL("../src/index.css", import.meta.url),
+    "utf8",
+  );
   assert.match(css, /--panel-raised:/);
   assert.match(css, /--surface-hover:/);
   assert.match(css, /--accent-soft:/);
   assert.match(css, /--info:/);
-  assert.match(css, /\.nav-item\.active[^]*?inset 2px 0 0 rgb\(var\(--accent\)\)/);
+  assert.match(
+    css,
+    /\.nav-item\.active[^]*?inset 2px 0 0 rgb\(var\(--accent\)\)/,
+  );
   assert.match(css, /\.incident-layout\.has-detail/);
   assert.match(css, /\.brand b \{[^]*?font-size: 15px/);
   assert.match(css, /\.nav-label \{[^]*?font-size: 11px/);
   assert.match(css, /\.nav-item \{[^]*?font-size: 13px[^]*?line-height: 1\.35/);
 
-  const themeCss = readFileSync(new URL("../src/themes.css", import.meta.url), "utf8");
-  assert.match(themeCss, /dark-command[^]*?\.nav-label \{[^]*?font-size: 10\.5px/);
+  const themeCss = readFileSync(
+    new URL("../src/themes.css", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    themeCss,
+    /dark-command[^]*?\.nav-label \{[^]*?font-size: 10\.5px/,
+  );
   assert.match(themeCss, /dark-command[^]*?\.nav-item \{[^]*?font-size: 12px/);
 
-  const appSource = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+  const appSource = readFileSync(
+    new URL("../src/App.tsx", import.meta.url),
+    "utf8",
+  );
   assert.match(appSource, /Spatial operations/);
   assert.match(appSource, />Operations<\/div>/);
   assert.match(appSource, />Configuration<\/div>/);
@@ -473,7 +488,10 @@ test("integrity: incident workspace exposes operational context and filters", ()
   assert.match(appSource, /aria-label="Search incidents"/);
   assert.match(appSource, /aria-label="Filter incidents by scene"/);
   assert.match(appSource, /aria-label="Filter incidents by rule type"/);
-  assert.match(appSource, /aria-label="Filter incidents by region or tripwire"/);
+  assert.match(
+    appSource,
+    /aria-label="Filter incidents by region or tripwire"/,
+  );
   assert.match(appSource, /aria-label="Filter incidents by event type"/);
   assert.match(appSource, /aria-label="Filter incidents by object type"/);
   assert.match(appSource, /aria-label="Filter incidents by status"/);
