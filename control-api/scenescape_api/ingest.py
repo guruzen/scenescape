@@ -34,8 +34,14 @@ def scene_id_from_topic(topic: str) -> str:
 
 
 def persist(db, topic: str, raw: bytes):
+    if isinstance(raw, (bytes, bytearray)) and len(raw) > 8 * 1024 * 1024:
+        raise ValueError("MQTT payload exceeds 8 MiB ingest limit")
     payload = json.loads(raw.decode() if isinstance(raw, (bytes, bytearray)) else raw)
+    if not isinstance(payload, dict):
+        raise ValueError("MQTT payload must be a JSON object")
     scene_id = scene_id_from_topic(topic) or str(payload.get("scene_id") or payload.get("id") or "")
+    if not scene_id:
+        raise ValueError("MQTT payload has no scene or sensor identity")
     stamp = _ts(payload)
     if "/event/" in topic:
         event = Event(scene_id=scene_id, topic=topic, observed_at=stamp, payload=payload)
