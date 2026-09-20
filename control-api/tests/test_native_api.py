@@ -1072,3 +1072,59 @@ def test_native_camera_telemetry_is_scoped_and_camera_id_safe(tmp_path, monkeypa
     scoped={'Authorization':'Bearer '+viewer}
     assert client.get('/api/v2/cameras/cam_1/telemetry',headers=scoped).status_code==403
     assert client.get('/api/v2/cameras/camX1/telemetry',headers=scoped).status_code==200
+
+
+def _viewer_token(scenes):
+    import time, jwt
+    return jwt.encode({
+        'sub':'scoped-viewer','name':'Scoped Viewer','roles':['scenescape-viewer'],'scenes':scenes,
+        'iat':int(time.time()),'exp':int(time.time())+300,'aud':'scenescape-api'
+    },'test-signing-key-abcdefghijklmnopqrstuvwxyz',algorithm='HS256')
+
+
+def test_scoped_viewer_cannot_cross_autocalibration_boundaries(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); admin=headers(client)
+    assert client.post('/api/v2/scenes',headers=admin,json={'uid':'cal-a','name':'Cal A'}).status_code==200
+    assert client.post('/api/v2/scenes',headers=admin,json={'uid':'cal-b','name':'Cal B'}).status_code==200
+    assert client.post('/api/v2/cameras',headers=admin,json={'uid':'cal-cam-a','name':'A','scene':'cal-a'}).status_code==200
+    assert client.post('/api/v2/cameras',headers=admin,json={'uid':'cal-cam-b','name':'B','scene':'cal-b'}).status_code==200
+    import scenescape_api.app as app_module
+    monkeypatch.setattr(app_module,'proxy_scene_registration',lambda scene_id,method:{'scene':scene_id,'method':method})
+    monkeypatch.setattr(app_module,'proxy_camera_calibration',lambda camera_id,method,body=None:{'camera':camera_id,'method':method})
+    scoped={'Authorization':'Bearer '+_viewer_token(['cal-a'])}
+    assert client.get('/api/v2/autocalibration/scenes/cal-a/registration',headers=scoped).status_code==200
+    assert client.get('/api/v2/autocalibration/scenes/cal-b/registration',headers=scoped).status_code==403
+    assert client.get('/api/v2/autocalibration/cameras/cal-cam-a/calibration',headers=scoped).status_code==200
+    assert client.get('/api/v2/autocalibration/cameras/cal-cam-b/calibration',headers=scoped).status_code==403
+
+
+def test_incidents_and_overview_respect_scene_scope(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); admin=headers(client)
+    assert client.post('/api/v2/scenes',headers=admin,json={'uid':'scope-a','name':'Scope A'}).status_code==200
+    assert client.post('/api/v2/scenes',headers=admin,json={'uid':'scope-b','name':'Scope B'}).status_code==200
+    assert client.post('/api/v2/cameras',headers=admin,json={'uid':'scope-cam-a','name':'A','scene':'scope-a'}).status_code==200
+    assert client.post('/api/v2/cameras',headers=admin,json={'uid':'scope-cam-b','name':'B','scene':'scope-b'}).status_code==200
+    from scenescape_api.ingest import persist
+    with d.sessions()() as db:
+        persist(db,'scenescape/regulated/scene/scope-a',json.dumps({'id':'scope-a','objects':[]}).encode())
+        persist(db,'scenescape/regulated/scene/scope-b',json.dumps({'id':'scope-b','objects':[]}).encode())
+        persist(db,'scenescape/event/region/scope-a/r1/occupancy',json.dumps({'scene_id':'scope-a','region_name':'A'}).encode())
+        persist(db,'scenescape/event/region/scope-b/r1/occupancy',json.dumps({'scene_id':'scope-b','region_name':'B'}).encode())
+        db.commit()
+
+    scoped={'Authorization':'Bearer '+_viewer_token(['scope-a'])}
+    incidents=client.get('/api/v2/incidents',headers=scoped)
+    assert incidents.status_code==200
+    assert len(incidents.json())==1 and incidents.json()[0]['scene_id']=='scope-a'
+    forbidden_id=client.get('/api/v2/incidents',headers=admin).json()[0]['id']
+    all_incidents=client.get('/api/v2/incidents',headers=admin).json()
+    forbidden_id=next(row['id'] for row in all_incidents if row['scene_id']=='scope-b')
+    assert client.post(f'/api/v2/incidents/{forbidden_id}/action',headers=scoped,json={'status':'acknowledged'}).status_code==403
+
+    overview=client.get('/api/v2/overview',headers=scoped)
+    assert overview.status_code==200
+    value=overview.json()
+    assert value['counts']['scenes']==1
+    assert value['counts']['cameras']==1
+    assert value['counts']['incidents']==1
+    assert value['counts']['observations']==1
