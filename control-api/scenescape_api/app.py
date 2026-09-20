@@ -949,7 +949,7 @@ async def native_asset_create(request: Request, p=Depends(current_principal), db
 
 
 @app.put("/api/v2/assets/{uid}")
-async def native_asset_update(uid: str, request: Request, revision: int | None = Query(default=None), p=Depends(current_principal), db=Depends(db_dep)):
+async def native_asset_update(uid: str, request: Request, revision: int = Query(..., ge=1), p=Depends(current_principal), db=Depends(db_dep)):
     if not p.is_admin:
         raise HTTPException(403, "Administrator role required")
     current = get_resource(db, "asset", uid)
@@ -975,7 +975,7 @@ async def native_asset_update(uid: str, request: Request, revision: int | None =
 async def native_sensor_icon_upload(
     sensor_id: str,
     icon: UploadFile = File(...),
-    revision: int | None = Query(default=None),
+    revision: int = Query(..., ge=1),
     p=Depends(current_principal),
     db=Depends(db_dep),
 ):
@@ -1006,7 +1006,7 @@ async def native_sensor_icon_upload(
 @app.delete("/api/v2/sensors/{sensor_id}/icon")
 def native_sensor_icon_delete(
     sensor_id: str,
-    revision: int | None = Query(default=None),
+    revision: int = Query(..., ge=1),
     p=Depends(current_principal),
     db=Depends(db_dep),
 ):
@@ -1506,7 +1506,7 @@ def update_any(
     plural: str,
     uid: str,
     body: dict,
-    revision: int | None = Query(default=None),
+    revision: int = Query(..., ge=1),
     p=Depends(current_principal),
     db=Depends(db_dep),
 ):
