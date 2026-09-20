@@ -1223,7 +1223,7 @@
   border: 1px solid color-mix(in srgb, rgb(var(--line)) 62%, transparent);
   border-radius: 9px;
   background: rgb(var(--panel));
-  box-shadow: 0 6px 20px rgba(var(--shadow), 0.025);
+  box-shadow: 0 6px 20px rgb(var(--shadow) / 0.025);
 }
 .scene-status-identity {
   display: flex;
