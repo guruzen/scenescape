@@ -1616,9 +1616,20 @@ def media(path: str, p=Depends(current_principal), db=Depends(db_dep)):
         request_path = "/media/" + path.lstrip("/")
         scenes = db.scalars(select(Resource).where(Resource.kind == "scene")).all()
         owning = [row.uid for row in scenes if request_path in {str((row.payload or {}).get("map") or ""), str((row.payload or {}).get("thumbnail") or ""), str((row.payload or {}).get("polycam_data") or "")} ]
+        assets = db.scalars(select(Resource).where(Resource.kind == "asset")).all()
+        asset_owned = any(request_path == str((row.payload or {}).get("model_3d") or "") for row in assets)
+        sensors = db.scalars(select(Resource).where(Resource.kind == "sensor")).all()
+        sensor_owners = [
+            str((row.payload or {}).get("scene") or (row.payload or {}).get("scene_id") or "")
+            for row in sensors if request_path == str((row.payload or {}).get("icon") or "")
+        ]
         if owning and not any(scene_id in p.scene_scopes for scene_id in owning):
             raise HTTPException(403, "Media is outside token scope")
-    return FileResponse(target)
+        if sensor_owners and not any(scene_id in p.scene_scopes for scene_id in sensor_owners):
+            raise HTTPException(403, "Media is outside token scope")
+        if not owning and not sensor_owners and not asset_owned:
+            raise HTTPException(404)
+    return FileResponse(target, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @app.get("/api/v1/health")
