@@ -57,3 +57,21 @@ jobs:
       - name: Run production build
         working-directory: modern-ui
         run: npm run build
+
+      - name: Install Chromium for browser smoke
+        working-directory: modern-ui
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Scene Workspace browser smoke
+        working-directory: modern-ui
+        run: npm run test:smoke:ux
+
+      - name: Upload Scene Workspace smoke evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scene-workspace-ux-smoke
+          path: |
+            modern-ui/test-results/
+          if-no-files-found: warn
+          retention-days: 14
