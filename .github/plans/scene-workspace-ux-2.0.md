@@ -491,23 +491,23 @@ The primary objective is monitoring, not full editing.
 
 ### Phase 4 — Contextual inspector
 
-- [ ] **UX-40** Add selection state and inspector shell.
-- [ ] **UX-41** Make tracked objects selectable in 2D.
-- [ ] **UX-42** Make tracked objects selectable in 3D.
-- [ ] **UX-43** Add tracked-object inspector fields.
-- [ ] **UX-44** Add camera selection and camera inspector.
-- [ ] **UX-45** Add sensor selection and sensor inspector.
-- [ ] **UX-46** Add region selection and region inspector.
-- [ ] **UX-47** Add tripwire selection and tripwire inspector.
-- [ ] **UX-48** Add clear-selection and inspector collapse behavior.
-- [ ] **UX-49** Ensure missing optional data is represented honestly.
+- [x] **UX-40** Add selection state and inspector shell.
+- [x] **UX-41** Make tracked objects selectable in 2D.
+- [x] **UX-42** Make tracked objects selectable in 3D.
+- [x] **UX-43** Add tracked-object inspector fields.
+- [x] **UX-44** Add camera selection and camera inspector.
+- [x] **UX-45** Add sensor selection and sensor inspector.
+- [x] **UX-46** Add region selection and region inspector.
+- [x] **UX-47** Add tripwire selection and tripwire inspector.
+- [x] **UX-48** Add clear-selection and inspector collapse behavior.
+- [x] **UX-49** Ensure missing optional data is represented honestly.
 
 **Acceptance gate — Phase 4**
 
-- [ ] Clicking a supported visual entity opens the correct inspector.
-- [ ] Selection is visually distinguishable.
-- [ ] Inspector does not obscure the primary scene on standard desktop width.
-- [ ] Object telemetry no longer requires cluttering every object label.
+- [x] Clicking a supported visual entity opens the correct inspector.
+- [x] Selection is visually distinguishable.
+- [x] Inspector does not obscure the primary scene on standard desktop width.
+- [x] Object telemetry no longer requires cluttering every object label.
 
 ### Phase 5 — Telemetry redesign
 
@@ -721,6 +721,7 @@ Scene Workspace UX 2.0 is complete only when:
 | 2026-09-20 | UX-10–UX-15 | `e5b8b39e9b2450828c6d589650e92bcf99cd7f63` | New primary/secondary navigation implemented; legacy tab row removed; direct-entry compatibility preserved. Unit/integrity/regression suite: 6 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-10-UX-15-navigation-evidence.md`. |
 | 2026-09-20 | UX-20–UX-24 | `b63a443477c81f0d0a1eb4bf0513805112f1c10c` | Persistent operational status header added with explicit LIVE/DEGRADED/STALE and Unknown semantics. Unit/integrity/regression suite: 7 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-20-UX-24-status-evidence.md`. |
 | 2026-09-20 | UX-30–UX-36 | `23ea0b7335d04c42c3d0bcbd528fb08f0485121f` | Flat live controls replaced with Layers/Diagnostics/2D/3D groups; data availability is explicit. Unit/integrity/regression suite: 9 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-30-UX-36-controls-evidence.md`. |
+| 2026-09-20 | UX-40–UX-49 | `d464a752999151d106dbf1de20033b2ef8cbae72` | Contextual inspector added for objects/cameras/sensors/regions/tripwires; 2D and 3D object selection included. Unit/integrity/regression suite: 12 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-40-UX-49-inspector-evidence.md`. |
 
 ---
 
