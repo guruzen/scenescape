@@ -13,8 +13,10 @@ import HierarchyEditor from './native/HierarchyEditor'
 import SecurityAdmin from './native/SecurityAdmin'
 import ModelLibrary from './native/ModelLibrary'
 import SceneStatusHeader from './ux/SceneStatusHeader'
+import SceneInspector from './ux/SceneInspector'
 import { deriveSceneStatus } from './ux/sceneStatus'
 import { summarizeLiveObjectAvailability } from './ux/sceneViewControls'
+import type { SceneSelection, SceneSelectionKind } from './ux/sceneInspector'
 import {
   DEFAULT_SCENE_DESTINATION,
   PRIMARY_MODES,
@@ -74,7 +76,7 @@ function Header({ title, kicker, children }: { title: string; kicker: string; ch
   return <div className="page-header"><div><div className="kicker">{kicker}</div><h1>{title}</h1></div><div className="header-actions">{children}</div></div>
 }
 
-function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = false, showHeatmap = false, showVelocity = false, showLabels = true, visualizeRois = true, trails = {} }: { bundle: Bundle; live: Row; onPoint?: (point: number[]) => void; showTrails?: boolean; showTelemetry?: boolean; showHeatmap?: boolean; showVelocity?: boolean; showLabels?: boolean; visualizeRois?: boolean; trails?: Record<string, number[][]> }) {
+function Map2D({ bundle, live, onPoint, onSelect, onClearSelection, selected, showTrails = false, showTelemetry = false, showHeatmap = false, showVelocity = false, showLabels = true, visualizeRois = true, trails = {} }: { bundle: Bundle; live: Row; onPoint?: (point: number[]) => void; onSelect?: (selection: NonNullable<SceneSelection>) => void; onClearSelection?: () => void; selected?: SceneSelection; showTrails?: boolean; showTelemetry?: boolean; showHeatmap?: boolean; showVelocity?: boolean; showLabels?: boolean; visualizeRois?: boolean; trails?: Record<string, number[][]> }) {
   const scene = bundle.scene
   const [mapUrl, setMapUrl] = useState('')
   const [size, setSize] = useState<[number, number]>([1000, 700])
@@ -130,7 +132,7 @@ function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = fals
 
   return <div className="map-frame">
     <svg className="native-map" viewBox={`0 0 ${size[0]} ${size[1]}`} onClick={(event) => {
-      if (!onPoint) return
+      if (!onPoint) { onClearSelection?.(); return }
       const rect = event.currentTarget.getBoundingClientRect()
       const px = ((event.clientX - rect.left) / rect.width) * size[0]
       const py = ((event.clientY - rect.top) / rect.height) * size[1]
@@ -142,13 +144,13 @@ function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = fals
         </marker>
       </defs>
       {mapUrl && <image href={mapUrl} x="0" y="0" width={size[0]} height={size[1]} preserveAspectRatio="none" />}
-      {visualizeRois && bundle.regions.map((row, i) => row.visible && regionPoints[i] && <polygon key={rowId(row) || i} points={regionPoints[i]} className="region-shape" />)}
+      {visualizeRois && bundle.regions.map((row, i) => row.visible && regionPoints[i] && <polygon key={rowId(row) || i} points={regionPoints[i]} className={selected?.kind === 'region' && selected.id === (rowId(row) || String(i)) ? 'region-shape selected-entity' : 'region-shape'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'region',id:rowId(row)||String(i),value:row})}} />)}
       {visualizeRois && childRegions.map((row, i) => childRegionPoints[i] && <polygon key={`child-region-${rowId(row)||i}`} points={childRegionPoints[i]} className="child-region-shape" />)}
-      {bundle.tripwires.map((row, i) => row.visible && tripPoints[i] && <polyline key={rowId(row) || i} points={tripPoints[i]} className="tripwire-line" />)}
+      {visualizeRois && bundle.tripwires.map((row, i) => row.visible && tripPoints[i] && <polyline key={rowId(row) || i} points={tripPoints[i]} className={selected?.kind === 'tripwire' && selected.id === (rowId(row) || String(i)) ? 'tripwire-line selected-entity' : 'tripwire-line'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'tripwire',id:rowId(row)||String(i),value:row})}} />)}
       {childTripwires.map((row, i) => childTripPoints[i] && <polyline key={`child-trip-${rowId(row)||i}`} points={childTripPoints[i]} className="child-tripwire-line" />)}
       {bundle.cameras.map((camera, i) => {
         const [x, y] = xy(camera.translation || [i + 1, i + 1])
-        return <g key={rowId(camera) || i}><circle cx={x} cy={y} r="8" className="camera-dot"/>{showLabels && <text x={x + 11} y={y - 7} className="map-label">{rowName(camera)}</text>}</g>
+        return <g key={rowId(camera) || i} className={selected?.kind === 'camera' && selected.id === (rowId(camera) || String(i)) ? 'selectable-entity selected-entity' : 'selectable-entity'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'camera',id:rowId(camera)||String(i),value:camera})}}><circle cx={x} cy={y} r="8" className="camera-dot"/>{showLabels && <text x={x + 11} y={y - 7} className="map-label">{rowName(camera)}</text>}</g>
       })}
       {childSensors.map((sensor, i) => {
         if (sensor.area === 'scene') return null
@@ -173,7 +175,7 @@ function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = fals
             : null
         const polygon = Array.isArray(sensor.points) ? sensor.points.map((point: any) => xy(point).join(',')).join(' ') : ''
         const position = center ? xy(center) : null
-        return <g key={rowId(sensor) || i}>
+        return <g key={rowId(sensor) || i} className={selected?.kind === 'sensor' && selected.id === (rowId(sensor) || String(i)) ? 'selectable-entity selected-entity' : 'selectable-entity'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'sensor',id:rowId(sensor)||String(i),value:sensor})}}>
           {sensor.area === 'scene' && <rect x="2" y="2" width={Math.max(0,size[0]-4)} height={Math.max(0,size[1]-4)} className="sensor-scene-area"/>}
           {sensor.area === 'poly' && polygon && <polygon points={polygon} className="sensor-poly-area"/>}
           {sensor.area === 'circle' && position && <circle cx={position[0]} cy={position[1]} r={Math.max(1, Number(sensor.radius || 0) * scale)} className="sensor-circle-area"/>}
@@ -213,7 +215,7 @@ function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = fals
           ...persistent,
         ].filter(Boolean) : []
         const heatRadius = Math.max(14, Math.min(90, Number(object.tracking_radius || 0.6) * scale))
-        return <g key={String(object.id ?? i)}>
+        return <g key={String(object.id ?? i)} className={selected?.kind === 'object' && selected.id === String(object.id ?? i) ? 'selectable-entity selected-entity' : 'selectable-entity'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'object',id:String(object.id ?? i),value:object})}}>
           {showHeatmap && <circle cx={x} cy={y} r={heatRadius} className="object-heatmap"/>}
           {showHeatmap && <circle cx={x} cy={y} r={Math.max(8,heatRadius*0.45)} className="object-heatmap-core"/>}
           {showVelocity && velocityEnd && <line x1={x} y1={y} x2={velocityEnd[0]} y2={velocityEnd[1]} className="object-velocity" markerEnd="url(#velocity-arrow-head)"/>}
@@ -363,6 +365,8 @@ function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab
   const [cameraView, setCameraView] = useState(false)
   const [lightIntensity, setLightIntensity] = useState(1)
   const [runtimeOverview, setRuntimeOverview] = useState<Row | null>(null)
+  const [selection, setSelection] = useState<SceneSelection>(null)
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false)
   const visualRef = useRef<HTMLDivElement | null>(null)
   const id = rowId(scene)
   const tab = legacyTabForDestination(destination) ?? 'Live 2D'
@@ -380,6 +384,11 @@ function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab
   useEffect(() => {
     setDestination(destinationForLegacyTab(initialTab) ?? DEFAULT_SCENE_DESTINATION)
   }, [id, initialTab])
+
+  useEffect(() => {
+    setSelection(null)
+    setInspectorCollapsed(false)
+  }, [id])
 
   const loadBundle = () => void apiFetch<Bundle>(`/api/v2/scenes/${id}/bundle`).then(setBundle).catch((e) => setMessage(String(e)))
 
@@ -421,6 +430,11 @@ function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab
   if (!bundle) return <><button className="btn" onClick={onBack}>← Back to scenes</button><div className="center-panel">Loading native scene workspace…{message && <div className="error-box">{message}</div>}</div></>
   const map3DPath = String(bundle.scene.map || bundle.scene.thumbnail || '')
   const availability = summarizeLiveObjectAvailability(live.objects || [])
+  const chooseSelection = (kind: SceneSelectionKind, row: Row, fallback: string) => {
+    const selectionId = kind === 'object' ? String(row.id ?? fallback) : rowId(row) || fallback
+    setSelection({ kind, id: selectionId, value: row })
+    setInspectorCollapsed(false)
+  }
   const sceneStatus = deriveSceneStatus({
     stale: Boolean(live.stale),
     observedAt: live.observed_at ? String(live.observed_at) : null,
@@ -491,23 +505,26 @@ function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab
         <button className="text-button" onClick={()=>{const el=visualRef.current;if(!el)return;if(document.fullscreenElement)void document.exitFullscreen();else void el.requestFullscreen()}}>Fullscreen</button>
       </div>
     </div>}
-    <div ref={visualRef} className={(tab === 'Live 2D' || tab === 'Live 3D') ? 'scene-workspace-visual' : ''}>
-    {tab === 'Live 2D' && <Map2D bundle={bundle} live={liveView ? live : { objects: [], stale: true }} showTrails={showTrails} showTelemetry={showTelemetry} showHeatmap={showHeatmap} showVelocity={showVelocity} showLabels={showLabels} visualizeRois={visualizeRois} trails={trails}/>} 
-    {tab === 'Live 3D' && <><ThreeScene mapPath={map3DPath} objects={liveView ? (live.objects || []) : []} showTrackedObjects={liveView} showSpatial={visualizeRois} showFloor={showFloor} showHeatmap={showHeatmap} showVelocity={showVelocity} cameras={bundle.cameras} projectCameraFrames={projectCameraFrames} cameraOpacity={cameraOpacity} selectedCameraId={selectedCameraId} useSelectedCameraView={cameraView} lightIntensity={lightIntensity} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors} childRegions={bundle.child_regions||[]} childTripwires={bundle.child_tripwires||[]} childSensors={bundle.child_sensors||[]}/>
-      {showTelemetry && <div className="scene-telemetry-hud three-telemetry-hud">
-        <b>Live telemetry</b>
-        <span>Scene {Number(live.scene_rate || 0).toFixed(1)} Hz</span>
-        <span>{(live.objects || []).length} objects</span>
-        {live.rate && typeof live.rate === 'object'
-          ? Object.entries(live.rate as Row).map(([camera,value])=><span key={camera}>{camera}: {Number(value || 0).toFixed(1)} FPS</span>)
-          : <span>No per-camera rate in current feed</span>}
-      </div>}
-      {(showHeatmap || showVelocity) && <div className="visualization-status three-visualization-status">
-        {showHeatmap && <span>Heatmap: {(live.objects || []).length} tracked positions</span>}
-        {showVelocity && <span>Velocity: {(live.objects || []).filter((object:Row)=>Array.isArray(object.velocity)&&object.velocity.length>=2).length}/{(live.objects || []).length} vectors</span>}
-      </div>}
-    </>} 
-    </div>
+    {(tab === 'Live 2D' || tab === 'Live 3D') && <div className={selection && inspectorCollapsed ? 'scene-monitor-layout inspector-collapsed' : 'scene-monitor-layout'}>
+      <div ref={visualRef} className="scene-workspace-visual">
+      {tab === 'Live 2D' && <Map2D bundle={bundle} live={liveView ? live : { objects: [], stale: true }} onSelect={setSelection} onClearSelection={()=>setSelection(null)} selected={selection} showTrails={showTrails} showTelemetry={showTelemetry} showHeatmap={showHeatmap} showVelocity={showVelocity} showLabels={showLabels} visualizeRois={visualizeRois} trails={trails}/>} 
+      {tab === 'Live 3D' && <><ThreeScene mapPath={map3DPath} objects={liveView ? (live.objects || []) : []} onSelectObject={(objectId)=>{const rows=live.objects||[];const index=rows.findIndex((row:Row,i:number)=>String(row.id??i)===objectId);if(index>=0)chooseSelection('object',rows[index],String(index))}} selectedObjectId={selection?.kind==='object'?selection.id:''} showTrackedObjects={liveView} showSpatial={visualizeRois} showFloor={showFloor} showHeatmap={showHeatmap} showVelocity={showVelocity} cameras={bundle.cameras} projectCameraFrames={projectCameraFrames} cameraOpacity={cameraOpacity} selectedCameraId={selectedCameraId} useSelectedCameraView={cameraView} lightIntensity={lightIntensity} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors} childRegions={bundle.child_regions||[]} childTripwires={bundle.child_tripwires||[]} childSensors={bundle.child_sensors||[]}/>
+        {showTelemetry && <div className="scene-telemetry-hud three-telemetry-hud">
+          <b>Live telemetry</b>
+          <span>Scene {Number(live.scene_rate || 0).toFixed(1)} Hz</span>
+          <span>{(live.objects || []).length} objects</span>
+          {live.rate && typeof live.rate === 'object'
+            ? Object.entries(live.rate as Row).map(([camera,value])=><span key={camera}>{camera}: {Number(value || 0).toFixed(1)} FPS</span>)
+            : <span>No per-camera rate in current feed</span>}
+        </div>}
+        {(showHeatmap || showVelocity) && <div className="visualization-status three-visualization-status">
+          {showHeatmap && <span>Heatmap: {(live.objects || []).length} tracked positions</span>}
+          {showVelocity && <span>Velocity: {(live.objects || []).filter((object:Row)=>Array.isArray(object.velocity)&&object.velocity.length>=2).length}/{(live.objects || []).length} vectors</span>}
+        </div>}
+      </>} 
+      </div>
+      <SceneInspector selection={selection} liveObjects={live.objects||[]} collapsed={Boolean(selection)&&inspectorCollapsed} onToggleCollapse={()=>setInspectorCollapsed((value)=>!value)} onClear={()=>{setSelection(null);setInspectorCollapsed(false)}}/>
+    </div>}
     {tab === 'Camera feeds' && <><div className="live-controls camera-feed-controls"><label><input type="checkbox" checked={showTelemetry} onChange={(e)=>setShowTelemetry(e.target.checked)}/>Show Telemetry</label></div><CameraFeeds cameras={bundle.cameras} showTelemetry={showTelemetry}/></>} 
     {tab === 'Sensors & telemetry' && <SceneSensorTelemetry sensors={bundle.sensors}/>}
     {tab === 'Geometry' && <SpatialEditor scene={bundle.scene} regions={bundle.regions} tripwires={bundle.tripwires} isAdmin={isAdmin} onSaved={loadBundle}/>}
