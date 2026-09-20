@@ -1,7 +1,12 @@
+/* SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import assert from "node:assert/strict"
 import test from "node:test"
 
 import { deriveSceneStatus } from "../src/ux/sceneStatus.ts"
+import { deriveSceneTelemetry, emptyLiveSceneState } from "../src/ux/sceneTelemetry.ts"
 import { controlsForRenderer, summarizeLiveObjectAvailability } from "../src/ux/sceneViewControls.ts"
 import { buildInspectorModel, refreshObjectSelection } from "../src/ux/sceneInspector.ts"
 
@@ -175,4 +180,33 @@ test("regression: selected tracked object refreshes from the latest live observa
   assert.deepEqual(refreshed.value.translation, [2, 3])
   const retained = refreshObjectSelection(previous, [])
   assert.deepEqual(retained.value.translation, [1, 1])
+})
+
+
+test("unit: scene telemetry preserves unknown rates and computes freshness", () => {
+  const telemetry = deriveSceneTelemetry({
+    scene_rate: 29.95,
+    objects: [{}, {}],
+    stale: false,
+    observed_at: "2026-09-20T03:00:00Z",
+    rate: { camB: 29.5, camA: "30" },
+  }, Date.parse("2026-09-20T03:00:01.500Z"))
+  assert.equal(telemetry.sceneRate, 29.95)
+  assert.equal(telemetry.objectCount, 2)
+  assert.equal(telemetry.freshness, "Receiving")
+  assert.equal(telemetry.ageSeconds, 1.5)
+  assert.deepEqual(telemetry.cameraRates, [
+    { camera: "camA", fps: 30 },
+    { camera: "camB", fps: 29.5 },
+  ])
+
+  const unknown = deriveSceneTelemetry({ objects: [], stale: true })
+  assert.equal(unknown.sceneRate, null)
+  assert.equal(unknown.freshness, "Stale")
+  assert.deepEqual(unknown.cameraRates, [])
+})
+
+test("regression: scene changes reset live telemetry instead of retaining the prior scene", () => {
+  assert.deepEqual(emptyLiveSceneState(), { objects: [], stale: true })
+  assert.notEqual(emptyLiveSceneState(), emptyLiveSceneState())
 })
