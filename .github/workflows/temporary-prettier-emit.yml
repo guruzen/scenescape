@@ -1,0 +1,36 @@
+---
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: "Temporary Prettier emit"
+
+on:
+  push:
+    branches:
+      - feature/react-keycloak-modern-ui
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install repository Prettier
+        run: |
+          cp .github/resources/package.json package.json
+          npm install
+          rm package.json
+      - name: Format target
+        run: |
+          npx prettier --write modern-ui/tests/sceneWorkspaceContract.test.mjs             --ignore-path .gitignore             --ignore-path .github/resources/.prettierignore             --config .github/resources/.prettierrc.json
+      - name: Emit formatted target
+        run: |
+          echo "PRETTIER_FILE_BEGIN"
+          base64 -w0 modern-ui/tests/sceneWorkspaceContract.test.mjs
+          echo
+          echo "PRETTIER_FILE_END"
