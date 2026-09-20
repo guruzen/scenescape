@@ -341,12 +341,12 @@ export default function ThreeScene({
     while (group.children.length) {
       const child = group.children.pop()
       if (!child) continue
-      child.traverse((node) => {
-        if (node instanceof THREE.Mesh && node.userData.generatedGeometry) {
-          node.geometry.dispose()
+      child.traverse((node:any) => {
+        if (node.userData?.generatedGeometry) {
+          node.geometry?.dispose?.()
           const material = node.material
-          if (Array.isArray(material)) material.forEach((m) => m.dispose())
-          else material.dispose()
+          if (Array.isArray(material)) material.forEach((m:any) => m?.dispose?.())
+          else material?.dispose?.()
         }
       })
     }
