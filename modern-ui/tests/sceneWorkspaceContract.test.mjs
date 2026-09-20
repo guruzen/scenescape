@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { deriveSceneStatus } from "../src/ux/sceneStatus.ts"
+import { controlsForRenderer, summarizeLiveObjectAvailability } from "../src/ux/sceneViewControls.ts"
 
 import {
   DEFAULT_SCENE_DESTINATION,
@@ -113,4 +114,37 @@ test("unit: scene status distinguishes live degraded stale and unknown health", 
   assert.equal(unknown.state, "LIVE")
   assert.equal(unknown.cameraHealthy, null)
   assert.equal(unknown.mqtt, "Unknown")
+})
+
+
+test("unit: renderer controls are contextual", () => {
+  const controls2d = controlsForRenderer("2d")
+  assert.ok(controls2d.includes("labels"))
+  assert.ok(!controls2d.includes("floor"))
+  assert.ok(!controls2d.includes("camera-frames"))
+
+  const controls3d = controlsForRenderer("3d")
+  assert.ok(!controls3d.includes("labels"))
+  assert.ok(controls3d.includes("floor"))
+  assert.ok(controls3d.includes("camera-frames"))
+  assert.ok(controls3d.includes("lighting"))
+  for (const common of ["objects", "trails", "heatmap", "velocity", "spatial", "telemetry"]) {
+    assert.ok(controls2d.includes(common))
+    assert.ok(controls3d.includes(common))
+  }
+})
+
+test("unit: data-dependent layer availability reports velocity coverage", () => {
+  const availability = summarizeLiveObjectAvailability([
+    { id: 1, velocity: [1, 0] },
+    { id: 2, velocity: ["0.5", "0.2"] },
+    { id: 3 },
+    { id: 4, velocity: ["bad", 1] },
+  ])
+  assert.deepEqual(availability, {
+    total: 4, velocityVectors: 2, trailsAvailable: true, heatmapAvailable: true, velocityAvailable: true,
+  })
+  assert.deepEqual(summarizeLiveObjectAvailability([]), {
+    total: 0, velocityVectors: 0, trailsAvailable: false, heatmapAvailable: false, velocityAvailable: false,
+  })
 })
