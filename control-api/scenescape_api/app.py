@@ -1158,6 +1158,36 @@ def trends(scene_id: str, p=Depends(current_principal), db=Depends(db_dep)):
     ]
 
 
+@app.get("/api/v2/cameras/{camera_id}/telemetry")
+def native_camera_telemetry(camera_id: str, p=Depends(current_principal), db=Depends(db_dep)):
+    camera = to_dict(get_resource(db, "camera", camera_id))
+    scene_id = str(camera.get("scene") or camera.get("scene_id") or "")
+    if scene_id:
+        _scene_allowed(p, scene_id)
+    rows = db.scalars(
+        select(Observation)
+        .where(Observation.topic.like(f"scenescape/data/camera/{camera_id}%"))
+        .order_by(Observation.observed_at.desc(), Observation.id.desc())
+        .limit(60)
+    ).all()
+    if not rows:
+        return {"camera_id": camera_id, "fps": 0.0, "stale": True, "samples": 0, "last_observation": None, "detections": 0}
+    chronological = list(reversed(rows))
+    span = (chronological[-1].observed_at - chronological[0].observed_at).total_seconds()
+    fps = (len(chronological) - 1) / span if len(chronological) > 1 and span > 0 else 0.0
+    latest = rows[0]
+    objects = (latest.payload or {}).get("objects") or {}
+    detections = sum(len(value) for value in objects.values() if isinstance(value, list)) if isinstance(objects, dict) else 0
+    return {
+        "camera_id": camera_id,
+        "fps": round(fps, 2),
+        "stale": _age_seconds(latest.observed_at) > 5,
+        "samples": len(rows),
+        "last_observation": latest.observed_at.isoformat(),
+        "detections": detections,
+    }
+
+
 @app.get("/api/v2/cameras/{camera_id}/snapshot")
 def camera_snapshot(camera_id: str, p=Depends(current_principal), db=Depends(db_dep)):
     camera = to_dict(get_resource(db, "camera", camera_id))
