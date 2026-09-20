@@ -6,7 +6,7 @@ from pathlib import Path
 
 import uvicorn
 
-from sqlalchemy import delete
+from sqlalchemy import delete, text
 
 from .database import Base, Event, Heartbeat, Incident, Observation, Resource, get_engine, sessions
 from .ingest import persist
@@ -14,7 +14,28 @@ from .migrate_legacy import migrate as migrate_snapshot
 
 
 def migrate():
-    Base.metadata.create_all(get_engine())
+    engine = get_engine()
+    Base.metadata.create_all(engine)
+    # create_all() does not retrofit constraints on an existing native database.
+    # Refuse to add the uniqueness guard if an earlier build already created
+    # duplicate logical resources; silently deleting either row would lose data.
+    with engine.begin() as connection:
+        duplicates = connection.execute(text(
+            "SELECT kind, uid, COUNT(*) FROM native_resources GROUP BY kind, uid HAVING COUNT(*) > 1 LIMIT 1"
+        )).first()
+        if duplicates:
+            raise RuntimeError(
+                f"Cannot enforce native resource uniqueness: duplicate {duplicates[0]}/{duplicates[1]} rows exist"
+            )
+        dialect = engine.dialect.name
+        if dialect == "postgresql":
+            connection.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_native_resources_kind_uid ON native_resources (kind, uid)"
+            ))
+        elif dialect == "sqlite":
+            connection.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_native_resources_kind_uid ON native_resources (kind, uid)"
+            ))
 
 
 def seed(path):
