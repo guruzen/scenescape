@@ -511,19 +511,19 @@ The primary objective is monitoring, not full editing.
 
 ### Phase 5 — Telemetry redesign
 
-- [ ] **UX-50** Refactor scene telemetry into a dedicated HUD/component.
-- [ ] **UX-51** Display scene rate and object count.
-- [ ] **UX-52** Display per-camera FPS from `live.rate` when available.
-- [ ] **UX-53** Add feed freshness.
-- [ ] **UX-54** Move rich object `persistent_data` presentation into inspector.
-- [ ] **UX-55** Align Camera Feeds telemetry styling and terminology with the scene HUD.
-- [ ] **UX-56** Ensure telemetry state survives appropriate Monitor subview switches without stale values leaking between scenes.
+- [x] **UX-50** Refactor scene telemetry into a dedicated HUD/component.
+- [x] **UX-51** Display scene rate and object count.
+- [x] **UX-52** Display per-camera FPS from `live.rate` when available.
+- [x] **UX-53** Add feed freshness.
+- [x] **UX-54** Move rich object `persistent_data` presentation into inspector.
+- [x] **UX-55** Align Camera Feeds telemetry styling and terminology with the scene HUD.
+- [x] **UX-56** Ensure telemetry state survives appropriate Monitor subview switches without stale values leaking between scenes.
 
 **Acceptance gate — Phase 5**
 
-- [ ] Telemetry visibly reproduces the useful 2026.2 semantics.
-- [ ] The scene remains readable with telemetry enabled.
-- [ ] No misleading zero is shown when the real state is unknown.
+- [x] Telemetry visibly reproduces the useful 2026.2 semantics.
+- [x] The scene remains readable with telemetry enabled.
+- [x] No misleading zero is shown when the real state is unknown.
 
 ### Phase 6 — Heatmap and velocity refinement
 
@@ -722,6 +722,7 @@ Scene Workspace UX 2.0 is complete only when:
 | 2026-09-20 | UX-20–UX-24 | `b63a443477c81f0d0a1eb4bf0513805112f1c10c` | Persistent operational status header added with explicit LIVE/DEGRADED/STALE and Unknown semantics. Unit/integrity/regression suite: 7 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-20-UX-24-status-evidence.md`. |
 | 2026-09-20 | UX-30–UX-36 | `23ea0b7335d04c42c3d0bcbd528fb08f0485121f` | Flat live controls replaced with Layers/Diagnostics/2D/3D groups; data availability is explicit. Unit/integrity/regression suite: 9 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-30-UX-36-controls-evidence.md`. |
 | 2026-09-20 | UX-40–UX-49 | `d464a752999151d106dbf1de20033b2ef8cbae72` | Contextual inspector added for objects/cameras/sensors/regions/tripwires; 2D and 3D object selection included. Unit/integrity/regression suite: 12 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-40-UX-49-inspector-evidence.md`. |
+| 2026-09-20 | UX-50–UX-56 | `3349ffb72be52a7a640d2e7dc2bbf99d1aac7620` | Shared telemetry HUD added; unknown values stay unknown; persistent object data moved to inspector; scene-switch reset prevents stale telemetry. UX suite: 14 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-50-UX-56-telemetry-evidence.md`. |
 
 ---
 
