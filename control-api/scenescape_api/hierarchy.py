@@ -314,6 +314,10 @@ def normalize_child(db, body: dict, *, row: Resource | None = None, creating: bo
             for field in REMOTE_FIELDS:
                 effective[field] = None
     else:
+        # Native clients treat the remote MQTT password as write-only. On update,
+        # an omitted/blank password means "preserve the stored secret".
+        if row is not None and data.get("mqtt_password") in (None, "") and existing.get("mqtt_password"):
+            effective["mqtt_password"] = existing["mqtt_password"]
         for field in ("remote_child_id", "child_name", "host_name", "mqtt_username", "mqtt_password"):
             if not effective.get(field):
                 _bad(field, "required")
@@ -396,6 +400,9 @@ def child_to_dict(db, row: Resource, *, native: bool = False) -> dict:
     if native:
         payload["revision"] = row.revision
         payload["kind"] = row.kind
+        if child_type == "remote":
+            payload["has_mqtt_password"] = bool(payload.get("mqtt_password"))
+            payload.pop("mqtt_password", None)
 
     result = {}
     for key, value in payload.items():
