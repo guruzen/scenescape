@@ -440,8 +440,8 @@ The primary objective is monitoring, not full editing.
 ### Phase 0 — Specification and guardrails
 
 - [x] **UX-00** Create and check in the durable Scene Workspace UX 2.0 specification.
-- [ ] **UX-01** Capture a component-level implementation map before refactor: current SceneWorkspace responsibilities, candidate reusable components, and state ownership.
-- [ ] **UX-02** Add a lightweight regression checklist for all currently reachable Scene Workspace capabilities before changing navigation.
+- [x] **UX-01** Capture a component-level implementation map before refactor: current SceneWorkspace responsibilities, candidate reusable components, and state ownership.
+- [x] **UX-02** Add a lightweight regression checklist for all currently reachable Scene Workspace capabilities before changing navigation.
 
 ### Phase 1 — Information architecture foundation
 
@@ -717,6 +717,7 @@ Scene Workspace UX 2.0 is complete only when:
 | Date | Task(s) | Commit | Notes |
 | --- | --- | --- | --- |
 | 2026-09-20 | UX-00 | `7060e99c387e84873fbae1cda7cc1e29c916bb8d` | Durable UX specification and execution checklist created. |
+| 2026-09-20 | UX-01, UX-02 | `9cd022212cb8476c042271a3017f1a32d652b791` | Component/state map captured; zero-dependency UX contract suite added. Unit, integrity, and regression checks: 3 passed, 0 failed. |
 
 ---
 
