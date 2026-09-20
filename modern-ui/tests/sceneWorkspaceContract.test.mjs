@@ -9,6 +9,7 @@ import { deriveSceneStatus } from "../src/ux/sceneStatus.ts"
 import { deriveSceneTelemetry, emptyLiveSceneState } from "../src/ux/sceneTelemetry.ts"
 import { HEATMAP_RANGES, heatmapOpacityValue, velocityArrow2D, velocityLength3D } from "../src/ux/sceneVisualization.ts"
 import { SCENE_LAYOUT_BREAKPOINTS, SCENE_VISUAL_HIERARCHY, SUPPORTED_UI_THEMES, layoutModeForWidth } from "../src/ux/sceneLayout.ts"
+import { LIVE_REGION_POLICY, isSelectionActivationKey, selectionAriaLabel } from "../src/ux/sceneAccessibility.ts"
 import { controlsForRenderer, summarizeLiveObjectAvailability } from "../src/ux/sceneViewControls.ts"
 import { buildInspectorModel, refreshObjectSelection } from "../src/ux/sceneInspector.ts"
 
@@ -260,4 +261,23 @@ test("integrity: visual hierarchy and supported themes remain explicit", () => {
   assert.deepEqual(SUPPORTED_UI_THEMES.map((theme) => theme.value), [
     "light", "light-air", "dark", "dark-command",
   ])
+})
+
+
+test("unit: keyboard selection uses native activation keys only", () => {
+  assert.equal(isSelectionActivationKey("Enter"), true)
+  assert.equal(isSelectionActivationKey(" "), true)
+  assert.equal(isSelectionActivationKey("Spacebar"), false)
+  assert.equal(isSelectionActivationKey("ArrowRight"), false)
+  assert.equal(isSelectionActivationKey("Escape"), false)
+})
+
+test("integrity: scene accessibility labels and live-region policy are explicit", () => {
+  assert.equal(selectionAriaLabel("object", "42"), "Inspect tracked object 42")
+  assert.equal(selectionAriaLabel("camera", "Entry"), "Inspect camera Entry")
+  assert.equal(selectionAriaLabel("tripwire", ""), "Inspect tripwire")
+  assert.deepEqual(LIVE_REGION_POLICY, {
+    sceneState: "polite",
+    telemetryMetrics: "off",
+  })
 })
