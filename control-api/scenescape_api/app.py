@@ -1325,23 +1325,167 @@ def native_camera_pipeline_preview(camera_id: str, body: dict, p=Depends(current
   return pipeline_preview(merged)
 
 
+def _incident_event_context(db, incident: Incident) -> dict:
+  event = db.get(Event, incident.event_id) if incident.event_id else None
+  payload = dict(event.payload or {}) if event else {}
+  topic = str(event.topic or "") if event else ""
+  parts = [part for part in topic.split("/") if part]
+  rule_type = parts[2] if len(parts) >= 3 and parts[:2] == ["scenescape", "event"] else ""
+  rule_id = parts[4] if len(parts) >= 5 and parts[:2] == ["scenescape", "event"] else ""
+  event_type = parts[5] if len(parts) >= 6 and parts[:2] == ["scenescape", "event"] else ""
+  scene_id = str(payload.get("scene_id") or incident.scene_id or "")
+  scene_name = str(payload.get("scene_name") or "").strip()
+  if not scene_name and scene_id:
+    scene = db.scalar(select(Resource).where(Resource.kind == "scene", Resource.uid == scene_id).limit(1))
+    if scene:
+      scene_name = str((scene.payload or {}).get("name") or scene_id)
+  rule_name = str(payload.get(f"{rule_type}_name") or payload.get("region_name") or payload.get("tripwire_name") or "").strip()
+  if not rule_name and rule_type in {"region", "tripwire"} and rule_id:
+    resource = db.scalar(select(Resource).where(Resource.kind == rule_type, Resource.uid == rule_id).limit(1))
+    if resource:
+      rule_name = str((resource.payload or {}).get("name") or rule_id)
+
+  object_types = set()
+  object_ids = set()
+  counts = payload.get("counts")
+  if isinstance(counts, dict):
+    object_types.update(str(kind) for kind, count in counts.items() if count)
+
+  def collect(values):
+    if not isinstance(values, list):
+      return
+    for value in values:
+      if not isinstance(value, dict):
+        continue
+      obj = value.get("object") if isinstance(value.get("object"), dict) else value
+      if obj.get("type"):
+        object_types.add(str(obj["type"]))
+      if obj.get("id") is not None:
+        object_ids.add(str(obj["id"]))
+
+  collect(payload.get("objects"))
+  collect(payload.get("entered"))
+  collect(payload.get("exited"))
+  entered = payload.get("entered") if isinstance(payload.get("entered"), list) else []
+  exited = payload.get("exited") if isinstance(payload.get("exited"), list) else []
+  if rule_type == "tripwire" and event_type == "objects":
+    action = "crossing"
+  elif rule_type == "region" and event_type == "count":
+    action = "count"
+  elif rule_type == "region" and entered and not exited:
+    action = "enter"
+  elif rule_type == "region" and exited and not entered:
+    action = "exit"
+  else:
+    action = "activity"
+
+  label = rule_name or rule_id or scene_name or scene_id or "Scene event"
+  if rule_type == "tripwire" and action == "crossing":
+    title = f"Tripwire crossed · {label}"
+  elif rule_type == "region" and action == "enter":
+    title = f"Entered region · {label}"
+  elif rule_type == "region" and action == "exit":
+    title = f"Exited region · {label}"
+  elif rule_type == "region" and action == "count":
+    title = f"Region count changed · {label}"
+  elif rule_type == "region":
+    title = f"Region activity · {label}"
+  else:
+    title = incident.title
+
+  return {
+      "event_id": event.id if event else incident.event_id,
+      "timestamp": event.observed_at.isoformat() if event else incident.updated_at.isoformat(),
+      "topic": topic,
+      "scene_id": scene_id,
+      "scene_name": scene_name or scene_id,
+      "rule_type": rule_type,
+      "rule_id": rule_id,
+      "rule_name": rule_name or rule_id,
+      "event_type": event_type,
+      "action": action,
+      "object_types": sorted(object_types),
+      "object_ids": sorted(object_ids),
+      "counts": counts if isinstance(counts, dict) else {},
+      "objects": payload.get("objects") if isinstance(payload.get("objects"), list) else [],
+      "entered": entered,
+      "exited": exited,
+      "title": title,
+  }
+
+
+def _incident_record(db, incident: Incident) -> dict:
+  context = _incident_event_context(db, incident)
+  return {
+      "id": incident.id,
+      "scene_id": incident.scene_id,
+      "title": context["title"],
+      "status": incident.status,
+      "assignee": incident.assignee,
+      "notes": incident.notes,
+      "audit": incident.audit,
+      **context,
+  }
+
+
+def _incident_time(value: str, field: str):
+  if not value:
+    return None
+  try:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+  except ValueError as exc:
+    raise HTTPException(422, f"Invalid {field} timestamp") from exc
+  return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
 @app.get("/api/v2/incidents")
-def incidents(p=Depends(current_principal), db=Depends(db_dep)):
+def incidents(
+    scene_id: str = Query(default=""),
+    rule_type: str = Query(default=""),
+    rule_id: str = Query(default=""),
+    event_type: str = Query(default=""),
+    object_type: str = Query(default=""),
+    status: str = Query(default=""),
+    q: str = Query(default=""),
+    from_time: str = Query(default="", alias="from"),
+    to_time: str = Query(default="", alias="to"),
+    limit: int = Query(default=500, ge=1, le=5000),
+    p=Depends(current_principal),
+    db=Depends(db_dep),
+):
   rows = db.scalars(select(Incident).order_by(Incident.id.desc())).all()
   if not (p.is_admin or "*" in p.scene_scopes):
     rows = [row for row in rows if _row_scene_allowed(p, row.scene_id)]
-  return [
-      {
-          "id": r.id,
-          "scene_id": r.scene_id,
-          "title": r.title,
-          "status": r.status,
-          "assignee": r.assignee,
-          "notes": r.notes,
-          "audit": r.audit,
-      }
-      for r in rows
-  ]
+  records = [_incident_record(db, row) for row in rows]
+  start = _incident_time(from_time, "from")
+  end = _incident_time(to_time, "to")
+  if scene_id:
+    records = [row for row in records if row["scene_id"] == scene_id]
+  if rule_type:
+    records = [row for row in records if row["rule_type"] == rule_type]
+  if rule_id:
+    records = [row for row in records if row["rule_id"] == rule_id]
+  if event_type:
+    records = [row for row in records if row["event_type"] == event_type]
+  if object_type:
+    records = [row for row in records if object_type in row["object_types"]]
+  if status:
+    records = [row for row in records if row["status"] == status]
+  if start:
+    records = [row for row in records if datetime.fromisoformat(row["timestamp"]) >= start]
+  if end:
+    records = [row for row in records if datetime.fromisoformat(row["timestamp"]) <= end]
+  if q:
+    needle = q.casefold()
+    records = [
+        row for row in records
+        if needle in " ".join([
+            str(row["title"]), str(row["scene_name"]), str(row["scene_id"]),
+            str(row["rule_name"]), str(row["rule_id"]), str(row["event_type"]),
+            " ".join(row["object_types"]), " ".join(row["object_ids"]),
+        ]).casefold()
+    ]
+  return records[:limit]
 
 
 @app.post("/api/v2/incidents/{incident_id}/action")
@@ -1368,7 +1512,7 @@ def incident_action(incident_id: int, body: dict, p=Depends(current_principal), 
   row.audit = audit
   row.updated_at = datetime.now(timezone.utc)
   db.commit()
-  return {"id": row.id, "status": row.status, "assignee": row.assignee, "notes": row.notes, "audit": row.audit, "title": row.title}
+  return _incident_record(db, row)
 
 
 @app.get("/api/v2/models/configs")
