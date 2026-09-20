@@ -1225,3 +1225,30 @@ def test_native_delete_requires_current_revision(tmp_path, monkeypatch):
     assert client.delete('/api/v2/scenes/delete-cas?revision=1',headers=h).status_code==409
     assert client.delete('/api/v2/scenes/delete-cas?revision=2',headers=h).status_code==200
     assert client.get('/api/v2/scenes/delete-cas',headers=h).status_code==404
+
+
+def test_scoped_viewer_cannot_mutate_native_scene_and_media_requires_auth(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); admin=headers(client)
+    created=client.post('/api/v2/scenes',headers=admin,json={'uid':'secure-scene','name':'Secure Scene'})
+    assert created.status_code==200
+    revision=created.json()['revision']
+
+    import time, jwt
+    viewer=jwt.encode({
+        'sub':'viewer-mutation','name':'Viewer','roles':['scenescape-viewer'],'scenes':['secure-scene'],
+        'iat':int(time.time()),'exp':int(time.time())+300,'aud':'scenescape-api'
+    },'test-signing-key-abcdefghijklmnopqrstuvwxyz',algorithm='HS256')
+    scoped={'Authorization':'Bearer '+viewer}
+
+    assert client.put(
+        f'/api/v2/scenes/secure-scene?revision={revision}',
+        headers=scoped,json={'name':'Forbidden update'}
+    ).status_code==403
+    assert client.delete(
+        f'/api/v2/scenes/secure-scene?revision={revision}',
+        headers=scoped
+    ).status_code==403
+
+    (tmp_path/'media'/'protected.txt').write_text('protected')
+    assert client.get('/media/protected.txt').status_code in (401,403)
+    assert client.get('/media/protected.txt',headers=admin).status_code==200
