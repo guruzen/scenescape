@@ -8,6 +8,7 @@ import test from "node:test"
 import { deriveSceneStatus } from "../src/ux/sceneStatus.ts"
 import { deriveSceneTelemetry, emptyLiveSceneState } from "../src/ux/sceneTelemetry.ts"
 import { HEATMAP_RANGES, heatmapOpacityValue, velocityArrow2D, velocityLength3D } from "../src/ux/sceneVisualization.ts"
+import { SCENE_LAYOUT_BREAKPOINTS, SCENE_VISUAL_HIERARCHY, SUPPORTED_UI_THEMES, layoutModeForWidth } from "../src/ux/sceneLayout.ts"
 import { controlsForRenderer, summarizeLiveObjectAvailability } from "../src/ux/sceneViewControls.ts"
 import { buildInspectorModel, refreshObjectSelection } from "../src/ux/sceneInspector.ts"
 
@@ -234,4 +235,29 @@ test("unit: heatmap opacity is bounded and only current density is advertised", 
   assert.equal(heatmapOpacityValue(0.65), 0.65)
   assert.equal(heatmapOpacityValue(4), 1)
   assert.deepEqual(HEATMAP_RANGES, ["Current"])
+})
+
+
+test("unit: scene layout breakpoints select desktop drawer and narrow modes", () => {
+  assert.equal(layoutModeForWidth(1540), "desktop")
+  assert.equal(layoutModeForWidth(1101), "desktop")
+  assert.equal(layoutModeForWidth(1100), "drawer")
+  assert.equal(layoutModeForWidth(700), "drawer")
+  assert.equal(layoutModeForWidth(600), "narrow")
+  assert.equal(layoutModeForWidth(320), "narrow")
+  assert.deepEqual(SCENE_LAYOUT_BREAKPOINTS, { drawer: 1100, narrow: 600 })
+})
+
+test("integrity: visual hierarchy and supported themes remain explicit", () => {
+  assert.deepEqual(SCENE_VISUAL_HIERARCHY, [
+    "status",
+    "primary-navigation",
+    "secondary-navigation",
+    "view-controls",
+    "visualization",
+    "inspector",
+  ])
+  assert.deepEqual(SUPPORTED_UI_THEMES.map((theme) => theme.value), [
+    "light", "light-air", "dark", "dark-command",
+  ])
 })
