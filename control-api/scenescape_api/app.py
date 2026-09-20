@@ -67,6 +67,17 @@ def _scene_allowed(p: Principal, scene_id: str):
     raise HTTPException(403, "Scene is outside token scope")
 
 
+def _camera_scene_allowed(db, p: Principal, camera_id: str) -> dict:
+    camera = to_dict(get_resource(db, "camera", camera_id))
+    scene_id = str(camera.get("scene") or camera.get("scene_id") or "")
+    _scene_allowed(p, scene_id)
+    return camera
+
+
+def _row_scene_allowed(p: Principal, scene_id: str | None) -> bool:
+    value = str(scene_id or "")
+    return bool(p.is_admin or "*" in p.scene_scopes or (value and value in p.scene_scopes))
+
 
 def _age_seconds(value: datetime) -> float:
     if value.tzinfo is None:
@@ -499,6 +510,7 @@ def autocalibration_status(p=Depends(current_principal)):
 @app.get("/api/v1/autocalibration/scenes/{scene_id}/registration")
 @app.get("/api/v2/autocalibration/scenes/{scene_id}/registration")
 def autocalibration_scene_registration_get(scene_id: str, p=Depends(current_principal)):
+    _scene_allowed(p, scene_id)
     return proxy_scene_registration(scene_id, "GET")
 
 
@@ -520,7 +532,8 @@ def autocalibration_scene_registration_patch(scene_id: str, p=Depends(current_pr
 
 @app.get("/api/v1/autocalibration/cameras/{camera_id}/calibration")
 @app.get("/api/v2/autocalibration/cameras/{camera_id}/calibration")
-def autocalibration_camera_get(camera_id: str, p=Depends(current_principal)):
+def autocalibration_camera_get(camera_id: str, p=Depends(current_principal), db=Depends(db_dep)):
+    _camera_scene_allowed(db, p, camera_id)
     return proxy_camera_calibration(camera_id, "GET")
 
 
@@ -1046,14 +1059,32 @@ def native_sensor_telemetry(
 
 @app.get("/api/v2/overview")
 def overview(p=Depends(current_principal), db=Depends(db_dep)):
+    unrestricted = p.is_admin or "*" in p.scene_scopes
     counts = {}
     for plural, kind in ALIASES.items():
-        counts[plural] = db.scalar(select(func.count()).select_from(Resource).where(Resource.kind == kind)) or 0
-    counts["incidents"] = db.scalar(select(func.count()).select_from(Incident)) or 0
-    counts["observations"] = db.scalar(select(func.count()).select_from(Observation)) or 0
-    counts["events"] = db.scalar(select(func.count()).select_from(Event)) or 0
+        rows = db.scalars(select(Resource).where(Resource.kind == kind)).all()
+        if unrestricted or kind == "asset":
+            visible = rows
+        elif kind == "scene":
+            visible = [row for row in rows if row.uid in p.scene_scopes]
+        else:
+            visible = [row for row in rows if _row_scene_allowed(
+                p, (row.payload or {}).get("scene") or (row.payload or {}).get("scene_id") or (row.payload or {}).get("parent")
+            )]
+        counts[plural] = len(visible)
+
+    incident_rows = db.scalars(select(Incident)).all()
+    observation_rows = db.scalars(select(Observation)).all()
+    event_rows = db.scalars(select(Event)).all()
+    if not unrestricted:
+        incident_rows = [row for row in incident_rows if _row_scene_allowed(p, row.scene_id)]
+        observation_rows = [row for row in observation_rows if _row_scene_allowed(p, row.scene_id)]
+        event_rows = [row for row in event_rows if _row_scene_allowed(p, row.scene_id)]
+    counts["incidents"] = len(incident_rows)
+    counts["observations"] = len(observation_rows)
+    counts["events"] = len(event_rows)
     hb = db.get(Heartbeat, "mqtt")
-    latest = db.scalar(select(Observation.observed_at).order_by(Observation.observed_at.desc()).limit(1))
+    latest = max((row.observed_at for row in observation_rows), default=None)
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "counts": counts,
@@ -1285,6 +1316,8 @@ def native_camera_pipeline_preview(camera_id: str, body: dict, p=Depends(current
 @app.get("/api/v2/incidents")
 def incidents(p=Depends(current_principal), db=Depends(db_dep)):
     rows = db.scalars(select(Incident).order_by(Incident.id.desc())).all()
+    if not (p.is_admin or "*" in p.scene_scopes):
+        rows = [row for row in rows if _row_scene_allowed(p, row.scene_id)]
     return [
         {
             "id": r.id,
@@ -1304,6 +1337,8 @@ def incident_action(incident_id: int, body: dict, p=Depends(current_principal), 
     row = db.get(Incident, incident_id)
     if not row:
         raise HTTPException(404, "Incident not found")
+    if not _row_scene_allowed(p, row.scene_id):
+        raise HTTPException(403, "Incident is outside token scope")
     status = str(body.get("status") or row.status)
     if status not in {"new", "acknowledged", "investigating", "resolved", "reopened"}:
         raise HTTPException(422, "Invalid incident status")
