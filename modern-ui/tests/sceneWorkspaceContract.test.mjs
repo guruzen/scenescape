@@ -3,12 +3,18 @@ import test from "node:test"
 
 import {
   DEFAULT_SCENE_DESTINATION,
+  DEFAULT_VIEW_BY_MODE,
   LEGACY_SCENE_TABS,
   PRIMARY_MODES,
+  ROUTE_BY_DESTINATION_KEY,
   SCENE_DESTINATION_BY_LEGACY_TAB,
   SCENE_WORKSPACE_CAPABILITIES,
+  SECONDARY_VIEWS_BY_MODE,
+  defaultDestinationForMode,
   destinationForLegacyTab,
   destinationKey,
+  legacyTabForDestination,
+  routeForDestination,
 } from "../src/ux/sceneWorkspaceContract.ts"
 
 test("unit: every legacy tab resolves to an explicit UX 2.0 destination", () => {
@@ -17,8 +23,19 @@ test("unit: every legacy tab resolves to an explicit UX 2.0 destination", () => 
     assert.ok(destination, `missing destination for ${tab}`)
     assert.ok(PRIMARY_MODES.includes(destination.mode))
     assert.ok(destination.view.length > 0)
+    assert.equal(legacyTabForDestination(destination), tab)
   }
   assert.equal(destinationForLegacyTab("not-a-scene-tab"), null)
+  assert.equal(legacyTabForDestination({ mode: "Configure", view: "Scene" }), null)
+})
+
+test("unit: primary-mode changes choose stable workspace defaults", () => {
+  assert.deepEqual(defaultDestinationForMode("Monitor"), { mode: "Monitor", view: "2D Scene" })
+  assert.deepEqual(defaultDestinationForMode("Analyze"), { mode: "Analyze", view: "History" })
+  assert.deepEqual(defaultDestinationForMode("Configure"), { mode: "Configure", view: "Geometry" })
+  for (const mode of PRIMARY_MODES) {
+    assert.ok(SECONDARY_VIEWS_BY_MODE[mode].includes(DEFAULT_VIEW_BY_MODE[mode]))
+  }
 })
 
 test("integrity: destination mapping is one-to-one and complete", () => {
@@ -26,6 +43,17 @@ test("integrity: destination mapping is one-to-one and complete", () => {
   const keys = LEGACY_SCENE_TABS.map((tab) => destinationKey(SCENE_DESTINATION_BY_LEGACY_TAB[tab]))
   assert.equal(new Set(keys).size, keys.length, "two legacy destinations collapse into one UX destination")
   assert.deepEqual(new Set(PRIMARY_MODES), new Set(["Monitor", "Analyze", "Configure"]))
+  for (const mode of PRIMARY_MODES) assert.ok(SECONDARY_VIEWS_BY_MODE[mode].length > 0)
+})
+
+test("integrity: route-out destinations are explicit and configuration-only", () => {
+  assert.deepEqual(ROUTE_BY_DESTINATION_KEY, {
+    "Configure:Scene": "scenes",
+    "Configure:Cameras": "cameras",
+    "Configure:Sensors": "sensors",
+  })
+  assert.equal(routeForDestination({ mode: "Monitor", view: "Cameras" }), null)
+  assert.equal(routeForDestination({ mode: "Configure", view: "Cameras" }), "cameras")
 })
 
 test("regression: the pre-overhaul scene workspace capability baseline is locked", () => {
