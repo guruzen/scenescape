@@ -104,6 +104,7 @@ jobs:
           . .venv/bin/activate
           pytest -q \
             control-api/tests/test_native_api.py::test_crud_revision_and_live_history \
+            control-api/tests/test_native_api.py::test_scene_live_history_ignore_camera_observations \
             control-api/tests/test_native_api.py::test_media_path_is_bounded \
             control-api/tests/test_native_api.py::test_viewer_scene_scope_filters_resources \
             control-api/tests/test_native_api.py::test_native_camera_telemetry_is_scoped_and_camera_id_safe \
