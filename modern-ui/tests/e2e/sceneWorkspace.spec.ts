@@ -310,3 +310,60 @@ test("UX-98 Configure smoke: geometry, hierarchy, calibration and inventory rout
 
   await screenshot(page, testInfo, "ux98-configure-inventories.png")
 })
+
+
+test("UX-80–85 Accessibility smoke: keyboard navigation, controls, focus and scoped announcements", async ({ page }, testInfo) => {
+  await openScene(page)
+
+  const analyze = page.locator(".scene-primary-nav").getByRole("button", { name: "Analyze" })
+  await analyze.focus()
+  await analyze.press("Enter")
+  await expect(page.getByRole("heading", { name: "Persisted observations" })).toBeVisible()
+
+  const configure = page.locator(".scene-primary-nav").getByRole("button", { name: "Configure" })
+  await configure.focus()
+  await configure.press("Enter")
+  await expect(page.getByRole("heading", { name: "Spatial analytics" })).toBeVisible()
+
+  const monitor = page.locator(".scene-primary-nav").getByRole("button", { name: "Monitor" })
+  await monitor.focus()
+  await monitor.press("Enter")
+  await expect(page.locator(".native-map")).toBeVisible()
+
+  const view3d = page.locator(".scene-secondary-nav").getByRole("button", { name: "3D Scene" })
+  await view3d.focus()
+  await view3d.press("Enter")
+  await expect(page.locator(".three-canvas")).toBeVisible()
+
+  const view2d = page.locator(".scene-secondary-nav").getByRole("button", { name: "2D Scene" })
+  await view2d.focus()
+  await view2d.press("Enter")
+  await expect(page.locator(".native-map")).toBeVisible()
+
+  const trails = page.getByRole("checkbox", { name: /Trails/ })
+  await trails.focus()
+  await trails.press(" ")
+  await expect(trails).toBeChecked()
+
+  const telemetry = page.getByRole("checkbox", { name: /Telemetry/ })
+  await telemetry.focus()
+  await telemetry.press(" ")
+  await expect(telemetry).toBeChecked()
+  await expect(page.locator('[aria-label="Live scene telemetry"]')).toHaveAttribute("aria-live", "off")
+
+  const object = page.getByRole("button", { name: "Inspect tracked object 1" })
+  await object.focus()
+  const focusStyle = await object.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return { outlineStyle: style.outlineStyle, outlineWidth: style.outlineWidth }
+  })
+  expect(focusStyle.outlineStyle === "none" && focusStyle.outlineWidth === "0px").toBeFalsy()
+  await object.press(" ")
+  await expect(page.locator('[aria-label="Scene inspector"]')).toContainText("Object 1")
+
+  const status = page.getByRole("status")
+  await expect(status).toContainText("LIVE")
+  await expect(status).toHaveAttribute("aria-live", "polite")
+
+  await screenshot(page, testInfo, "ux80-85-accessibility.png")
+})
