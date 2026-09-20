@@ -20,6 +20,15 @@ export function emptyLiveSceneState(): Record<string, any> {
   return { objects: [], stale: true }
 }
 
+export function normalizeLiveSceneState(value: unknown): Record<string, any> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return emptyLiveSceneState()
+  const row = value as Record<string, any>
+  return {
+    ...row,
+    objects: Array.isArray(row.objects) ? row.objects : [],
+  }
+}
+
 export function deriveSceneTelemetry(live: Record<string, any>, nowMs = Date.now()): SceneTelemetryModel {
   const rates = live.rate && typeof live.rate === "object" ? live.rate : null
   const cameraRates = rates
