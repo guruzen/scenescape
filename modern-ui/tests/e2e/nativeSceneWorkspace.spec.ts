@@ -37,7 +37,7 @@ test("UX-93 integrated Live 2D uses the native API and live observation stream",
   await expect(page.locator('[aria-label="Live scene telemetry"]')).toBeVisible()
   await expect(page.locator('[aria-label="Visualization legend"]')).toContainText("2/2 vectors")
   await expect(page.locator(".region-shape")).toHaveCount(1)
-  await expect(page.locator(".tripwire-line")).toHaveCount(0)
+  await expect(page.locator(".tripwire-line")).toHaveCount(1)
   await expect(page.locator(".object-heatmap")).toHaveCount(4)
   await expect(page.locator(".object-velocity")).toHaveCount(2)
   await expect.poll(async () => page.locator(".object-trail").count(), { timeout: 6_000 }).toBeGreaterThan(0)
