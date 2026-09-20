@@ -391,8 +391,21 @@ export default function ThreeScene({
       }
 
       root.add(model)
+      const activeDwells = item.regions && typeof item.regions === 'object'
+        ? Object.values(item.regions).filter((value:any)=>value?.entered && value?.dwell != null).map((value:any)=>Number(value.dwell))
+        : []
+      const dwell = activeDwells.length ? Math.max(...activeDwells) : null
       root.userData.objectId = item.id ?? index
       root.userData.category = category
+      root.userData.dwell = dwell
+      root.traverse((node:any) => {
+        if (node?.material?.emissive && dwell != null && Number.isFinite(dwell)) {
+          const intensity = Math.min(0.65, 0.08 + dwell / 180)
+          node.material = node.material.clone()
+          node.material.emissive.set(0xffb454)
+          node.material.emissiveIntensity = intensity
+        }
+      })
       group.add(root)
     }
 
