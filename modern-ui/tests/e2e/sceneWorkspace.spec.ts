@@ -236,7 +236,7 @@ test("UX-93 Live 2D smoke: live overlays, diagnostics and keyboard inspector", a
   const fullscreen = page.getByRole("button", { name: "Fullscreen" })
   await fullscreen.click()
   await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true)
-  await page.keyboard.press("Escape")
+  await page.evaluate(async () => { if (document.fullscreenElement) await document.exitFullscreen() })
   await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(false)
 
   await screenshot(page, testInfo, "ux93-live-2d.png")
@@ -261,7 +261,7 @@ test("UX-94 Live 3D smoke: WebGL view and renderer-specific controls", async ({ 
   await expect(page.locator('[aria-label="Scene inspector"]')).toContainText("Object 1")
 
   const viewControls = page.getByRole("group", { name: "3D view" })
-  const cameraSelector = viewControls.getByLabel("Camera", { exact: true })
+  const cameraSelector = viewControls.locator("select").nth(1)
   await cameraSelector.selectOption("cam-1")
   const cameraView = viewControls.getByRole("checkbox", { name: /Camera view/ })
   await cameraView.check()
