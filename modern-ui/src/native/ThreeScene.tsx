@@ -635,8 +635,11 @@ export default function ThreeScene({
         const rig = new THREE.Group()
         rig.name = 'camera-rig-' + id
         const helper = new THREE.CameraHelper(view)
-        helper.material.transparent = true
-        helper.material.opacity = selectedCameraId === id ? 1 : 0.55
+        const helperMaterials = Array.isArray(helper.material) ? helper.material : [helper.material]
+        helperMaterials.forEach((material) => {
+          material.transparent = true
+          material.opacity = selectedCameraId === id ? 1 : 0.55
+        })
         rig.add(helper)
 
         const marker = new THREE.Mesh(
