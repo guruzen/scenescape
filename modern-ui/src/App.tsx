@@ -14,7 +14,9 @@ import SecurityAdmin from './native/SecurityAdmin'
 import ModelLibrary from './native/ModelLibrary'
 import SceneStatusHeader from './ux/SceneStatusHeader'
 import SceneInspector from './ux/SceneInspector'
+import SceneTelemetryHud from './ux/SceneTelemetryHud'
 import { deriveSceneStatus } from './ux/sceneStatus'
+import { emptyLiveSceneState } from './ux/sceneTelemetry'
 import { summarizeLiveObjectAvailability } from './ux/sceneViewControls'
 import type { SceneSelection, SceneSelectionKind } from './ux/sceneInspector'
 import {
@@ -201,18 +203,10 @@ function Map2D({ bundle, live, onPoint, onSelect, onClearSelection, selected, sh
         const velocityEnd = velocity && magnitude > 0.001
           ? [x + (velocity[0] / magnitude) * velocityLength, y - (velocity[1] / magnitude) * velocityLength]
           : null
-        const persistent = object.persistent_data && typeof object.persistent_data === 'object'
-          ? Object.entries(object.persistent_data as Row).flatMap(([key,value]) =>
-              value && typeof value === 'object'
-                ? Object.entries(value as Row).map(([nested,nestedValue])=>`${key}.${nested}=${String(nestedValue)}`)
-                : [`${key}=${String(value)}`]
-            ).slice(0,3)
-          : []
         const telemetry = showTelemetry ? [
           object.id != null ? `#${object.id}` : '',
           velocity ? `v ${velocity.map((v)=>v.toFixed(2)).join(',')}` : '',
           dwell != null && Number.isFinite(dwell) ? `dwell ${dwell.toFixed(1)}s` : '',
-          ...persistent,
         ].filter(Boolean) : []
         const heatRadius = Math.max(14, Math.min(90, Number(object.tracking_radius || 0.6) * scale))
         return <g key={String(object.id ?? i)} className={selected?.kind === 'object' && selected.id === String(object.id ?? i) ? 'selectable-entity selected-entity' : 'selectable-entity'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'object',id:String(object.id ?? i),value:object})}}>
@@ -225,14 +219,6 @@ function Map2D({ bundle, live, onPoint, onSelect, onClearSelection, selected, sh
         </g>
       })}
     </svg>
-    {showTelemetry && <div className="scene-telemetry-hud">
-      <b>Live telemetry</b>
-      <span>Scene {Number(live.scene_rate || 0).toFixed(1)} Hz</span>
-      <span>{(live.objects || []).length} objects</span>
-      {live.rate && typeof live.rate === 'object'
-        ? Object.entries(live.rate as Row).map(([camera,value])=><span key={camera}>{camera}: {Number(value || 0).toFixed(1)} FPS</span>)
-        : <span>No per-camera rate in current feed</span>}
-    </div>}
     {(showHeatmap || showVelocity) && <div className="visualization-status">
       {showHeatmap && <span>Heatmap: {(live.objects || []).length} tracked positions</span>}
       {showVelocity && <span>Velocity: {(live.objects || []).filter((object:Row)=>Array.isArray(object.velocity)&&object.velocity.length>=2).length}/{(live.objects || []).length} vectors</span>}
@@ -333,7 +319,7 @@ function CameraFeed({ camera, showTelemetry = false }: { camera: Row; showTeleme
   return <section className="panel camera-feed-card">
     <div className="panel-title"><div><h2>{rowName(camera)}</h2><p>{cameraId}</p></div><span className={error ? 'status-pill warning-pill' : 'status-pill ok-pill'}>{error ? 'Unavailable' : 'Live JPEG'}</span></div>
     <div className="camera-feed-frame">{url ? <img src={url} alt={`${rowName(camera)} live view`} /> : <div className="camera-feed-placeholder">Waiting for camera image…</div>}</div>
-    {showTelemetry && <div className="camera-telemetry-strip"><span><b>{telemetry ? Number(telemetry.fps||0).toFixed(1) : '—'}</b> FPS</span><span><b>{telemetry ? Number(telemetry.detections||0) : '—'}</b> detections</span><span className={telemetry?.stale?'warning-text':'ok-text'}>{telemetry ? (telemetry.stale?'stale':'receiving') : 'waiting'}</span></div>}
+    {showTelemetry && <div className="camera-telemetry-strip"><span><small>FPS</small><b>{telemetry?.fps == null ? 'Unknown' : Number(telemetry.fps).toFixed(1)}</b></span><span><small>Detections</small><b>{telemetry?.detections == null ? 'Unknown' : Number(telemetry.detections)}</b></span><span><small>Feed</small><b className={telemetry?.stale?'warning-text':'ok-text'}>{telemetry ? (telemetry.stale?'Stale':'Receiving') : 'Waiting'}</b></span></div>}
     {error && <div className="camera-feed-error">{error}</div>}
   </section>
 }
@@ -345,7 +331,7 @@ function CameraFeeds({ cameras, showTelemetry = false }: { cameras: Row[]; showT
 
 function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab = 'Live 2D' }: { scene: Row; scenes: Row[]; onBack: () => void; onNavigate: (path: string) => void; isAdmin: boolean; initialTab?: string }) {
   const [bundle, setBundle] = useState<Bundle | null>(null)
-  const [live, setLive] = useState<Row>({ objects: [], stale: true })
+  const [live, setLive] = useState<Row>(() => emptyLiveSceneState())
   const [destination, setDestination] = useState<SceneDestination>(() => destinationForLegacyTab(initialTab) ?? DEFAULT_SCENE_DESTINATION)
   const [history, setHistory] = useState<Row[]>([])
   const [trends, setTrends] = useState<Row[]>([])
@@ -386,6 +372,9 @@ function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab
   }, [id, initialTab])
 
   useEffect(() => {
+    setLive(emptyLiveSceneState())
+    setTrails({})
+    setRuntimeOverview(null)
     setSelection(null)
     setInspectorCollapsed(false)
   }, [id])
@@ -509,19 +498,12 @@ function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab
       <div ref={visualRef} className="scene-workspace-visual">
       {tab === 'Live 2D' && <Map2D bundle={bundle} live={liveView ? live : { objects: [], stale: true }} onSelect={setSelection} onClearSelection={()=>setSelection(null)} selected={selection} showTrails={showTrails} showTelemetry={showTelemetry} showHeatmap={showHeatmap} showVelocity={showVelocity} showLabels={showLabels} visualizeRois={visualizeRois} trails={trails}/>} 
       {tab === 'Live 3D' && <><ThreeScene mapPath={map3DPath} objects={liveView ? (live.objects || []) : []} onSelectObject={(objectId)=>{const rows=live.objects||[];const index=rows.findIndex((row:Row,i:number)=>String(row.id??i)===objectId);if(index>=0)chooseSelection('object',rows[index],String(index))}} selectedObjectId={selection?.kind==='object'?selection.id:''} showTrackedObjects={liveView} showSpatial={visualizeRois} showFloor={showFloor} showHeatmap={showHeatmap} showVelocity={showVelocity} cameras={bundle.cameras} projectCameraFrames={projectCameraFrames} cameraOpacity={cameraOpacity} selectedCameraId={selectedCameraId} useSelectedCameraView={cameraView} lightIntensity={lightIntensity} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors} childRegions={bundle.child_regions||[]} childTripwires={bundle.child_tripwires||[]} childSensors={bundle.child_sensors||[]}/>
-        {showTelemetry && <div className="scene-telemetry-hud three-telemetry-hud">
-          <b>Live telemetry</b>
-          <span>Scene {Number(live.scene_rate || 0).toFixed(1)} Hz</span>
-          <span>{(live.objects || []).length} objects</span>
-          {live.rate && typeof live.rate === 'object'
-            ? Object.entries(live.rate as Row).map(([camera,value])=><span key={camera}>{camera}: {Number(value || 0).toFixed(1)} FPS</span>)
-            : <span>No per-camera rate in current feed</span>}
-        </div>}
         {(showHeatmap || showVelocity) && <div className="visualization-status three-visualization-status">
           {showHeatmap && <span>Heatmap: {(live.objects || []).length} tracked positions</span>}
           {showVelocity && <span>Velocity: {(live.objects || []).filter((object:Row)=>Array.isArray(object.velocity)&&object.velocity.length>=2).length}/{(live.objects || []).length} vectors</span>}
         </div>}
-      </>} 
+      </>}
+      {showTelemetry && <SceneTelemetryHud live={live}/>}
       </div>
       <SceneInspector selection={selection} liveObjects={live.objects||[]} collapsed={Boolean(selection)&&inspectorCollapsed} onToggleCollapse={()=>setInspectorCollapsed((value)=>!value)} onClear={()=>{setSelection(null);setInspectorCollapsed(false)}}/>
     </div>}
