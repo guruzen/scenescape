@@ -2022,14 +2022,138 @@ function Zones({ goTo }: { goTo: (path: string) => void }) {
   );
 }
 
+function incidentTimestamp(value: unknown) {
+  if (!value) return "Time unavailable";
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+}
+
 function Incidents() {
   const [rows, setRows] = useState<Row[]>([]);
   const [selected, setSelected] = useState<Row | null>(null);
   const [status, setStatus] = useState("new");
   const [note, setNote] = useState("");
   const [assignee, setAssignee] = useState("");
+  const [query, setQuery] = useState("");
+  const [sceneFilter, setSceneFilter] = useState("");
+  const [ruleTypeFilter, setRuleTypeFilter] = useState("");
+  const [ruleFilter, setRuleFilter] = useState("");
+  const [eventFilter, setEventFilter] = useState("");
+  const [objectFilter, setObjectFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [timeFilter, setTimeFilter] = useState("");
   const load = () => void apiFetch<Row[]>("/api/v2/incidents").then(setRows);
   useEffect(load, []);
+
+  const sceneOptions = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          rows
+            .filter((row) => row.scene_id)
+            .map((row) => [String(row.scene_id), String(row.scene_name || row.scene_id)]),
+        ).entries(),
+      ),
+    [rows],
+  );
+  const ruleOptions = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          rows
+            .filter((row) => row.rule_id)
+            .map((row) => [
+              String(row.rule_id),
+              String(row.rule_name || row.rule_id),
+            ]),
+        ).entries(),
+      ),
+    [rows],
+  );
+  const eventOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(rows.map((row) => String(row.event_type || "")).filter(Boolean)),
+      ).sort(),
+    [rows],
+  );
+  const objectOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          rows.flatMap((row) =>
+            Array.isArray(row.object_types) ? row.object_types.map(String) : [],
+          ),
+        ),
+      ).sort(),
+    [rows],
+  );
+  const filteredRows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const now = Date.now();
+    const maxAge =
+      timeFilter === "15m"
+        ? 15 * 60 * 1000
+        : timeFilter === "1h"
+          ? 60 * 60 * 1000
+          : timeFilter === "24h"
+            ? 24 * 60 * 60 * 1000
+            : 0;
+    return rows.filter((row) => {
+      if (sceneFilter && String(row.scene_id) !== sceneFilter) return false;
+      if (ruleTypeFilter && String(row.rule_type) !== ruleTypeFilter) return false;
+      if (ruleFilter && String(row.rule_id) !== ruleFilter) return false;
+      if (eventFilter && String(row.event_type) !== eventFilter) return false;
+      if (
+        objectFilter &&
+        !(Array.isArray(row.object_types) && row.object_types.map(String).includes(objectFilter))
+      )
+        return false;
+      if (statusFilter && String(row.status) !== statusFilter) return false;
+      if (maxAge) {
+        const timestamp = Date.parse(String(row.timestamp || ""));
+        if (!Number.isFinite(timestamp) || now - timestamp > maxAge) return false;
+      }
+      if (needle) {
+        const haystack = [
+          row.title,
+          row.scene_name,
+          row.scene_id,
+          row.rule_name,
+          row.rule_id,
+          row.event_type,
+          ...(Array.isArray(row.object_types) ? row.object_types : []),
+          ...(Array.isArray(row.object_ids) ? row.object_ids : []),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(needle)) return false;
+      }
+      return true;
+    });
+  }, [
+    rows,
+    query,
+    sceneFilter,
+    ruleTypeFilter,
+    ruleFilter,
+    eventFilter,
+    objectFilter,
+    statusFilter,
+    timeFilter,
+  ]);
+
+  const clearFilters = () => {
+    setQuery("");
+    setSceneFilter("");
+    setRuleTypeFilter("");
+    setRuleFilter("");
+    setEventFilter("");
+    setObjectFilter("");
+    setStatusFilter("");
+    setTimeFilter("");
+  };
   const open = (row: Row) => {
     setSelected(row);
     setStatus(row.status);
@@ -2048,9 +2172,118 @@ function Incidents() {
   return (
     <>
       <Header kicker="Operations · data plane" title="Incidents" />
+      <section className="panel incident-filters" aria-label="Incident filters">
+        <div className="incident-filter-grid">
+          <label className="incident-search">
+            Search
+            <input
+              aria-label="Search incidents"
+              value={query}
+              placeholder="Scene, rule, object ID…"
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+          <label>
+            Scene
+            <select
+              aria-label="Filter incidents by scene"
+              value={sceneFilter}
+              onChange={(e) => setSceneFilter(e.target.value)}
+            >
+              <option value="">All scenes</option>
+              {sceneOptions.map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Rule type
+            <select
+              aria-label="Filter incidents by rule type"
+              value={ruleTypeFilter}
+              onChange={(e) => setRuleTypeFilter(e.target.value)}
+            >
+              <option value="">Regions + tripwires</option>
+              <option value="region">Region</option>
+              <option value="tripwire">Tripwire</option>
+            </select>
+          </label>
+          <label>
+            Region / tripwire
+            <select
+              aria-label="Filter incidents by region or tripwire"
+              value={ruleFilter}
+              onChange={(e) => setRuleFilter(e.target.value)}
+            >
+              <option value="">All rules</option>
+              {ruleOptions.map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Event
+            <select
+              aria-label="Filter incidents by event type"
+              value={eventFilter}
+              onChange={(e) => setEventFilter(e.target.value)}
+            >
+              <option value="">All events</option>
+              {eventOptions.map((value) => (
+                <option key={value} value={value}>{value}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Object
+            <select
+              aria-label="Filter incidents by object type"
+              value={objectFilter}
+              onChange={(e) => setObjectFilter(e.target.value)}
+            >
+              <option value="">All object types</option>
+              {objectOptions.map((value) => (
+                <option key={value} value={value}>{value}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Status
+            <select
+              aria-label="Filter incidents by status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">All statuses</option>
+              <option value="new">New</option>
+              <option value="acknowledged">Acknowledged</option>
+              <option value="investigating">Investigating</option>
+              <option value="resolved">Resolved</option>
+              <option value="reopened">Reopened</option>
+            </select>
+          </label>
+          <label>
+            Time
+            <select
+              aria-label="Filter incidents by time"
+              value={timeFilter}
+              onChange={(e) => setTimeFilter(e.target.value)}
+            >
+              <option value="">All retained</option>
+              <option value="15m">Last 15 minutes</option>
+              <option value="1h">Last hour</option>
+              <option value="24h">Last 24 hours</option>
+            </select>
+          </label>
+        </div>
+        <div className="incident-filter-summary">
+          <span>{filteredRows.length} of {rows.length} incidents</span>
+          <button className="btn" onClick={clearFilters}>Clear filters</button>
+        </div>
+      </section>
       <div className="incident-layout">
         <section className="panel incident-list">
-          {rows.map((row) => (
+          {filteredRows.map((row) => (
             <button
               key={row.id}
               onClick={() => open(row)}
@@ -2058,15 +2291,27 @@ function Incidents() {
                 selected?.id === row.id ? "incident-row active" : "incident-row"
               }
             >
-              <b>{row.title}</b>
+              <div className="incident-row-heading">
+                <b>{row.title}</b>
+                <em>{row.rule_type || "event"}</em>
+              </div>
               <span>
-                {row.status} · {row.scene_id || "global"}
+                {row.scene_name || row.scene_id || "Global"}
+                {row.rule_name ? ` · ${row.rule_name}` : ""}
+              </span>
+              <span>
+                {incidentTimestamp(row.timestamp)} · {row.status}
+                {Array.isArray(row.object_types) && row.object_types.length
+                  ? ` · ${row.object_types.join(", ")}`
+                  : ""}
               </span>
             </button>
           ))}
-          {!rows.length && (
+          {!filteredRows.length && (
             <div className="table-empty">
-              No analytics incidents have been retained yet.
+              {rows.length
+                ? "No incidents match the current filters."
+                : "No analytics incidents have been retained yet."}
             </div>
           )}
         </section>
@@ -2075,8 +2320,16 @@ function Incidents() {
             <div className="panel-title">
               <div>
                 <h2>{selected.title}</h2>
-                <p>Incident #{selected.id}</p>
+                <p>Incident #{selected.id} · {incidentTimestamp(selected.timestamp)}</p>
               </div>
+            </div>
+            <div className="incident-context-grid">
+              <div><span>Scene</span><b>{selected.scene_name || selected.scene_id || "Unknown"}</b></div>
+              <div><span>Rule</span><b>{selected.rule_name || selected.rule_id || "Scene event"}</b></div>
+              <div><span>Rule type</span><b>{selected.rule_type || "event"}</b></div>
+              <div><span>Event</span><b>{selected.action || selected.event_type || "activity"}</b></div>
+              <div><span>Object types</span><b>{Array.isArray(selected.object_types) && selected.object_types.length ? selected.object_types.join(", ") : "Unknown"}</b></div>
+              <div><span>Object IDs</span><b>{Array.isArray(selected.object_ids) && selected.object_ids.length ? selected.object_ids.join(", ") : "None retained"}</b></div>
             </div>
             <label>
               Status
