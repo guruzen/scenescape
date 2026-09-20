@@ -1165,3 +1165,21 @@ def test_scene_import_zip_rejects_duplicate_basenames_symlinks_and_zip_bombs(tmp
     with pytest.raises(__import__('fastapi').HTTPException) as exc:
         read_scene_import_zip(bomb.getvalue())
     assert 'compression ratio' in str(exc.value.detail).lower()
+
+
+def test_media_endpoint_denies_unreferenced_files_and_scopes_sensor_icons(tmp_path, monkeypatch):
+    from PIL import Image
+    import io
+    client,d=boot(tmp_path,monkeypatch); admin=headers(client)
+    assert client.post('/api/v2/scenes',headers=admin,json={'uid':'media-a','name':'A'}).status_code==200
+    assert client.post('/api/v2/scenes',headers=admin,json={'uid':'media-b','name':'B'}).status_code==200
+    assert client.post('/api/v2/sensors',headers=admin,json={'sensor_id':'sensor-b','name':'B','scene':'media-b','area':'scene'}).status_code==200
+    image=io.BytesIO(); Image.new('RGB',(2,2)).save(image,format='PNG')
+    uploaded=client.post('/api/v2/sensors/sensor-b/icon',headers=admin,files={'icon':('icon.png',image.getvalue(),'image/png')})
+    assert uploaded.status_code==200,uploaded.text
+    icon=uploaded.json()['icon']
+    orphan=tmp_path/'media'/'orphan.bin'; orphan.write_bytes(b'secret')
+    scoped={'Authorization':'Bearer '+_viewer_token(['media-a'])}
+    assert client.get(icon,headers=scoped).status_code==403
+    assert client.get('/media/orphan.bin',headers=scoped).status_code==404
+    assert client.get('/media/orphan.bin',headers=admin).status_code==200
