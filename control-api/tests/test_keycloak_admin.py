@@ -82,3 +82,58 @@ def test_service_identity_acl_policy(tmp_path, monkeypatch):
     assert admin.service_acl_check('calibration','scenescape/autocalibration/camera/pose/cam-1',2)==(True,2)
     assert admin.service_acl_check('webuser','scenescape/data/camera/cam-1',4)==(True,4)
     assert admin.service_acl_check('unknown','scenescape/data/camera/cam-1',1) is None
+
+
+def test_service_acl_policy_exactly_matches_2026_2_user_access_config(tmp_path, monkeypatch):
+    import json
+    import scenescape_api.keycloak_admin as admin
+    controller=tmp_path/'controller.auth'
+    browser=tmp_path/'browser.auth'
+    calibration=tmp_path/'calibration.auth'
+    controller.write_text(json.dumps({'user':'scenectrl','password':'secret'}))
+    browser.write_text(json.dumps({'user':'webuser','password':'secret'}))
+    calibration.write_text(json.dumps({'user':'calibration','password':'secret'}))
+    monkeypatch.setenv('SERVICE_AUTH_FILES',f'{controller}:{browser}:{calibration}')
+
+    expected={
+      'controller': [
+        ('CMD_CAMERA',3),('IMAGE_CALIBRATE',1),('CMD_DATABASE',3),('DATA_REGULATED',2),
+        ('DATA_SCENE',2),('DATA_AUTOCALIB_CAM_POSE',2),('CMD_KUBECLIENT',3),
+        ('CMD_SCENE_UPDATE',3),('DATA_EXTERNAL',3),('DATA_REGION',2),('DATA_SENSOR',1),
+        ('EVENT',3),('SYS_CHILDSCENE_STATUS',3),('DATA_CAMERA',1),
+      ],
+      'browser': [
+        ('DATA_CAMERA',1),('CHANNEL',1),('IMAGE_CAMERA',1),('IMAGE_CALIBRATE',1),
+        ('CMD_DATABASE',3),('CMD_CAMERA',3),('DATA_AUTOCALIB_CAM_POSE',1),
+        ('CMD_KUBECLIENT',3),('EVENT',1),('SYS_CHILDSCENE_STATUS',3),
+        ('DATA_REGULATED',1),('DATA_EXTERNAL',1),
+      ],
+      'calibration': [
+        ('IMAGE_CALIBRATE',1),('CMD_SCENE_UPDATE',1),('DATA_AUTOCALIB_CAM_POSE',2),
+      ],
+    }
+    identities={item['service_type']:item for item in admin.list_service_identities()}
+    assert set(identities)==set(expected)
+    for service_type, policy in expected.items():
+        assert [(item['topic'],item['access']) for item in identities[service_type]['acls']]==policy
+
+
+def test_keycloak_user_projection_preserves_legacy_privilege_flags_and_native_scopes(monkeypatch):
+    import scenescape_api.keycloak_admin as admin
+    monkeypatch.setattr(admin,'_realm_roles_for_user',lambda user_id:[
+        {'name':'scenescape-viewer'},{'name':'scenescape-admin'}
+    ])
+    rep={
+      'id':'u1','username':'operator','enabled':False,
+      'firstName':'Scene','lastName':'Operator','email':'scene@example.test',
+      'attributes':{
+        admin.SCENE_ATTRIBUTE:['scene-a','scene-b'],
+        admin.ACL_ATTRIBUTE:['{"topic":"DATA_SCENE","access":1}'],
+      },
+    }
+    value=admin.user_to_dict(rep)
+    assert value['is_active'] is False
+    assert value['is_staff'] is True and value['is_superuser'] is True
+    assert value['roles']==['scenescape-admin','scenescape-viewer']
+    assert value['scenes']==['scene-a','scene-b']
+    assert value['acls']==[{'topic':'DATA_SCENE','access':1}]
