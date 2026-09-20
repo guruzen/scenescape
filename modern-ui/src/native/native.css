@@ -175,3 +175,9 @@
   .scene-inspector.collapsed{left:auto;width:auto}
   .scene-status-header{margin-bottom:9px}.scene-primary-nav{margin-bottom:6px}.scene-secondary-nav{margin-bottom:9px}
 }
+
+/* Scene Workspace accessibility focus treatment. */
+.scene-primary-nav-item:focus-visible,.scene-secondary-nav-item:focus-visible,.scene-inspector button:focus-visible,.scene-view-actions button:focus-visible,.scene-control-grid select:focus-visible,.scene-control-ranges input:focus-visible,.scene-layer-options input:focus-visible,.three-canvas:focus-visible{outline:3px solid rgb(var(--accent));outline-offset:2px}
+.scene-control-grid input:focus-visible{outline:3px solid rgb(var(--accent));outline-offset:3px}
+.selectable-entity:focus-visible .track-dot,.selectable-entity:focus-visible .camera-dot,.selectable-entity:focus-visible .sensor-center-dot,.selectable-entity:focus-visible .child-sensor-dot{stroke:#ffb454;stroke-width:4;filter:drop-shadow(0 0 4px rgba(255,180,84,.8))}
+.region-shape:focus-visible,.tripwire-line:focus-visible{outline:none;stroke:#ffb454;stroke-width:5;filter:drop-shadow(0 0 3px rgba(255,180,84,.8))}
