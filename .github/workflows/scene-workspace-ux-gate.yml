@@ -1,0 +1,59 @@
+---
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: "[UX] Scene Workspace Gate"
+run-name: "[UX] Scene Workspace Gate"
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - feature/react-keycloak-modern-ui
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scene-workspace-ux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: "Modern UI regression and production build"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 22
+        shell: bash
+        run: |
+          export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+          if [ -s "$NVM_DIR/nvm.sh" ]; then
+            # shellcheck source=/dev/null
+            . "$NVM_DIR/nvm.sh"
+            nvm install 22
+            nvm use 22
+          fi
+          node --version
+          npm --version
+
+      - name: Install Modern UI dependencies
+        working-directory: modern-ui
+        run: npm install --no-audit --no-fund
+
+      - name: Run Scene Workspace UX tests
+        working-directory: modern-ui
+        run: npm run test:ux
+
+      - name: Run TypeScript typecheck
+        working-directory: modern-ui
+        run: npm run typecheck
+
+      - name: Run production build
+        working-directory: modern-ui
+        run: npm run build
