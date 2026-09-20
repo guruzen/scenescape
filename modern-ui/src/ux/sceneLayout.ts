@@ -17,10 +17,10 @@ export const SCENE_VISUAL_HIERARCHY = [
 ] as const;
 
 export const SUPPORTED_UI_THEMES = [
-  { value: "light", label: "Light" },
-  { value: "light-air", label: "Light Air" },
-  { value: "dark", label: "Dark" },
-  { value: "dark-command", label: "Dark Command" },
+  { value: "light", label: "Spatial Light" },
+  { value: "light-air", label: "Soft Light" },
+  { value: "dark", label: "Spatial Dark" },
+  { value: "dark-command", label: "Dense Dark" },
 ] as const;
 
 export type UiTheme = (typeof SUPPORTED_UI_THEMES)[number]["value"];
