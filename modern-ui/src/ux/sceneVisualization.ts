@@ -22,8 +22,8 @@ export function velocityArrow2D(velocity: unknown, scale: number) {
   return {
     magnitude,
     lengthPixels,
-    dx: (vx / magnitude) * lengthPixels,
-    dy: -(vy / magnitude) * lengthPixels,
+    dx: vx === 0 ? 0 : (vx / magnitude) * lengthPixels,
+    dy: vy === 0 ? 0 : -(vy / magnitude) * lengthPixels,
   }
 }
 
