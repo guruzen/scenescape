@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { apiFetch, apiJsonStream, apiObjectUrl } from './api/client'
 import { useAuth } from './auth/AuthProvider'
@@ -177,6 +177,49 @@ function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = fals
 }
 
 
+
+function SceneSensorTelemetry({ sensors }: { sensors: Row[] }) {
+  const [telemetry, setTelemetry] = useState<Record<string, Row[]>>({})
+  const [error, setError] = useState('')
+  const load = async () => {
+    setError('')
+    const result: Record<string, Row[]> = {}
+    await Promise.all(sensors.map(async (sensor) => {
+      const id = rowId(sensor)
+      if (!id) return
+      try { result[id] = await apiFetch<Row[]>(`/api/v2/sensors/${encodeURIComponent(id)}/telemetry?limit=12`) }
+      catch { result[id] = [] }
+    }))
+    setTelemetry(result)
+  }
+  useEffect(() => { void load() }, [sensors.map(rowId).join('|')])
+  if (!sensors.length) return <div className="empty-state"><h2>No sensors configured</h2><p>This scene has no singleton sensors.</p></div>
+  return <section className="panel">
+    <div className="panel-title"><div><h2>Sensors & telemetry</h2><p>Latest retained native sensor observations for this scene.</p></div><button className="btn" onClick={()=>void load()}>Refresh</button></div>
+    {error&&<div className="error-box">{error}</div>}
+    <div className="sensor-runtime-grid">{sensors.map((sensor)=>{
+      const id=rowId(sensor); const rows=telemetry[id]||[]; const latest=rows[0]
+      return <div className="sensor-runtime-card" key={id}>
+        <div><b>{rowName(sensor)}</b><code>{id}</code></div>
+        <span className={latest?'status-pill ok-pill':'status-pill warning-pill'}>{latest?'Telemetry retained':'No telemetry'}</span>
+        <dl><dt>Area</dt><dd>{String(sensor.area||'scene')}</dd><dt>Type</dt><dd>{String(sensor.singleton_type||'environmental')}</dd><dt>Latest</dt><dd>{latest ? String(latest.observed_at || latest.timestamp || '—') : '—'}</dd></dl>
+        <div className="sensor-runtime-values">{rows.slice(0,5).map((row,i)=><div key={String(row.id??i)}><b>{String(row.payload?.subtype || row.payload?.type || 'value')}</b><span>{text(row.payload?.value ?? row.payload)}</span></div>)}{!rows.length&&<div className="table-empty">No retained values.</div>}</div>
+      </div>
+    })}</div>
+  </section>
+}
+
+function SceneRuntime({ live, bundle }: { live: Row; bundle: Bundle }) {
+  const observed = live.observed_at ? new Date(String(live.observed_at)) : null
+  const age = observed ? Math.max(0,(Date.now()-observed.getTime())/1000) : null
+  return <div className="metric-grid compact">
+    <div className="metric"><span>Tracking feed</span><strong className={live.stale?'small-value':'small-value ok'}>{live.stale?'Stale / unavailable':'Live'}</strong><small>{age==null?'No observation retained':`last sample ${age.toFixed(1)}s ago`}</small></div>
+    <div className="metric"><span>Scene rate</span><strong>{Number(live.scene_rate||0).toFixed(1)}</strong><small>Hz reported by regulated scene feed</small></div>
+    <div className="metric"><span>Tracked objects</span><strong>{(live.objects||[]).length}</strong><small>Current retained observation</small></div>
+    <div className="metric"><span>Configured inputs</span><strong>{bundle.cameras.length + bundle.sensors.length}</strong><small>{bundle.cameras.length} cameras · {bundle.sensors.length} sensors</small></div>
+  </div>
+}
+
 function CameraFeed({ camera }: { camera: Row }) {
   const [url, setUrl] = useState('')
   const [error, setError] = useState('')
@@ -241,6 +284,7 @@ function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D'
   const [selectedCameraId, setSelectedCameraId] = useState('')
   const [cameraView, setCameraView] = useState(false)
   const [lightIntensity, setLightIntensity] = useState(1)
+  const visualRef = useRef<HTMLDivElement | null>(null)
   const id = rowId(scene)
 
   const loadBundle = () => void apiFetch<Bundle>(`/api/v2/scenes/${id}/bundle`).then(setBundle).catch((e) => setMessage(String(e)))
@@ -283,7 +327,7 @@ function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D'
     <div className="scene-summary">
       <div><span>Scene ID</span><b>{id}</b></div><div><span>Cameras</span><b>{bundle.cameras.length}</b></div><div><span>Sensors</span><b>{bundle.sensors.length}</b></div><div><span>Spatial rules</span><b>{bundle.regions.length + bundle.tripwires.length + (bundle.child_regions?.length||0) + (bundle.child_tripwires?.length||0)}</b></div>
     </div>
-    <div className="tabs">{['Live 2D','Live 3D','Camera feeds','Geometry','Hierarchy','Camera calibration','History & replay','Trends & analytics'].map((name) => <button key={name} className={tab === name ? 'btn active-tab' : 'btn'} onClick={() => setTab(name)}>{name}</button>)}</div>
+    <div className="tabs">{['Live 2D','Live 3D','Camera feeds','Sensors & telemetry','Geometry','Hierarchy','Camera calibration','Runtime','History & replay','Trends & analytics'].map((name) => <button key={name} className={tab === name ? 'btn active-tab' : 'btn'} onClick={() => setTab(name)}>{name}</button>)}</div>
     {message && <div className="notice-box">{message}</div>}
     {(tab === 'Live 2D' || tab === 'Live 3D') && <div className="live-controls">
       <label><input type="checkbox" checked={liveView} onChange={(e)=>setLiveView(e.target.checked)}/>Live View</label>
@@ -296,13 +340,18 @@ function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D'
       {tab === 'Live 3D' && <label className="range-control">Light <input type="range" min="10" max="300" value={Math.round(lightIntensity*100)} onChange={(e)=>setLightIntensity(Number(e.target.value)/100)}/><span>{lightIntensity.toFixed(1)}×</span></label>}
       {tab === 'Live 3D' && bundle.cameras.length > 0 && <><label>Camera <select value={selectedCameraId} onChange={(e)=>{setSelectedCameraId(e.target.value);if(!e.target.value)setCameraView(false)}}><option value="">None</option>{bundle.cameras.map((camera)=><option key={rowId(camera)} value={rowId(camera)}>{rowName(camera)}</option>)}</select></label><label><input type="checkbox" disabled={!selectedCameraId} checked={cameraView} onChange={(e)=>setCameraView(e.target.checked)}/>Scene camera view</label></>}
       {showTrails && <button className="text-button" onClick={()=>setTrails({})}>Clear trails</button>}
+      <button className="text-button" onClick={()=>{const el=visualRef.current;if(!el)return;if(document.fullscreenElement)void document.exitFullscreen();else void el.requestFullscreen()}}>Fullscreen</button>
     </div>}
+    <div ref={visualRef} className={(tab === 'Live 2D' || tab === 'Live 3D') ? 'scene-workspace-visual' : ''}>
     {tab === 'Live 2D' && <Map2D bundle={bundle} live={liveView ? live : { objects: [] }} showTrails={showTrails} showTelemetry={showTelemetry} visualizeRois={visualizeRois} trails={trails}/>} 
     {tab === 'Live 3D' && <ThreeScene mapPath={map3DPath} objects={liveView ? (live.objects || []) : []} showTrackedObjects={liveView} showSpatial={visualizeRois} showFloor={showFloor} cameras={bundle.cameras} projectCameraFrames={projectCameraFrames} cameraOpacity={cameraOpacity} selectedCameraId={selectedCameraId} useSelectedCameraView={cameraView} lightIntensity={lightIntensity} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors} childRegions={bundle.child_regions||[]} childTripwires={bundle.child_tripwires||[]} childSensors={bundle.child_sensors||[]}/>} 
+    </div>
     {tab === 'Camera feeds' && <CameraFeeds cameras={bundle.cameras}/>} 
+    {tab === 'Sensors & telemetry' && <SceneSensorTelemetry sensors={bundle.sensors}/>}
     {tab === 'Geometry' && <SpatialEditor scene={bundle.scene} regions={bundle.regions} tripwires={bundle.tripwires} isAdmin={isAdmin} onSaved={loadBundle}/>}
     {tab === 'Hierarchy' && <HierarchyEditor scenes={scenes} isAdmin={isAdmin} initialParent={id}/>}
     {tab === 'Camera calibration' && <CameraCalibration scene={bundle.scene} cameras={bundle.cameras} isAdmin={isAdmin} onSaved={loadBundle}/>}
+    {tab === 'Runtime' && <SceneRuntime live={live} bundle={bundle}/>}
     {tab === 'History & replay' && <section className="panel history-panel"><div className="panel-title"><div><h2>Persisted observations</h2><p>Metadata replay from the native historian.</p></div><button className="btn btn-primary" onClick={() => void apiFetch<Row[]>(`/api/v2/scenes/${id}/history`).then(setHistory)}>Load history</button></div>{history.length > 0 ? <><input type="range" min="0" max={history.length - 1}/><div className="history-list">{history.slice(-12).map((row) => <div key={row.id}><b>{row.timestamp}</b><span>{(row.payload?.objects || []).length} objects</span></div>)}</div></> : <div className="table-empty">No retained samples loaded yet.</div>}</section>}
     {tab === 'Trends & analytics' && <section className="panel"><div className="panel-title"><div><h2>24-hour object trend</h2><p>Calculated from retained observations, not synthetic data.</p></div><button className="btn btn-primary" onClick={() => void apiFetch<Row[]>(`/api/v2/scenes/${id}/trends`).then(setTrends)}>Apply range</button></div><div className="table-wrap"><table><thead><tr><th>Hour</th><th>Average objects</th><th>Samples</th></tr></thead><tbody>{trends.map((row) => <tr key={row.bucket}><td>{row.bucket}</td><td>{row.average_objects}</td><td>{row.samples}</td></tr>)}</tbody></table>{!trends.length && <div className="table-empty">No trend samples loaded yet.</div>}</div></section>}
   </>
