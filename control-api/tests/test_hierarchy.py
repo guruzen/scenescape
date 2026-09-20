@@ -259,3 +259,26 @@ def test_invalid_retrack_value_is_rejected(tmp_path, monkeypatch):
     with d.sessions()() as db:
         with pytest.raises(HTTPException):
             create_child_link(db,{'child_type':'local','parent':'A','child':'B','retrack':'sometimes'},actor(),legacy=False)
+
+
+def test_native_remote_password_is_write_only_and_blank_update_preserves_secret(tmp_path, monkeypatch):
+    d=make_db(tmp_path,monkeypatch); scene(d,'A')
+    remote='44444444-4444-4444-8444-444444444444'
+    uid=link(d,{
+        'child_type':'remote','parent':'A','remote_child_id':remote,
+        'child_name':'Remote','host_name':'broker','mqtt_username':'u','mqtt_password':'secret'
+    })
+    from scenescape_api.hierarchy import child_to_dict, resolve_child_link, update_child_link
+    with d.sessions()() as db:
+        row=resolve_child_link(db,uid)
+        native=child_to_dict(db,row,native=True)
+        assert 'mqtt_password' not in native
+        assert native['has_mqtt_password'] is True
+        row,_=update_child_link(db,row,{
+            'child_type':'remote','parent':'A','remote_child_id':remote,
+            'child_name':'Remote','host_name':'broker2','mqtt_username':'u2','mqtt_password':''
+        },actor(),legacy=False)
+        db.commit()
+        assert row.payload['mqtt_password']=='secret'
+        native=child_to_dict(db,row,native=True)
+        assert 'mqtt_password' not in native and native['has_mqtt_password'] is True
