@@ -17,7 +17,7 @@ import SceneInspector from './ux/SceneInspector'
 import SceneTelemetryHud from './ux/SceneTelemetryHud'
 import SceneVisualizationLegend from './ux/SceneVisualizationLegend'
 import { deriveSceneStatus } from './ux/sceneStatus'
-import { emptyLiveSceneState } from './ux/sceneTelemetry'
+import { emptyLiveSceneState, normalizeLiveSceneState } from './ux/sceneTelemetry'
 import { summarizeLiveObjectAvailability } from './ux/sceneViewControls'
 import { heatmapOpacityValue, velocityArrow2D } from './ux/sceneVisualization'
 import type { SceneSelection, SceneSelectionKind } from './ux/sceneInspector'
@@ -396,14 +396,15 @@ function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab
     let active = true
     let fallbackTimer = 0
     const controller = new AbortController()
-    const refresh = () => void apiFetch<Row>(`/api/v2/scenes/${id}/live`).then((value) => active && setLive(value)).catch(() => {})
+    const refresh = () => void apiFetch<Row>(`/api/v2/scenes/${id}/live`).then((value) => active && setLive(normalizeLiveSceneState(value))).catch(() => {})
     refresh()
     const acceptLive = (value: Row) => {
       if (!active) return
-      setLive(value)
+      const normalized = normalizeLiveSceneState(value)
+      setLive(normalized)
       setTrails((old) => {
         const next = { ...old }
-        for (const [index, object] of (value.objects || []).entries()) {
+        for (const [index, object] of normalized.objects.entries()) {
           const key = String(object.id ?? index)
           const point = Array.isArray(object.translation) ? object.translation.slice(0, 2).map(Number) : null
           if (!point) continue
