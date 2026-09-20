@@ -83,23 +83,47 @@ def worker():
     if ca:
         client.tls_set(ca_certs=ca, cert_reqs=ssl.CERT_REQUIRED)
 
+    def set_heartbeat(state, **details):
+        try:
+            with sessions()() as db:
+                db.merge(Heartbeat(key="mqtt", state=state, details=details))
+                db.commit()
+        except Exception:
+            # Historian liveness must not be terminated by a transient database error.
+            pass
+
     def on_connect(c, user_data, flags, reason, properties):
-        with sessions()() as db:
-            db.merge(Heartbeat(key="mqtt", state="connected", details={"reason": str(reason)}))
-            db.commit()
+        set_heartbeat("connected", reason=str(reason))
         c.subscribe("scenescape/regulated/scene/#")
         c.subscribe("scenescape/data/sensor/#")
         c.subscribe("scenescape/event/#")
 
+    def on_disconnect(c, user_data, disconnect_flags, reason, properties):
+        set_heartbeat("disconnected", reason=str(reason))
+
     def on_message(c, user_data, msg):
-        with sessions()() as db:
-            persist(db, msg.topic, msg.payload)
-            db.commit()
+        try:
+            with sessions()() as db:
+                persist(db, msg.topic, msg.payload)
+                db.commit()
+        except Exception as exc:
+            set_heartbeat("degraded", reason="ingest_error", error=type(exc).__name__, topic=str(msg.topic)[:240])
 
     client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
     client.on_message = on_message
-    client.connect(host, port, 60)
-    client.loop_forever()
+    client.reconnect_delay_set(min_delay=1, max_delay=30)
+    while True:
+        try:
+            set_heartbeat("connecting", host=host, port=port)
+            client.connect(host, port, 60)
+            client.loop_forever(retry_first_connection=True)
+        except KeyboardInterrupt:
+            raise
+        except Exception as exc:
+            set_heartbeat("disconnected", reason=type(exc).__name__)
+            import time
+            time.sleep(2)
 
 
 def main():
