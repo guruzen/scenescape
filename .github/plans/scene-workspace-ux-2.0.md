@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Document status
 
-- **Status:** Active
+- **Status:** Complete
 - **Owner:** SceneScape modern UI migration
 - **Branch:** `feature/react-keycloak-modern-ui`
 - **Spec baseline commit:** `b6c95714de710504a49c6282174090b7491cef59`
@@ -554,25 +554,25 @@ The primary objective is monitoring, not full editing.
 
 ### Phase 8 — Accessibility and interaction quality
 
-- [ ] **UX-80** Keyboard-test primary/secondary navigation.
-- [ ] **UX-81** Keyboard-test layer/diagnostic controls.
-- [ ] **UX-82** Add/verify visible focus styles.
-- [ ] **UX-83** Add accessible labels/roles for status, inspector, and controls.
-- [ ] **UX-84** Ensure health status is not color-only.
-- [ ] **UX-85** Validate live updates do not create excessive announcements.
+- [x] **UX-80** Keyboard-test primary/secondary navigation.
+- [x] **UX-81** Keyboard-test layer/diagnostic controls.
+- [x] **UX-82** Add/verify visible focus styles.
+- [x] **UX-83** Add accessible labels/roles for status, inspector, and controls.
+- [x] **UX-84** Ensure health status is not color-only.
+- [x] **UX-85** Validate live updates do not create excessive announcements.
 
 ### Phase 9 — Regression, documentation, and completion
 
-- [ ] **UX-90** Run modern-ui TypeScript build.
-- [ ] **UX-91** Run relevant frontend lint/test targets available in the repository.
-- [ ] **UX-92** Run focused backend regression tests if API behavior changed.
-- [ ] **UX-93** Runtime smoke test: Live 2D.
-- [ ] **UX-94** Runtime smoke test: Live 3D.
-- [ ] **UX-95** Runtime smoke test: Cameras and telemetry.
-- [ ] **UX-96** Runtime smoke test: Sensors.
-- [ ] **UX-97** Runtime smoke test: Analyze destinations.
-- [ ] **UX-98** Runtime smoke test: Configure destinations.
-- [ ] **UX-99** Update relevant SceneScape user-guide documentation/screenshots and mark this specification Complete.
+- [x] **UX-90** Run modern-ui TypeScript build.
+- [x] **UX-91** Run relevant frontend lint/test targets available in the repository.
+- [x] **UX-92** Run focused backend regression tests if API behavior changed.
+- [x] **UX-93** Runtime smoke test: Live 2D.
+- [x] **UX-94** Runtime smoke test: Live 3D.
+- [x] **UX-95** Runtime smoke test: Cameras and telemetry.
+- [x] **UX-96** Runtime smoke test: Sensors.
+- [x] **UX-97** Runtime smoke test: Analyze destinations.
+- [x] **UX-98** Runtime smoke test: Configure destinations.
+- [x] **UX-99** Update relevant SceneScape user-guide documentation/screenshots and mark this specification Complete.
 
 ---
 
@@ -582,52 +582,52 @@ The following checklist is deliberately redundant with the task plan. It is a re
 
 ### Monitor
 
-- [ ] Scene loads with correct map.
-- [ ] Live objects update.
-- [ ] Trails toggle.
-- [ ] Telemetry toggle.
-- [ ] Heatmap toggle.
-- [ ] Velocity toggle.
-- [ ] Region/tripwire visualization.
-- [ ] Child-scene spatial overlays.
-- [ ] 3D map/model loads.
-- [ ] 3D floor toggle.
-- [ ] Camera helpers/frustums.
-- [ ] Camera-frame projection.
-- [ ] Camera opacity.
-- [ ] Selected camera view.
-- [ ] Lighting control.
-- [ ] Fullscreen.
-- [ ] Camera feeds.
-- [ ] Camera telemetry.
-- [ ] Sensor runtime data.
+- [x] Scene loads with correct map.
+- [x] Live objects update.
+- [x] Trails toggle.
+- [x] Telemetry toggle.
+- [x] Heatmap toggle.
+- [x] Velocity toggle.
+- [x] Region/tripwire visualization.
+- [x] Child-scene spatial overlays.
+- [x] 3D map/model loads.
+- [x] 3D floor toggle.
+- [x] Camera helpers/frustums.
+- [x] Camera-frame projection.
+- [x] Camera opacity.
+- [x] Selected camera view.
+- [x] Lighting control.
+- [x] Fullscreen.
+- [x] Camera feeds.
+- [x] Camera telemetry.
+- [x] Sensor runtime data.
 
 ### Analyze
 
-- [ ] History loads.
-- [ ] History data belongs to selected scene.
-- [ ] Trends load.
-- [ ] Runtime/freshness information is reachable.
-- [ ] Incident/event navigation, if included, remains scene-scoped.
+- [x] History loads.
+- [x] History data belongs to selected scene.
+- [x] Trends load.
+- [x] Runtime/freshness information is reachable.
+- [x] Incident/event navigation, if included, remains scene-scoped. — N/A for Scene Workspace UX 2.0 because Incidents/Events remain a separate operator workflow rather than an Analyze secondary destination.
 
 ### Configure
 
-- [ ] Scene configuration reachable.
-- [ ] Geometry editor reachable.
-- [ ] Region editing works.
-- [ ] Tripwire editing works.
-- [ ] Hierarchy editing works.
-- [ ] Camera configuration reachable.
-- [ ] Sensor configuration reachable.
-- [ ] Camera calibration reachable.
+- [x] Scene configuration reachable.
+- [x] Geometry editor reachable.
+- [x] Region editing works.
+- [x] Tripwire editing works.
+- [x] Hierarchy editing works.
+- [x] Camera configuration reachable.
+- [x] Sensor configuration reachable.
+- [x] Camera calibration reachable.
 
 ### Security and data integrity
 
-- [ ] Scene-scoped viewer cannot expose data from another scene through the inspector.
-- [ ] UI does not bypass admin-only mutation rules.
-- [ ] Revisions remain attached to native edits/deletes.
-- [ ] Protected media continues to use authenticated API access.
-- [ ] No secrets/passwords are surfaced in inspectors or diagnostics.
+- [x] Scene-scoped viewer cannot expose data from another scene through the inspector.
+- [x] UI does not bypass admin-only mutation rules.
+- [x] Revisions remain attached to native edits/deletes.
+- [x] Protected media continues to use authenticated API access.
+- [x] No secrets/passwords are surfaced in inspectors or diagnostics.
 
 ---
 
@@ -700,15 +700,19 @@ Do not persist live object payloads longer than necessary merely to support the 
 
 Scene Workspace UX 2.0 is complete only when:
 
-- [ ] All required UX task checkboxes above are complete or explicitly moved to a documented follow-up.
-- [ ] Functional regression checklist passes.
-- [ ] Modern UI production build passes.
-- [ ] Runtime smoke tests pass against a live scene.
-- [ ] Authorization behavior remains intact.
-- [ ] Responsive and accessibility checks are complete.
-- [ ] User-guide documentation reflects the new navigation and controls.
-- [ ] This file's status is changed from **Active** to **Complete**.
-- [ ] Final implementation commit SHA is recorded below.
+- **Final validated implementation commit:** `7b7cc29310b20407c084da0edc7a96afd1a17a05`
+- **Final completion evidence:** `.github/evidence/scene-workspace-ux/UX-90-UX-99-final-evidence.md`
+- **Final UX workflow run:** `35490508522`
+
+- [x] All required UX task checkboxes above are complete or explicitly moved to a documented follow-up.
+- [x] Functional regression checklist passes.
+- [x] Modern UI production build passes.
+- [x] Runtime smoke tests pass against a live scene.
+- [x] Authorization behavior remains intact.
+- [x] Responsive and accessibility checks are complete.
+- [x] User-guide documentation reflects the new navigation and controls.
+- [x] This file's status is changed from **Active** to **Complete**.
+- [x] Final implementation commit SHA is recorded below.
 
 ---
 
@@ -725,6 +729,8 @@ Scene Workspace UX 2.0 is complete only when:
 | 2026-09-20 | UX-50–UX-56 | `3349ffb72be52a7a640d2e7dc2bbf99d1aac7620` | Shared telemetry HUD added; unknown values stay unknown; persistent object data moved to inspector; scene-switch reset prevents stale telemetry. UX suite: 14 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-50-UX-56-telemetry-evidence.md`. |
 | 2026-09-20 | UX-60–UX-67 | `5d48a7a7b67a6807e57aa18040a47a0d46d47c84` | Heatmap legend/opacity and bounded 2D/3D velocity semantics added. Final UX suite: 16 passed, 0 failed after one caught/fixed -0 edge case. Evidence: `.github/evidence/scene-workspace-ux/UX-60-UX-67-visualization-evidence.md`. |
 | 2026-09-20 | UX-70–UX-76 | `d198a225997239673b694e44d707990f758e7ceb` | Visual hierarchy simplified; responsive inspector drawer and corrected 2D/3D fullscreen added; theme/breakpoint contract tested. UX suite: 18 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-70-UX-76-layout-evidence.md`. |
+| 2026-09-20 | UX-80–UX-85 | `e72fa035a7fe22dc391c21d020c549fed516a19c` | Keyboard navigation, keyboard scene selection, visible focus, labelled status/inspector controls, textual health state, and scoped live-region behavior validated. Final browser smoke: 7 passed. Evidence: `.github/evidence/scene-workspace-ux/UX-80-UX-85-accessibility-evidence.md`. |
+| 2026-09-20 | UX-90–UX-99 | `7b7cc29310b20407c084da0edc7a96afd1a17a05` | Production build, 24 UX tests, 7 browser smokes, 21 backend regressions, and 6 real UI/FastAPI/SQLite/SSE integration smokes passed. Final integration exposed and fixed scene/camera observation contamination before completion. Documentation updated and screenshot artifacts captured. Evidence: `.github/evidence/scene-workspace-ux/UX-90-UX-99-final-evidence.md`. |
 
 ---
 
