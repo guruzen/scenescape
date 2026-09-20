@@ -1164,9 +1164,13 @@ def native_camera_telemetry(camera_id: str, p=Depends(current_principal), db=Dep
     scene_id = str(camera.get("scene") or camera.get("scene_id") or "")
     if scene_id:
         _scene_allowed(p, scene_id)
+    topic_root = f"scenescape/data/camera/{camera_id}"
     rows = db.scalars(
         select(Observation)
-        .where(Observation.topic.like(f"scenescape/data/camera/{camera_id}%"))
+        .where(or_(
+            Observation.topic == topic_root,
+            Observation.topic.startswith(topic_root + "/", autoescape=True),
+        ))
         .order_by(Observation.observed_at.desc(), Observation.id.desc())
         .limit(60)
     ).all()
