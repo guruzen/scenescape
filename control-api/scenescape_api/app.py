@@ -1568,6 +1568,8 @@ def delete_any(plural: str, uid: str, revision: int = Query(..., ge=1), p=Depend
     kind = _kind(plural)
     if kind == "child":
         row = resolve_child_link(db, uid)
+        if row.revision != revision:
+            raise HTTPException(409, "Revision conflict")
         link_uid = row.uid
         db.delete(row)
         db.commit()
@@ -1581,6 +1583,8 @@ def delete_any(plural: str, uid: str, revision: int = Query(..., ge=1), p=Depend
         db.delete(current); db.commit(); notify_config_change(kind, current.uid)
         return {"deleted": True, "uid": marker_id, "kind": kind}
     current = get_resource(db, kind, uid)
+    if current.revision != revision:
+        raise HTTPException(409, "Revision conflict")
     previous = to_dict(current) if kind == "camera" else None
     sensor_icon = str((current.payload or {}).get("icon") or "") if kind == "sensor" else ""
     media_values = []
