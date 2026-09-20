@@ -52,7 +52,7 @@ export async function apiJsonStream<T>(path: string, onData: (value: T) => void,
   try {
     while (!signal.aborted) {
       const { value, done } = await reader.read()
-      if (done) break
+      if (done) throw new Error('SceneScape live stream closed')
       buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
       let boundary = buffer.indexOf('\n\n')
       while (boundary >= 0) {
