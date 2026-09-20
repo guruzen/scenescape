@@ -929,7 +929,7 @@
   border: 1px solid rgb(var(--line));
   border-radius: 10px;
   padding: 14px;
-  background: rgb(var(--panel-2));
+  background: rgb(var(--panel-raised));
   display: grid;
   gap: 10px;
 }
@@ -1140,32 +1140,32 @@
 
 .scene-primary-nav {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
   margin: 0 0 8px;
-  padding: 5px;
-  border: 1px solid rgb(var(--line));
-  border-radius: 10px;
-  background: rgb(var(--panel));
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, rgb(var(--line)) 62%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, rgb(var(--panel)) 94%, rgb(var(--soft)));
 }
 .scene-primary-nav-item {
   border: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   background: transparent;
   color: rgb(var(--muted));
-  padding: 9px 16px;
-  font-size: 12px;
-  font-weight: 800;
+  padding: 8px 14px;
+  font-size: 11.5px;
+  font-weight: 610;
   cursor: pointer;
 }
 .scene-primary-nav-item:hover {
   color: rgb(var(--text));
-  background: rgb(var(--soft));
+  background: rgb(var(--surface-hover));
 }
 .scene-primary-nav-item.active {
   color: rgb(var(--text));
-  background: rgb(var(--soft));
-  box-shadow: inset 0 -2px 0 rgb(var(--accent));
+  background: color-mix(in srgb, rgb(var(--accent)) 8%, rgb(var(--panel)));
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, rgb(var(--accent)) 82%, transparent);
 }
 .scene-secondary-nav {
   display: flex;
@@ -1181,8 +1181,8 @@
   background: transparent;
   color: rgb(var(--muted));
   padding: 7px 9px;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10.5px;
+  font-weight: 580;
   cursor: pointer;
 }
 .scene-secondary-nav-item:hover {
@@ -1219,10 +1219,11 @@
   gap: 14px;
   align-items: stretch;
   margin: 0 0 12px;
-  padding: 12px 14px;
-  border: 1px solid rgb(var(--line));
-  border-radius: 10px;
+  padding: 13px 15px;
+  border: 1px solid color-mix(in srgb, rgb(var(--line)) 62%, transparent);
+  border-radius: 9px;
   background: rgb(var(--panel));
+  box-shadow: 0 6px 20px rgba(var(--shadow), 0.025);
 }
 .scene-status-identity {
   display: flex;
@@ -1230,14 +1231,14 @@
   justify-content: space-between;
   gap: 12px;
   padding-right: 14px;
-  border-right: 1px solid rgb(var(--line));
+  border-right: 1px solid color-mix(in srgb, rgb(var(--line)) 55%, transparent);
 }
 .scene-status-identity > div > span,
 .scene-status-metrics span {
   display: block;
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: 9.5px;
+  font-weight: 560;
+  letter-spacing: 0.01em;
   color: rgb(var(--muted));
 }
 .scene-status-identity strong {
@@ -1258,10 +1259,11 @@
   gap: 6px;
   white-space: nowrap;
   padding: 6px 9px;
-  border: 1px solid rgb(var(--line));
+  border: 1px solid color-mix(in srgb, rgb(var(--line)) 65%, transparent);
   border-radius: 999px;
+  background: rgb(var(--soft));
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 650;
 }
 .scene-status-state i {
   width: 7px;
@@ -1324,17 +1326,16 @@
   min-width: 0;
   margin: 0;
   padding: 10px 12px 12px;
-  border: 1px solid rgb(var(--line));
-  border-radius: 9px;
-  background: rgb(var(--panel));
+  border: 1px solid color-mix(in srgb, rgb(var(--line)) 58%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, rgb(var(--panel)) 96%, rgb(var(--soft)));
 }
 .scene-control-group legend {
   padding: 0 6px;
   color: rgb(var(--muted));
-  font-size: 9px;
-  font-weight: 850;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
+  font-size: 9.5px;
+  font-weight: 610;
+  letter-spacing: 0.015em;
 }
 .scene-control-grid {
   display: grid;
@@ -1348,10 +1349,10 @@
   min-width: 0;
   padding: 7px 8px;
   border-radius: 7px;
-  background: rgb(var(--soft));
+  background: color-mix(in srgb, rgb(var(--soft)) 72%, transparent);
   color: rgb(var(--text));
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10.5px;
+  font-weight: 580;
   cursor: pointer;
 }
 .scene-control-grid > label:hover {
