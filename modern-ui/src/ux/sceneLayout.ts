@@ -21,6 +21,7 @@ export const SUPPORTED_UI_THEMES = [
   { value: "light-air", label: "Soft Light" },
   { value: "dark", label: "Spatial Dark" },
   { value: "dark-command", label: "Dense Dark" },
+  { value: "liquid-glass", label: "Liquid Glass" },
 ] as const;
 
 export type UiTheme = (typeof SUPPORTED_UI_THEMES)[number]["value"];
