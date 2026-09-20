@@ -34,9 +34,9 @@ with sessions()() as db:
         "intrinsics": {"fx": 1000, "fy": 1000, "cx": 960, "cy": 540}}, actor)
     sensor = upsert(db, "sensor", None, {"name": "Test temperature", "sensor_id": "test-temperature-01", "scene": scene_id,
         "singleton_type": "environmental", "area": "circle", "center": [4, 4], "radius": 0.8, "visible": True}, actor)
-    region = upsert(db, "region", None, {"name": "Packing safety area", "scene": scene_id, "points": [[1,1],[5,1],[5,4],[1,4]]}, actor)
+    region = upsert(db, "region", None, {"name": "Packing safety area", "scene": scene_id, "visible": True, "points": [[1,1],[5,1],[5,4],[1,4]]}, actor)
     region_id = region.uid
-    upsert(db, "tripwire", None, {"name": "Packing exit line", "scene": scene_id, "points": [[5.5,1],[5.5,4]], "direction": "positive"}, actor)
+    upsert(db, "tripwire", None, {"name": "Packing exit line", "scene": scene_id, "visible": True, "points": [[5.5,1],[5.5,4]], "direction": "positive"}, actor)
     db.commit()
 
 def tick():
