@@ -7,7 +7,7 @@ import test from "node:test"
 import { readFileSync } from "node:fs"
 
 import { deriveSceneStatus } from "../src/ux/sceneStatus.ts"
-import { deriveSceneTelemetry, emptyLiveSceneState } from "../src/ux/sceneTelemetry.ts"
+import { deriveSceneTelemetry, emptyLiveSceneState, normalizeLiveSceneState } from "../src/ux/sceneTelemetry.ts"
 import { HEATMAP_RANGES, heatmapOpacityValue, velocityArrow2D, velocityLength3D } from "../src/ux/sceneVisualization.ts"
 import { SCENE_LAYOUT_BREAKPOINTS, SCENE_VISUAL_HIERARCHY, SUPPORTED_UI_THEMES, layoutModeForWidth } from "../src/ux/sceneLayout.ts"
 import { LIVE_REGION_POLICY, isSelectionActivationKey, selectionAriaLabel } from "../src/ux/sceneAccessibility.ts"
@@ -312,4 +312,22 @@ test("integrity: inspector and diagnostics never surface credential fields", () 
   const diagnosticSurface = inspectorSource + "\n" + telemetrySource
   assert.doesNotMatch(diagnosticSurface, /mqtt_password|password|secret/i)
   assert.doesNotMatch(appSource.slice(appSource.indexOf("function Map2D"), appSource.indexOf("function SceneSensorTelemetry")), /password|secret/i)
+})
+
+
+test("regression: live scene normalization rejects non-array object payloads without crashing", () => {
+  const malformed = normalizeLiveSceneState({
+    stale: false,
+    scene_rate: 10,
+    objects: { person: [{ id: "camera-detection" }] },
+  })
+  assert.equal(malformed.stale, false)
+  assert.equal(malformed.scene_rate, 10)
+  assert.deepEqual(malformed.objects, [])
+
+  const liveObjects = [{ id: "track-1" }]
+  const valid = normalizeLiveSceneState({ stale: false, objects: liveObjects })
+  assert.deepEqual(valid.objects, liveObjects)
+
+  assert.deepEqual(normalizeLiveSceneState(null), { objects: [], stale: true })
 })
