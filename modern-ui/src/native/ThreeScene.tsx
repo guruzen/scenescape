@@ -29,6 +29,8 @@ export default function ThreeScene({
   showTrackedObjects = true,
   showSpatial = true,
   showFloor = true,
+  showHeatmap = false,
+  showVelocity = false,
   cameras = [],
   projectCameraFrames = false,
   cameraOpacity = 0.8,
@@ -55,6 +57,8 @@ export default function ThreeScene({
   showTrackedObjects?: boolean
   showSpatial?: boolean
   showFloor?: boolean
+  showHeatmap?: boolean
+  showVelocity?: boolean
   cameras?: Row[]
   projectCameraFrames?: boolean
   cameraOpacity?: number
@@ -407,6 +411,27 @@ export default function ThreeScene({
         }
       })
       group.add(root)
+
+      if (showVelocity && Array.isArray(item.velocity) && item.velocity.length >= 2) {
+        const vx = Number(item.velocity[0] || 0), vy = Number(item.velocity[1] || 0)
+        const magnitude = Math.hypot(vx, vy)
+        if (magnitude > 0.01) {
+          const direction = new THREE.Vector3(vx, vy, 0).normalize()
+          const arrow = new THREE.ArrowHelper(direction, root.position.clone(), Math.min(4, Math.max(0.5, magnitude)), 0xffb454, 0.25, 0.14)
+          arrow.userData.generatedGeometry = true
+          group.add(arrow)
+        }
+      }
+      if (showHeatmap) {
+        const radius = Math.max(0.45, Number(asset?.tracking_radius || 0.6))
+        const heat = new THREE.Mesh(
+          new THREE.CircleGeometry(radius, 28),
+          new THREE.MeshBasicMaterial({ color: 0xff6b35, transparent: true, opacity: 0.13, depthWrite: false, side: THREE.DoubleSide }),
+        )
+        heat.userData.generatedGeometry = true
+        heat.position.set(root.position.x, root.position.y, 0.025)
+        group.add(heat)
+      }
     }
 
     if (previewAsset) {
@@ -414,7 +439,7 @@ export default function ThreeScene({
     } else if (showTrackedObjects) {
       ;(objects || []).forEach(renderItem)
     }
-  }, [objects, assets, assetVersion, mapPath, previewAsset, showTrackedObjects])
+  }, [objects, assets, assetVersion, mapPath, previewAsset, showTrackedObjects, showHeatmap, showVelocity])
 
   useEffect(() => {
     const group = spatialGroup.current
