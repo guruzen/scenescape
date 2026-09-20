@@ -14,6 +14,7 @@ import SecurityAdmin from './native/SecurityAdmin'
 import ModelLibrary from './native/ModelLibrary'
 import SceneStatusHeader from './ux/SceneStatusHeader'
 import { deriveSceneStatus } from './ux/sceneStatus'
+import { summarizeLiveObjectAvailability } from './ux/sceneViewControls'
 import {
   DEFAULT_SCENE_DESTINATION,
   PRIMARY_MODES,
@@ -73,7 +74,7 @@ function Header({ title, kicker, children }: { title: string; kicker: string; ch
   return <div className="page-header"><div><div className="kicker">{kicker}</div><h1>{title}</h1></div><div className="header-actions">{children}</div></div>
 }
 
-function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = false, showHeatmap = false, showVelocity = false, visualizeRois = true, trails = {} }: { bundle: Bundle; live: Row; onPoint?: (point: number[]) => void; showTrails?: boolean; showTelemetry?: boolean; showHeatmap?: boolean; showVelocity?: boolean; visualizeRois?: boolean; trails?: Record<string, number[][]> }) {
+function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = false, showHeatmap = false, showVelocity = false, showLabels = true, visualizeRois = true, trails = {} }: { bundle: Bundle; live: Row; onPoint?: (point: number[]) => void; showTrails?: boolean; showTelemetry?: boolean; showHeatmap?: boolean; showVelocity?: boolean; showLabels?: boolean; visualizeRois?: boolean; trails?: Record<string, number[][]> }) {
   const scene = bundle.scene
   const [mapUrl, setMapUrl] = useState('')
   const [size, setSize] = useState<[number, number]>([1000, 700])
@@ -147,7 +148,7 @@ function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = fals
       {childTripwires.map((row, i) => childTripPoints[i] && <polyline key={`child-trip-${rowId(row)||i}`} points={childTripPoints[i]} className="child-tripwire-line" />)}
       {bundle.cameras.map((camera, i) => {
         const [x, y] = xy(camera.translation || [i + 1, i + 1])
-        return <g key={rowId(camera) || i}><circle cx={x} cy={y} r="8" className="camera-dot"/><text x={x + 11} y={y - 7} className="map-label">{rowName(camera)}</text></g>
+        return <g key={rowId(camera) || i}><circle cx={x} cy={y} r="8" className="camera-dot"/>{showLabels && <text x={x + 11} y={y - 7} className="map-label">{rowName(camera)}</text>}</g>
       })}
       {childSensors.map((sensor, i) => {
         if (sensor.area === 'scene') return null
@@ -161,7 +162,7 @@ function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = fals
         return <g key={`child-sensor-${rowId(sensor)||i}`}>
           {sensor.area === 'poly' && polygon && <polygon points={polygon} className="child-sensor-area"/>}
           {sensor.area === 'circle' && position && <circle cx={position[0]} cy={position[1]} r={Math.max(1, Number(sensor.radius || 0) * scale)} className="child-sensor-area"/>}
-          {position && <><circle cx={position[0]} cy={position[1]} r="7" className="child-sensor-dot"/><text x={position[0] + 10} y={position[1] - 7} className="map-label">{rowName(sensor)} · {String(sensor.from_child_scene||'child')}</text></>}
+          {position && <><circle cx={position[0]} cy={position[1]} r="7" className="child-sensor-dot"/>{showLabels && <text x={position[0] + 10} y={position[1] - 7} className="map-label">{rowName(sensor)} · {String(sensor.from_child_scene||'child')}</text>}</>}
         </g>
       })}
       {bundle.sensors.filter((sensor) => Boolean(sensor.visible)).map((sensor, i) => {
@@ -176,7 +177,7 @@ function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = fals
           {sensor.area === 'scene' && <rect x="2" y="2" width={Math.max(0,size[0]-4)} height={Math.max(0,size[1]-4)} className="sensor-scene-area"/>}
           {sensor.area === 'poly' && polygon && <polygon points={polygon} className="sensor-poly-area"/>}
           {sensor.area === 'circle' && position && <circle cx={position[0]} cy={position[1]} r={Math.max(1, Number(sensor.radius || 0) * scale)} className="sensor-circle-area"/>}
-          {position && <><circle cx={position[0]} cy={position[1]} r="8" className="sensor-center-dot"/><text x={position[0] + 11} y={position[1] - 7} className="map-label">{rowName(sensor)}</text></>}
+          {position && <><circle cx={position[0]} cy={position[1]} r="8" className="sensor-center-dot"/>{showLabels && <text x={position[0] + 11} y={position[1] - 7} className="map-label">{rowName(sensor)}</text>}</>}
         </g>
       })}
       {showTrails && Object.entries(trails).map(([key, trail]) => {
@@ -217,7 +218,7 @@ function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = fals
           {showHeatmap && <circle cx={x} cy={y} r={Math.max(8,heatRadius*0.45)} className="object-heatmap-core"/>}
           {showVelocity && velocityEnd && <line x1={x} y1={y} x2={velocityEnd[0]} y2={velocityEnd[1]} className="object-velocity" markerEnd="url(#velocity-arrow-head)"/>}
           <circle cx={x} cy={y} r="7" className="track-dot"/>
-          <text x={x + 10} y={y + 4} className="map-label">{label}</text>
+          {showLabels && <text x={x + 10} y={y + 4} className="map-label">{label}</text>}
           {telemetry.map((line,index)=><text key={line+index} x={x + 10} y={y + 18 + index*12} className="map-telemetry">{line}</text>)}
         </g>
       })}
@@ -352,6 +353,7 @@ function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab
   const [showTelemetry, setShowTelemetry] = useState(false)
   const [showHeatmap, setShowHeatmap] = useState(false)
   const [showVelocity, setShowVelocity] = useState(false)
+  const [showLabels, setShowLabels] = useState(true)
   const [visualizeRois, setVisualizeRois] = useState(true)
   const [showFloor, setShowFloor] = useState(() => localStorage.getItem('showFloor') !== 'false')
   const [trails, setTrails] = useState<Record<string, number[][]>>({})
@@ -418,6 +420,7 @@ function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab
 
   if (!bundle) return <><button className="btn" onClick={onBack}>← Back to scenes</button><div className="center-panel">Loading native scene workspace…{message && <div className="error-box">{message}</div>}</div></>
   const map3DPath = String(bundle.scene.map || bundle.scene.thumbnail || '')
+  const availability = summarizeLiveObjectAvailability(live.objects || [])
   const sceneStatus = deriveSceneStatus({
     stale: Boolean(live.stale),
     observedAt: live.observed_at ? String(live.observed_at) : null,
@@ -447,23 +450,49 @@ function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab
       })}
     </nav>
     {message && <div className="notice-box">{message}</div>}
-    {(tab === 'Live 2D' || tab === 'Live 3D') && <div className="live-controls">
-      <label><input type="checkbox" checked={liveView} onChange={(e)=>setLiveView(e.target.checked)}/>Live View</label>
-      <label><input type="checkbox" checked={showTrails} onChange={(e)=>setShowTrails(e.target.checked)}/>Show Trails</label>
-      <label><input type="checkbox" checked={showTelemetry} onChange={(e)=>setShowTelemetry(e.target.checked)}/>Show Telemetry</label>
-      <label><input type="checkbox" checked={showHeatmap} onChange={(e)=>setShowHeatmap(e.target.checked)}/>Show Heatmap</label>
-      <label><input type="checkbox" checked={showVelocity} onChange={(e)=>setShowVelocity(e.target.checked)}/>Show Velocity</label>
-      <label><input type="checkbox" checked={visualizeRois} onChange={(e)=>setVisualizeRois(e.target.checked)}/>Visualize ROIs</label>
-      {tab === 'Live 3D' && <label><input type="checkbox" checked={showFloor} onChange={(e)=>{setShowFloor(e.target.checked);localStorage.setItem('showFloor',String(e.target.checked))}}/>Floor Plane</label>}
-      {tab === 'Live 3D' && <label><input type="checkbox" checked={projectCameraFrames} onChange={(e)=>setProjectCameraFrames(e.target.checked)}/>Project camera frames</label>}
-      {tab === 'Live 3D' && <label className="range-control">Camera opacity <input type="range" min="0" max="100" value={Math.round(cameraOpacity*100)} onChange={(e)=>setCameraOpacity(Number(e.target.value)/100)}/><span>{Math.round(cameraOpacity*100)}%</span></label>}
-      {tab === 'Live 3D' && <label className="range-control">Light <input type="range" min="10" max="300" value={Math.round(lightIntensity*100)} onChange={(e)=>setLightIntensity(Number(e.target.value)/100)}/><span>{lightIntensity.toFixed(1)}×</span></label>}
-      {tab === 'Live 3D' && bundle.cameras.length > 0 && <><label>Camera <select value={selectedCameraId} onChange={(e)=>{setSelectedCameraId(e.target.value);if(!e.target.value)setCameraView(false)}}><option value="">None</option>{bundle.cameras.map((camera)=><option key={rowId(camera)} value={rowId(camera)}>{rowName(camera)}</option>)}</select></label><label><input type="checkbox" disabled={!selectedCameraId} checked={cameraView} onChange={(e)=>setCameraView(e.target.checked)}/>Scene camera view</label></>}
-      {showTrails && <button className="text-button" onClick={()=>setTrails({})}>Clear trails</button>}
-      <button className="text-button" onClick={()=>{const el=visualRef.current;if(!el)return;if(document.fullscreenElement)void document.exitFullscreen();else void el.requestFullscreen()}}>Fullscreen</button>
+    {(tab === 'Live 2D' || tab === 'Live 3D') && <div className="scene-view-toolbar">
+      <fieldset className="scene-control-group">
+        <legend>Layers</legend>
+        <div className="scene-control-grid">
+          <label><input type="checkbox" checked={liveView} onChange={(e)=>setLiveView(e.target.checked)}/><span>Objects<small>{availability.total} tracked</small></span></label>
+          <label><input type="checkbox" checked={showTrails} onChange={(e)=>setShowTrails(e.target.checked)}/><span>Trails<small>{availability.total ? 'live history' : 'waiting for objects'}</small></span></label>
+          <label><input type="checkbox" checked={showHeatmap} onChange={(e)=>setShowHeatmap(e.target.checked)}/><span>Heatmap<small>{availability.total} positions</small></span></label>
+          <label><input type="checkbox" checked={showVelocity} onChange={(e)=>setShowVelocity(e.target.checked)}/><span>Velocity<small>{availability.velocityVectors}/{availability.total} vectors</small></span></label>
+          <label><input type="checkbox" checked={visualizeRois} onChange={(e)=>setVisualizeRois(e.target.checked)}/><span>Spatial overlays<small>regions · tripwires · sensors</small></span></label>
+        </div>
+      </fieldset>
+      <fieldset className="scene-control-group">
+        <legend>Diagnostics</legend>
+        <div className="scene-control-grid">
+          <label><input type="checkbox" checked={showTelemetry} onChange={(e)=>setShowTelemetry(e.target.checked)}/><span>Telemetry<small>{live.stale ? 'feed stale' : 'scene stream live'}</small></span></label>
+        </div>
+      </fieldset>
+      {tab === 'Live 2D' && <fieldset className="scene-control-group scene-renderer-controls">
+        <legend>2D view</legend>
+        <div className="scene-control-grid">
+          <label><input type="checkbox" checked={showLabels} onChange={(e)=>setShowLabels(e.target.checked)}/><span>Labels<small>names and object categories</small></span></label>
+        </div>
+      </fieldset>}
+      {tab === 'Live 3D' && <fieldset className="scene-control-group scene-renderer-controls">
+        <legend>3D view</legend>
+        <div className="scene-control-grid">
+          <label><input type="checkbox" checked={showFloor} onChange={(e)=>{setShowFloor(e.target.checked);localStorage.setItem('showFloor',String(e.target.checked))}}/><span>Floor plane<small>ground reference</small></span></label>
+          <label><input type="checkbox" checked={projectCameraFrames} onChange={(e)=>setProjectCameraFrames(e.target.checked)}/><span>Camera frames<small>project live snapshots</small></span></label>
+          {bundle.cameras.length > 0 && <label><span>Camera<select value={selectedCameraId} onChange={(e)=>{setSelectedCameraId(e.target.value);if(!e.target.value)setCameraView(false)}}><option value="">None</option>{bundle.cameras.map((camera)=><option key={rowId(camera)} value={rowId(camera)}>{rowName(camera)}</option>)}</select></span></label>}
+          <label><input type="checkbox" disabled={!selectedCameraId} checked={cameraView} onChange={(e)=>setCameraView(e.target.checked)}/><span>Camera view<small>{selectedCameraId ? 'use selected camera' : 'select a camera first'}</small></span></label>
+        </div>
+        <div className="scene-control-ranges">
+          <label>Camera opacity <input type="range" min="0" max="100" value={Math.round(cameraOpacity*100)} onChange={(e)=>setCameraOpacity(Number(e.target.value)/100)}/><span>{Math.round(cameraOpacity*100)}%</span></label>
+          <label>Light <input type="range" min="10" max="300" value={Math.round(lightIntensity*100)} onChange={(e)=>setLightIntensity(Number(e.target.value)/100)}/><span>{lightIntensity.toFixed(1)}×</span></label>
+        </div>
+      </fieldset>}
+      <div className="scene-view-actions">
+        {showTrails && <button className="text-button" onClick={()=>setTrails({})}>Clear trails</button>}
+        <button className="text-button" onClick={()=>{const el=visualRef.current;if(!el)return;if(document.fullscreenElement)void document.exitFullscreen();else void el.requestFullscreen()}}>Fullscreen</button>
+      </div>
     </div>}
     <div ref={visualRef} className={(tab === 'Live 2D' || tab === 'Live 3D') ? 'scene-workspace-visual' : ''}>
-    {tab === 'Live 2D' && <Map2D bundle={bundle} live={liveView ? live : { objects: [], stale: true }} showTrails={showTrails} showTelemetry={showTelemetry} showHeatmap={showHeatmap} showVelocity={showVelocity} visualizeRois={visualizeRois} trails={trails}/>} 
+    {tab === 'Live 2D' && <Map2D bundle={bundle} live={liveView ? live : { objects: [], stale: true }} showTrails={showTrails} showTelemetry={showTelemetry} showHeatmap={showHeatmap} showVelocity={showVelocity} showLabels={showLabels} visualizeRois={visualizeRois} trails={trails}/>} 
     {tab === 'Live 3D' && <><ThreeScene mapPath={map3DPath} objects={liveView ? (live.objects || []) : []} showTrackedObjects={liveView} showSpatial={visualizeRois} showFloor={showFloor} showHeatmap={showHeatmap} showVelocity={showVelocity} cameras={bundle.cameras} projectCameraFrames={projectCameraFrames} cameraOpacity={cameraOpacity} selectedCameraId={selectedCameraId} useSelectedCameraView={cameraView} lightIntensity={lightIntensity} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors} childRegions={bundle.child_regions||[]} childTripwires={bundle.child_tripwires||[]} childSensors={bundle.child_sensors||[]}/>
       {showTelemetry && <div className="scene-telemetry-hud three-telemetry-hud">
         <b>Live telemetry</b>
