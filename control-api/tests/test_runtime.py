@@ -114,3 +114,16 @@ def test_reconcile_identity_contains_readback_verification():
     assert "Keycloak did not persist the scenescape-api audience mapper." in source
     assert "included.custom.audience" in source
     assert "reconcile-identity" in source
+
+
+def test_native_operator_parity_surface_is_present():
+    root = Path(__file__).parents[2]
+    app = (root / "control-api/scenescape_api/app.py").read_text()
+    ui = (root / "modern-ui/src/App.tsx").read_text()
+    viewer = (root / "modern-ui/src/native/ThreeScene.tsx").read_text()
+    assert '/api/v2/cameras/{camera_id}/telemetry' in app
+    assert 'Show Heatmap' in ui
+    assert 'Show Velocity' in ui
+    assert 'Show Telemetry' in ui
+    assert 'showHeatmap' in viewer
+    assert 'showVelocity' in viewer
