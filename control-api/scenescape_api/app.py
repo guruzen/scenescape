@@ -1139,6 +1139,8 @@ async def live_stream(scene_id: str, p=Depends(current_principal)):
     async def events():
         last_id = None
         stale_sent = False
+        last_heartbeat = 0.0
+        yield "retry: 1500\n\n"
         while True:
             db = sessions()()
             try:
@@ -1160,6 +1162,10 @@ async def live_stream(scene_id: str, p=Depends(current_principal)):
                     yield f"event: status\ndata: {json.dumps(payload, separators=(',', ':'))}\n\n"
             finally:
                 db.close()
+            now = asyncio.get_running_loop().time()
+            if now - last_heartbeat >= 15:
+                last_heartbeat = now
+                yield ": keepalive\n\n"
             await asyncio.sleep(0.2)
 
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
