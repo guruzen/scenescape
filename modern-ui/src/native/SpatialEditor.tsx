@@ -174,7 +174,7 @@ export default function SpatialEditor({
     setBusy(true);setError('')
     try{
       const plural=kind==='region'?'regions':'tripwires'
-      await apiFetch(`/api/v2/${plural}/${encodeURIComponent(idOf(selected))}`,{method:'DELETE'})
+      await apiFetch(`/api/v2/${plural}/${encodeURIComponent(idOf(selected))}?revision=${selected.revision}`,{method:'DELETE'})
       open(kind,null);onSaved()
     }catch(e){setError(String(e))}finally{setBusy(false)}
   }
