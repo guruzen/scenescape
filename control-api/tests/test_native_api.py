@@ -1128,3 +1128,40 @@ def test_incidents_and_overview_respect_scene_scope(tmp_path, monkeypatch):
     assert value['counts']['cameras']==1
     assert value['counts']['incidents']==1
     assert value['counts']['observations']==1
+
+
+def test_scene_import_zip_rejects_duplicate_basenames_symlinks_and_zip_bombs(tmp_path, monkeypatch):
+    import io
+    import stat
+    import zipfile
+    from scenescape_api.media_files import read_scene_import_zip
+
+    duplicate=io.BytesIO()
+    with zipfile.ZipFile(duplicate,'w') as archive:
+        archive.writestr('scene.json',json.dumps({'name':'Scene'}))
+        archive.writestr('one/map.png',b'one')
+        archive.writestr('two/map.png',b'two')
+    with pytest.raises(__import__('fastapi').HTTPException) as exc:
+        read_scene_import_zip(duplicate.getvalue())
+    assert exc.value.status_code==400
+    assert 'Duplicate resource filename' in str(exc.value.detail)
+
+    linked=io.BytesIO()
+    with zipfile.ZipFile(linked,'w') as archive:
+        archive.writestr('scene.json',json.dumps({'name':'Scene'}))
+        info=zipfile.ZipInfo('map.glb')
+        info.create_system=3
+        info.external_attr=(stat.S_IFLNK | 0o777) << 16
+        archive.writestr(info,'../../outside')
+    with pytest.raises(__import__('fastapi').HTTPException) as exc:
+        read_scene_import_zip(linked.getvalue())
+    assert 'symbolic link' in str(exc.value.detail).lower()
+
+    monkeypatch.setenv('MAX_ZIP_COMPRESSION_RATIO','2')
+    bomb=io.BytesIO()
+    with zipfile.ZipFile(bomb,'w',compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr('scene.json',json.dumps({'name':'Scene'}))
+        archive.writestr('map.bin',b'A'*(2*1024*1024))
+    with pytest.raises(__import__('fastapi').HTTPException) as exc:
+        read_scene_import_zip(bomb.getvalue())
+    assert 'compression ratio' in str(exc.value.detail).lower()
