@@ -419,12 +419,34 @@ export default function ThreeScene({
       })
     }
 
-    const addPolygon = (points: any[], height: number, material: THREE.Material) => {
+    const addPolygon = (points: any[], height: number, material: THREE.Material, bufferSize = 0) => {
       if (!Array.isArray(points) || points.length < 3) return
-      const shape = new THREE.Shape(points.map((point) => new THREE.Vector2(Number(point[0] || 0), Number(point[1] || 0))))
+      const vectors = points.map((point) => new THREE.Vector2(Number(point[0] || 0), Number(point[1] || 0)))
+      const shape = new THREE.Shape(vectors)
       const geometry = new THREE.ExtrudeGeometry(shape, { depth: Math.max(0.01, height), bevelEnabled: false })
       const mesh = new THREE.Mesh(geometry, material)
       group.add(mesh)
+      if (bufferSize > 0) {
+        let signedArea = 0
+        vectors.forEach((point, index) => {
+          const next = vectors[(index + 1) % vectors.length]
+          signedArea += point.x * next.y - next.x * point.y
+        })
+        const sign = signedArea < 0 ? 1 : -1
+        const inflated = vectors.map((current, index) => {
+          const previous = vectors[(index - 1 + vectors.length) % vectors.length]
+          const next = vectors[(index + 1) % vectors.length]
+          const v1 = current.clone().sub(previous).normalize()
+          const v2 = next.clone().sub(current).normalize()
+          const n1 = new THREE.Vector2(-v1.y * sign, v1.x * sign)
+          const n2 = new THREE.Vector2(-v2.y * sign, v2.x * sign)
+          const offset = n1.add(n2).normalize()
+          const length = bufferSize / Math.max(0.1, Math.abs(offset.dot(new THREE.Vector2(-v1.y * sign, v1.x * sign))))
+          return current.clone().add(offset.multiplyScalar(length))
+        })
+        const bufferGeometry = new THREE.ExtrudeGeometry(new THREE.Shape(inflated), { depth: Math.max(0.01, height), bevelEnabled: false })
+        group.add(new THREE.Mesh(bufferGeometry, new THREE.MeshStandardMaterial({ color: 0x4ed1ce, transparent: true, opacity: 0.055, side: THREE.DoubleSide, depthWrite: false })))
+      }
     }
 
     if (!showSpatial) return
@@ -435,6 +457,7 @@ export default function ThreeScene({
         region.points || [],
         Number(region.height || 1),
         new THREE.MeshStandardMaterial({ color: 0x4ed1ce, transparent: true, opacity: region.volumetric ? 0.22 : 0.12, side: THREE.DoubleSide }),
+        Number(region.buffer_size || 0),
       )
     }
 
