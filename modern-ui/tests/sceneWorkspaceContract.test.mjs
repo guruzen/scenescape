@@ -4,6 +4,7 @@
 
 import assert from "node:assert/strict"
 import test from "node:test"
+import { readFileSync } from "node:fs"
 
 import { deriveSceneStatus } from "../src/ux/sceneStatus.ts"
 import { deriveSceneTelemetry, emptyLiveSceneState } from "../src/ux/sceneTelemetry.ts"
@@ -280,4 +281,25 @@ test("integrity: scene accessibility labels and live-region policy are explicit"
     sceneState: "polite",
     telemetryMetrics: "off",
   })
+})
+
+
+test("integrity: navigation controls and scene selections remain native keyboard-operable elements", () => {
+  const appSource = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8")
+  assert.match(appSource, /scene-primary-nav-item[^]*?<button|<button[^]*?scene-primary-nav-item/)
+  assert.match(appSource, /scene-secondary-nav-item/)
+  assert.match(appSource, /<input type="checkbox"/)
+  assert.match(appSource, /role="button" tabIndex=\{0\}/)
+  assert.match(appSource, /aria-label=\{selectionAriaLabel\('object'/)
+  assert.match(appSource, /aria-label="Select tracked object for inspector"/)
+})
+
+test("integrity: focus and live-region policies stay narrowly scoped", () => {
+  const cssSource = readFileSync(new URL("../src/native/native.css", import.meta.url), "utf8")
+  const statusSource = readFileSync(new URL("../src/ux/SceneStatusHeader.tsx", import.meta.url), "utf8")
+  const telemetrySource = readFileSync(new URL("../src/ux/SceneTelemetryHud.tsx", import.meta.url), "utf8")
+  assert.match(cssSource, /:focus-visible/)
+  assert.match(statusSource, /role="status"/)
+  assert.match(statusSource, /LIVE_REGION_POLICY\.sceneState/)
+  assert.match(telemetrySource, /LIVE_REGION_POLICY\.telemetryMetrics/)
 })
