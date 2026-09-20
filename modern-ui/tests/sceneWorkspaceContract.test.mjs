@@ -436,6 +436,25 @@ test("integrity: navigation controls and scene selections remain native keyboard
   assert.match(appSource, /aria-label="Select tracked object for inspector"/);
 });
 
+test("integrity: incident workspace exposes operational context and filters", () => {
+  const appSource = readFileSync(
+    new URL("../src/App.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(appSource, /aria-label="Search incidents"/);
+  assert.match(appSource, /aria-label="Filter incidents by scene"/);
+  assert.match(appSource, /aria-label="Filter incidents by rule type"/);
+  assert.match(appSource, /aria-label="Filter incidents by region or tripwire"/);
+  assert.match(appSource, /aria-label="Filter incidents by event type"/);
+  assert.match(appSource, /aria-label="Filter incidents by object type"/);
+  assert.match(appSource, /aria-label="Filter incidents by status"/);
+  assert.match(appSource, /aria-label="Filter incidents by time"/);
+  assert.match(appSource, /incident-context-grid/);
+  assert.match(appSource, /row\.scene_name/);
+  assert.match(appSource, /row\.rule_name/);
+  assert.match(appSource, /row\.object_types/);
+});
+
 test("integrity: focus and live-region policies stay narrowly scoped", () => {
   const cssSource = readFileSync(
     new URL("../src/native/native.css", import.meta.url),
