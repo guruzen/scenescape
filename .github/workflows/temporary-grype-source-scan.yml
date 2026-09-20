@@ -96,7 +96,7 @@ jobs:
           print("db_built=" + str(db.get("built", "")))
           print("db_schema=" + str(db.get("schemaVersion", "")))
           print("source_type=" + str(source.get("type", "")))
-          for r in critical_high:
+          for r in rows:
               fixes = ",".join(r["fix_versions"]) if r["fix_versions"] else "-"
               locs = ",".join(r["locations"]) if r["locations"] else "-"
               print(
