@@ -303,3 +303,13 @@ test("integrity: focus and live-region policies stay narrowly scoped", () => {
   assert.match(statusSource, /LIVE_REGION_POLICY\.sceneState/)
   assert.match(telemetrySource, /LIVE_REGION_POLICY\.telemetryMetrics/)
 })
+
+
+test("integrity: inspector and diagnostics never surface credential fields", () => {
+  const inspectorSource = readFileSync(new URL("../src/ux/sceneInspector.ts", import.meta.url), "utf8")
+  const appSource = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8")
+  const telemetrySource = readFileSync(new URL("../src/ux/SceneTelemetryHud.tsx", import.meta.url), "utf8")
+  const diagnosticSurface = inspectorSource + "\n" + telemetrySource
+  assert.doesNotMatch(diagnosticSurface, /mqtt_password|password|secret/i)
+  assert.doesNotMatch(appSource.slice(appSource.indexOf("function Map2D"), appSource.indexOf("function SceneSensorTelemetry")), /password|secret/i)
+})
