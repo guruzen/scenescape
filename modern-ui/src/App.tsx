@@ -18,6 +18,7 @@ import {
   SECONDARY_VIEWS_BY_MODE,
   defaultDestinationForMode,
   destinationForLegacyTab,
+  initialLegacyTabForSceneSuffix,
   legacyTabForDestination,
   routeForDestination,
 } from './ux/sceneWorkspaceContract'
@@ -559,7 +560,7 @@ function App() {
   const sceneMatch = path.match(/^scene\/([^/]+)(?:\/(geometry|hierarchy))?$/)
   const activeScene = sceneMatch ? scenes.find((scene) => rowId(scene) === sceneMatch[1]) : undefined
   let page: ReactNode
-  if (sceneMatch && activeScene) page = <SceneWorkspace scene={activeScene} scenes={scenes} onBack={() => go('live')} onNavigate={go} isAdmin={auth.isAdmin} initialTab={sceneMatch[2] === 'geometry' ? 'Geometry' : sceneMatch[2] === 'hierarchy' ? 'Hierarchy' : 'Live 2D'}/>
+  if (sceneMatch && activeScene) page = <SceneWorkspace scene={activeScene} scenes={scenes} onBack={() => go('live')} onNavigate={go} isAdmin={auth.isAdmin} initialTab={initialLegacyTabForSceneSuffix(sceneMatch[2])}/>
   else if (path === 'live') page = <><Header kicker="Operations · data plane" title="Live scenes"><button className="btn" onClick={refresh}>Refresh</button></Header><div className="card-grid">{scenes.map((scene) => <section className="panel scene-card" key={rowId(scene)}><div className="mini-scene"><div className="floor-shape"/><span className="track track-a"/><span className="track track-b"/></div><h2>{rowName(scene)}</h2><code>{rowId(scene)}</code><div className="scene-meta"><span>{scene.map ? 'Map configured' : 'No map'}</span><span>{scene.scale ? `${scene.scale} px/m` : 'Scale unknown'}</span></div><button className="btn btn-primary full" onClick={() => go(`scene/${rowId(scene)}`)}>Open native 2D / 3D scene</button></section>)}</div>{!scenes.length && <div className="empty-state"><h2>No native scenes yet</h2><p>Run <code>./scenescape.sh recover-legacy-data</code> to copy existing Django configuration, or <code>./scenescape.sh seed-native-data</code> for the upstream Retail sample.</p></div>}</>
   else if (path === 'incidents') page = <Incidents/>
   else if (path === 'history') page = <SceneAnalytics scenes={scenes} mode="history"/>
