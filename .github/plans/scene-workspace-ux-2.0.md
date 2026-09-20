@@ -574,6 +574,19 @@ The primary objective is monitoring, not full editing.
 - [x] **UX-98** Runtime smoke test: Configure destinations.
 - [x] **UX-99** Update relevant SceneScape user-guide documentation/screenshots and mark this specification Complete.
 
+### Phase 10 — Post-completion incident intelligence follow-up
+
+- [x] **UX-100** Enrich retained incidents from their linked analytics Event without requiring a database migration.
+- [x] **UX-101** Preserve region/tripwire identity and generate meaningful operational incident titles.
+- [x] **UX-102** Expose scene, rule, event, timestamp, object type/ID, counts, and enter/exit context through the incident API.
+- [x] **UX-103** Add server-side incident filtering for scene, rule type/id, event, object type, status, search, and time range.
+- [x] **UX-104** Add Incidents UI filters for scene, region/tripwire, event, object type, status, time, and free-text search.
+- [x] **UX-105** Add enriched incident list/detail presentation while preserving status, assignment, notes, and audit workflows.
+- [x] **UX-106** Do not expose a camera filter until reliable source-camera provenance is retained for scene-level analytics events.
+- [x] **UX-107** Add backend/frontend regression coverage and pass focused plus integrated Scene Workspace validation.
+
+Evidence: `.github/evidence/scene-workspace-ux/UX-100-UX-107-incidents-evidence.md`.
+
 ---
 
 ## 17. Detailed functional regression checklist
@@ -731,6 +744,7 @@ Scene Workspace UX 2.0 is complete only when:
 | 2026-09-20 | UX-70–UX-76 | `d198a225997239673b694e44d707990f758e7ceb` | Visual hierarchy simplified; responsive inspector drawer and corrected 2D/3D fullscreen added; theme/breakpoint contract tested. UX suite: 18 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-70-UX-76-layout-evidence.md`. |
 | 2026-09-20 | UX-80–UX-85 | `e72fa035a7fe22dc391c21d020c549fed516a19c` | Keyboard navigation, keyboard scene selection, visible focus, labelled status/inspector controls, textual health state, and scoped live-region behavior validated. Final browser smoke: 7 passed. Evidence: `.github/evidence/scene-workspace-ux/UX-80-UX-85-accessibility-evidence.md`. |
 | 2026-09-20 | UX-90–UX-99 | `7b7cc29310b20407c084da0edc7a96afd1a17a05` | Production build, 24 UX tests, 7 browser smokes, 21 backend regressions, and 6 real UI/FastAPI/SQLite/SSE integration smokes passed. Final integration exposed and fixed scene/camera observation contamination before completion. Documentation updated and screenshot artifacts captured. Evidence: `.github/evidence/scene-workspace-ux/UX-90-UX-99-final-evidence.md`. |
+| 2026-09-20 | UX-100–UX-107 | `6ee4389c240f308e7ac08d73cc0ab813cb8c3a9a` | Incident workflow enriched from retained analytics Events; region/tripwire identity, operational titles, object context, API/UI filters, and detail context added. Focused incident verification run `35495287728` and full Scene Workspace gate `35495291350` passed. Camera filtering intentionally deferred until reliable source-camera provenance exists. Evidence: `.github/evidence/scene-workspace-ux/UX-100-UX-107-incidents-evidence.md`. |
 
 ---
 
