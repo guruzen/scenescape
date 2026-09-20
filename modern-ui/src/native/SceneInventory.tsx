@@ -169,7 +169,7 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
     if (!selected || !isAdmin || !window.confirm(`Delete ${nameOf(selected)} and its scene media?`)) return
     setBusy(true)
     try {
-      await apiFetch(`/api/v2/scenes/${encodeURIComponent(idOf(selected))}`, { method: 'DELETE' })
+      await apiFetch(`/api/v2/scenes/${encodeURIComponent(idOf(selected))}?revision=${selected.revision}`, { method: 'DELETE' })
       open(null)
       setSelected(null)
       load()
@@ -258,7 +258,7 @@ export default function SceneInventory({ isAdmin }: { isAdmin: boolean }) {
             throw new Error(String(status.error || status.result?.error || 'Mapping reconstruction failed'))
           }
           load()
-          const refreshed = await apiFetch<Row>(`/api/v2/scenes/${encodeURIComponent(idOf(selected))}`)
+          const refreshed = await apiFetch<Row>(`/api/v2/scenes/${encodeURIComponent(idOf(selected))}?revision=${selected.revision}`)
           setSelected(refreshed)
           setDraft(refreshed)
           setTranslation(jsonText(refreshed.mesh_translation, [0,0,0]))
