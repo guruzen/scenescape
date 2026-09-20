@@ -716,7 +716,7 @@ Scene Workspace UX 2.0 is complete only when:
 
 | Date | Task(s) | Commit | Notes |
 | --- | --- | --- | --- |
-| 2026-09-20 | UX-00 | _this spec commit_ | Durable UX specification and execution checklist created. |
+| 2026-09-20 | UX-00 | `7060e99c387e84873fbae1cda7cc1e29c916bb8d` | Durable UX specification and execution checklist created. |
 
 ---
 
