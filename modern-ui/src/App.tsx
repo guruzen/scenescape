@@ -21,6 +21,8 @@ import { emptyLiveSceneState } from './ux/sceneTelemetry'
 import { summarizeLiveObjectAvailability } from './ux/sceneViewControls'
 import { heatmapOpacityValue, velocityArrow2D } from './ux/sceneVisualization'
 import type { SceneSelection, SceneSelectionKind } from './ux/sceneInspector'
+import { SUPPORTED_UI_THEMES } from './ux/sceneLayout'
+import type { UiTheme } from './ux/sceneLayout'
 import {
   DEFAULT_SCENE_DESTINATION,
   PRIMARY_MODES,
@@ -34,7 +36,7 @@ import {
 import type { SceneDestination, ScenePrimaryMode } from './ux/sceneWorkspaceContract'
 
 type Row = Record<string, any>
-type Theme = 'light' | 'light-air' | 'dark' | 'dark-command'
+type Theme = UiTheme
 type Overview = { generated_at: string; counts: Record<string, number>; health: Record<string, string | null> }
 type Bundle = { scene: Row; cameras: Row[]; sensors: Row[]; regions: Row[]; tripwires: Row[]; children: Row[]; markers: Row[]; child_regions?: Row[]; child_tripwires?: Row[]; child_sensors?: Row[] }
 
@@ -46,10 +48,7 @@ const configuration = [
   ['scenes', 'Sites, floors & scenes'], ['cameras', 'Cameras'], ['sensors', 'Sensors'], ['zones', 'Zones & tripwires'],
   ['assets', 'Object library'], ['models', 'Model library'], ['hierarchy', 'Scene hierarchy'],
 ] as const
-const themes: Array<{ value: Theme; label: string }> = [
-  { value: 'light', label: 'Light' }, { value: 'light-air', label: 'Light Air' },
-  { value: 'dark', label: 'Dark' }, { value: 'dark-command', label: 'Dark Command' },
-]
+const themes: ReadonlyArray<{ value: Theme; label: string }> = SUPPORTED_UI_THEMES
 
 const route = () => window.location.hash.replace(/^#\/?/, '') || 'overview'
 const go = (value: string) => { window.location.hash = `#/${value}` }
@@ -435,9 +434,6 @@ function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab
       <button className="btn" onClick={onBack}>← All scenes</button>
     </Header>
     <SceneStatusHeader sceneName={rowName(bundle.scene)} sceneId={id} status={sceneStatus}/>
-    <div className="scene-summary">
-      <div><span>Scene ID</span><b>{id}</b></div><div><span>Cameras</span><b>{bundle.cameras.length}</b></div><div><span>Sensors</span><b>{bundle.sensors.length}</b></div><div><span>Spatial rules</span><b>{bundle.regions.length + bundle.tripwires.length + (bundle.child_regions?.length||0) + (bundle.child_tripwires?.length||0)}</b></div>
-    </div>
     <nav className="scene-primary-nav" aria-label="Scene workspace modes">
       {PRIMARY_MODES.map((mode) => <button key={mode} className={destination.mode === mode ? 'scene-primary-nav-item active' : 'scene-primary-nav-item'} onClick={() => selectMode(mode)} aria-current={destination.mode === mode ? 'page' : undefined}>{mode}</button>)}
     </nav>
