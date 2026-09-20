@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import tempfile
 import uuid
 import zipfile
@@ -21,6 +22,7 @@ MEDIA_PREFIX = '/media/'
 DEFAULT_MAX_UPLOAD_BYTES = 512 * 1024 * 1024
 DEFAULT_MAX_ZIP_MEMBERS = 4096
 DEFAULT_MAX_ZIP_UNCOMPRESSED = 2 * 1024 * 1024 * 1024
+DEFAULT_MAX_ZIP_COMPRESSION_RATIO = 200
 
 
 def media_root() -> Path:
@@ -146,22 +148,39 @@ def _validate_ply(path: Path) -> None:
         raise HTTPException(400, {'file': [f'Invalid PLY file: {exc}']}) from exc
 
 
+
+def _validated_zip_infos(archive: zipfile.ZipFile, *, field: str = 'file') -> list[zipfile.ZipInfo]:
+    infos = archive.infolist()
+    if len(infos) > int(os.getenv('MAX_ZIP_MEMBERS', str(DEFAULT_MAX_ZIP_MEMBERS))):
+        raise HTTPException(400, {field: ['ZIP contains too many entries.']})
+    total = 0
+    seen_names: set[str] = set()
+    max_ratio = float(os.getenv('MAX_ZIP_COMPRESSION_RATIO', str(DEFAULT_MAX_ZIP_COMPRESSION_RATIO)))
+    for info in infos:
+        name = info.filename.replace('\\', '/')
+        parts = [part for part in name.split('/') if part not in ('', '.')]
+        if not name or name.startswith('/') or '..' in parts or '\x00' in name:
+            raise HTTPException(400, {field: ['ZIP contains an unsafe path.']})
+        normalized = '/'.join(parts)
+        if normalized in seen_names:
+            raise HTTPException(400, {field: ['ZIP contains duplicate entry names.']})
+        seen_names.add(normalized)
+        mode = (info.external_attr >> 16) & 0o170000
+        if mode not in (0, stat.S_IFREG, stat.S_IFDIR):
+            raise HTTPException(400, {field: ['ZIP contains a symbolic link or special file.']})
+        total += int(info.file_size)
+        if total > int(os.getenv('MAX_ZIP_UNCOMPRESSED_BYTES', str(DEFAULT_MAX_ZIP_UNCOMPRESSED))):
+            raise HTTPException(400, {field: ['ZIP expands beyond the configured size limit.']})
+        compressed = max(1, int(info.compress_size))
+        if info.file_size > 1024 * 1024 and (info.file_size / compressed) > max_ratio:
+            raise HTTPException(400, {field: ['ZIP entry exceeds the configured compression ratio.']})
+    return infos
+
+
 def _zip_members(path: Path) -> list[zipfile.ZipInfo]:
     try:
         with zipfile.ZipFile(path, 'r') as archive:
-            members = archive.infolist()
-            if len(members) > int(os.getenv('MAX_ZIP_MEMBERS', str(DEFAULT_MAX_ZIP_MEMBERS))):
-                raise HTTPException(400, {'file': ['ZIP contains too many entries.']})
-            total = 0
-            for info in members:
-                name = info.filename.replace('\\', '/')
-                parts = [part for part in name.split('/') if part not in ('', '.')]
-                if name.startswith('/') or '..' in parts:
-                    raise HTTPException(400, {'file': ['ZIP contains an unsafe path.']})
-                total += int(info.file_size)
-                if total > int(os.getenv('MAX_ZIP_UNCOMPRESSED_BYTES', str(DEFAULT_MAX_ZIP_UNCOMPRESSED))):
-                    raise HTTPException(400, {'file': ['ZIP expands beyond the configured size limit.']})
-            return members
+            return _validated_zip_infos(archive)
     except zipfile.BadZipFile as exc:
         raise HTTPException(400, {'file': ['Invalid ZIP file.']}) from exc
 
@@ -313,24 +332,20 @@ def read_scene_import_zip(upload_bytes: bytes) -> tuple[dict, dict[str, bytes]]:
         raise HTTPException(413, {'zipFile': ['Uploaded file exceeds the configured size limit.']})
     try:
         with zipfile.ZipFile(io.BytesIO(upload_bytes), 'r') as archive:
-            infos = archive.infolist()
+            infos = _validated_zip_infos(archive, field='zipFile')
             if not infos:
                 raise HTTPException(400, {'scene': ['Cannot find resource file']})
-            if len(infos) > int(os.getenv('MAX_ZIP_MEMBERS', str(DEFAULT_MAX_ZIP_MEMBERS))):
-                raise HTTPException(400, {'zipFile': ['ZIP contains too many entries.']})
             files: dict[str, bytes] = {}
-            total = 0
+            basenames: set[str] = set()
             for info in infos:
                 if info.is_dir():
                     continue
                 name = info.filename.replace('\\', '/')
-                parts = [part for part in name.split('/') if part not in ('', '.')]
-                if name.startswith('/') or '..' in parts:
-                    raise HTTPException(400, {'zipFile': ['ZIP contains an unsafe path.']})
-                total += int(info.file_size)
-                if total > int(os.getenv('MAX_ZIP_UNCOMPRESSED_BYTES', str(DEFAULT_MAX_ZIP_UNCOMPRESSED))):
-                    raise HTTPException(400, {'zipFile': ['ZIP expands beyond the configured size limit.']})
-                files[Path(name).name] = archive.read(info)
+                basename = Path(name).name
+                if basename in basenames:
+                    raise HTTPException(400, {'zipFile': [f'Duplicate resource filename: {basename}']})
+                basenames.add(basename)
+                files[basename] = archive.read(info)
     except zipfile.BadZipFile as exc:
         raise HTTPException(400, {'scene': ['Cannot find resource file']}) from exc
 
