@@ -156,7 +156,7 @@ export default function SensorInventory({isAdmin}:{isAdmin:boolean}){
   const remove=async()=>{
     if(!selected||!window.confirm(`Delete ${nameOf(selected)}?`))return
     setBusy(true);setError('')
-    try{await apiFetch(`/api/v2/sensors/${encodeURIComponent(idOf(selected))}`,{method:'DELETE'});setSelected(null);open(null);load()}
+    try{await apiFetch(`/api/v2/sensors/${encodeURIComponent(idOf(selected))}?revision=${selected.revision}`,{method:'DELETE'});setSelected(null);open(null);load()}
     catch(e){setError(String(e))}finally{setBusy(false)}
   }
   const removeIcon=async()=>{
