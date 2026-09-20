@@ -7,6 +7,7 @@ import test from "node:test"
 
 import { deriveSceneStatus } from "../src/ux/sceneStatus.ts"
 import { deriveSceneTelemetry, emptyLiveSceneState } from "../src/ux/sceneTelemetry.ts"
+import { HEATMAP_RANGES, heatmapOpacityValue, velocityArrow2D, velocityLength3D } from "../src/ux/sceneVisualization.ts"
 import { controlsForRenderer, summarizeLiveObjectAvailability } from "../src/ux/sceneViewControls.ts"
 import { buildInspectorModel, refreshObjectSelection } from "../src/ux/sceneInspector.ts"
 
@@ -209,4 +210,28 @@ test("unit: scene telemetry preserves unknown rates and computes freshness", () 
 test("regression: scene changes reset live telemetry instead of retaining the prior scene", () => {
   assert.deepEqual(emptyLiveSceneState(), { objects: [], stale: true })
   assert.notEqual(emptyLiveSceneState(), emptyLiveSceneState())
+})
+
+
+test("unit: velocity geometry is bounded and rejects invalid vectors", () => {
+  assert.equal(velocityArrow2D(null, 100), null)
+  assert.equal(velocityArrow2D([0, 0], 100), null)
+  assert.equal(velocityArrow2D(["bad", 1], 100), null)
+
+  const slow = velocityArrow2D([0.1, 0], 100)
+  assert.equal(slow.lengthPixels, 40)
+  assert.equal(slow.dx, 40)
+  assert.equal(slow.dy, 0)
+
+  const fast = velocityArrow2D([10, 0], 100)
+  assert.equal(fast.lengthPixels, 250)
+  assert.equal(velocityLength3D(0.1), 0.5)
+  assert.equal(velocityLength3D(10), 4)
+})
+
+test("unit: heatmap opacity is bounded and only current density is advertised", () => {
+  assert.equal(heatmapOpacityValue(-1), 0.1)
+  assert.equal(heatmapOpacityValue(0.65), 0.65)
+  assert.equal(heatmapOpacityValue(4), 1)
+  assert.deepEqual(HEATMAP_RANGES, ["Current"])
 })
