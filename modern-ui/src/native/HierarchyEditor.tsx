@@ -86,7 +86,7 @@ export default function HierarchyEditor({scenes,isAdmin,initialParent=''}:{scene
   const remove=async()=>{
     if(!selected||!isAdmin||!window.confirm(`Delete hierarchy link to ${nameOf(selected)}?`))return
     setBusy(true)
-    try{await apiFetch(`/api/v2/children/${encodeURIComponent(idOf(selected))}`,{method:'DELETE'});open(null,String(draft.parent||initialParent));load()}
+    try{await apiFetch(`/api/v2/children/${encodeURIComponent(idOf(selected))}?revision=${selected.revision}`,{method:'DELETE'});open(null,String(draft.parent||initialParent));load()}
     catch(e){setError(String(e))}finally{setBusy(false)}
   }
   const filtered=useMemo(()=>initialParent?rows.filter((row)=>String(row.parent||'')===initialParent):rows,[rows,initialParent])
