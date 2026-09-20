@@ -13,6 +13,7 @@ import {
   defaultDestinationForMode,
   destinationForLegacyTab,
   destinationKey,
+  initialLegacyTabForSceneSuffix,
   legacyTabForDestination,
   routeForDestination,
 } from "../src/ux/sceneWorkspaceContract.ts"
@@ -36,6 +37,13 @@ test("unit: primary-mode changes choose stable workspace defaults", () => {
   for (const mode of PRIMARY_MODES) {
     assert.ok(SECONDARY_VIEWS_BY_MODE[mode].includes(DEFAULT_VIEW_BY_MODE[mode]))
   }
+})
+
+test("unit: direct scene route suffixes preserve legacy entry behavior", () => {
+  assert.equal(initialLegacyTabForSceneSuffix("geometry"), "Geometry")
+  assert.equal(initialLegacyTabForSceneSuffix("hierarchy"), "Hierarchy")
+  assert.equal(initialLegacyTabForSceneSuffix(undefined), "Live 2D")
+  assert.equal(initialLegacyTabForSceneSuffix("unknown"), "Live 2D")
 })
 
 test("integrity: destination mapping is one-to-one and complete", () => {
