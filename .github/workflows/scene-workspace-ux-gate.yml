@@ -12,6 +12,7 @@ on: # yamllint disable-line rule:truthy
   pull_request:
     branches:
       - main
+      - release-2026.2.0
   workflow_dispatch: {}
 
 permissions:
