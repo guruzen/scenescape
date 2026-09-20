@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timezone
 from urllib.parse import quote_plus
-from sqlalchemy import JSON, DateTime, Integer, String, Text, create_engine
+from sqlalchemy import JSON, DateTime, Integer, String, Text, UniqueConstraint, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 class Base(DeclarativeBase): pass
@@ -15,7 +15,14 @@ def database_url():
     user=quote_plus(os.getenv("DBUSER","scenescape")); password=quote_plus(os.getenv("DBPASSWORD","")); db=quote_plus(os.getenv("DBNAME","scenescape")); port=os.getenv("DBPORT","5432")
     return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{db}"
 class Resource(Base):
-    __tablename__="native_resources"; id:Mapped[int]=mapped_column(Integer,primary_key=True); kind:Mapped[str]=mapped_column(String(40),index=True); uid:Mapped[str]=mapped_column(String(96),index=True); revision:Mapped[int]=mapped_column(Integer,default=1); payload:Mapped[dict]=mapped_column(JSON,default=dict); updated_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=utcnow)
+    __tablename__="native_resources"
+    __table_args__=(UniqueConstraint("kind","uid",name="uq_native_resources_kind_uid"),)
+    id:Mapped[int]=mapped_column(Integer,primary_key=True)
+    kind:Mapped[str]=mapped_column(String(40),index=True)
+    uid:Mapped[str]=mapped_column(String(96),index=True)
+    revision:Mapped[int]=mapped_column(Integer,default=1)
+    payload:Mapped[dict]=mapped_column(JSON,default=dict)
+    updated_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=utcnow)
 class Observation(Base):
     __tablename__="native_observations"; id:Mapped[int]=mapped_column(Integer,primary_key=True); scene_id:Mapped[str]=mapped_column(String(96),index=True); topic:Mapped[str]=mapped_column(Text); observed_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),index=True); payload:Mapped[dict]=mapped_column(JSON)
 class Event(Base):
