@@ -12,6 +12,16 @@ import AssetInventory from './native/AssetInventory'
 import HierarchyEditor from './native/HierarchyEditor'
 import SecurityAdmin from './native/SecurityAdmin'
 import ModelLibrary from './native/ModelLibrary'
+import {
+  DEFAULT_SCENE_DESTINATION,
+  PRIMARY_MODES,
+  SECONDARY_VIEWS_BY_MODE,
+  defaultDestinationForMode,
+  destinationForLegacyTab,
+  legacyTabForDestination,
+  routeForDestination,
+} from './ux/sceneWorkspaceContract'
+import type { SceneDestination, ScenePrimaryMode } from './ux/sceneWorkspaceContract'
 
 type Row = Record<string, any>
 type Theme = 'light' | 'light-air' | 'dark' | 'dark-command'
@@ -327,10 +337,10 @@ function CameraFeeds({ cameras, showTelemetry = false }: { cameras: Row[]; showT
   return <div className="camera-feed-grid">{cameras.map((camera) => <CameraFeed key={rowId(camera)} camera={camera} showTelemetry={showTelemetry}/>)}</div>
 }
 
-function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D' }: { scene: Row; scenes: Row[]; onBack: () => void; isAdmin: boolean; initialTab?: string }) {
+function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab = 'Live 2D' }: { scene: Row; scenes: Row[]; onBack: () => void; onNavigate: (path: string) => void; isAdmin: boolean; initialTab?: string }) {
   const [bundle, setBundle] = useState<Bundle | null>(null)
   const [live, setLive] = useState<Row>({ objects: [], stale: true })
-  const [tab, setTab] = useState(initialTab)
+  const [destination, setDestination] = useState<SceneDestination>(() => destinationForLegacyTab(initialTab) ?? DEFAULT_SCENE_DESTINATION)
   const [history, setHistory] = useState<Row[]>([])
   const [trends, setTrends] = useState<Row[]>([])
   const [message, setMessage] = useState('')
@@ -350,6 +360,21 @@ function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D'
   const [runtimeOverview, setRuntimeOverview] = useState<Row | null>(null)
   const visualRef = useRef<HTMLDivElement | null>(null)
   const id = rowId(scene)
+  const tab = legacyTabForDestination(destination) ?? 'Live 2D'
+  const selectMode = (mode: ScenePrimaryMode) => setDestination(defaultDestinationForMode(mode))
+  const selectView = (view: string) => {
+    const next: SceneDestination = { mode: destination.mode, view }
+    const target = routeForDestination(next)
+    if (target) {
+      onNavigate(target)
+      return
+    }
+    setDestination(next)
+  }
+
+  useEffect(() => {
+    setDestination(destinationForLegacyTab(initialTab) ?? DEFAULT_SCENE_DESTINATION)
+  }, [id, initialTab])
 
   const loadBundle = () => void apiFetch<Bundle>(`/api/v2/scenes/${id}/bundle`).then(setBundle).catch((e) => setMessage(String(e)))
 
@@ -391,7 +416,16 @@ function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D'
     <div className="scene-summary">
       <div><span>Scene ID</span><b>{id}</b></div><div><span>Cameras</span><b>{bundle.cameras.length}</b></div><div><span>Sensors</span><b>{bundle.sensors.length}</b></div><div><span>Spatial rules</span><b>{bundle.regions.length + bundle.tripwires.length + (bundle.child_regions?.length||0) + (bundle.child_tripwires?.length||0)}</b></div>
     </div>
-    <div className="tabs">{['Live 2D','Live 3D','Camera feeds','Sensors & telemetry','Geometry','Hierarchy','Camera calibration','Runtime','History & replay','Trends & analytics'].map((name) => <button key={name} className={tab === name ? 'btn active-tab' : 'btn'} onClick={() => setTab(name)}>{name}</button>)}</div>
+    <nav className="scene-primary-nav" aria-label="Scene workspace modes">
+      {PRIMARY_MODES.map((mode) => <button key={mode} className={destination.mode === mode ? 'scene-primary-nav-item active' : 'scene-primary-nav-item'} onClick={() => selectMode(mode)} aria-current={destination.mode === mode ? 'page' : undefined}>{mode}</button>)}
+    </nav>
+    <nav className="scene-secondary-nav" aria-label={`${destination.mode} views`}>
+      {SECONDARY_VIEWS_BY_MODE[destination.mode].map((view) => {
+        const next: SceneDestination = { mode: destination.mode, view }
+        const routesAway = Boolean(routeForDestination(next))
+        return <button key={view} className={destination.view === view ? 'scene-secondary-nav-item active' : 'scene-secondary-nav-item'} onClick={() => selectView(view)} aria-current={destination.view === view ? 'page' : undefined}>{view}{routesAway && <span className="scene-nav-route-mark" aria-hidden="true">↗</span>}</button>
+      })}
+    </nav>
     {message && <div className="notice-box">{message}</div>}
     {(tab === 'Live 2D' || tab === 'Live 3D') && <div className="live-controls">
       <label><input type="checkbox" checked={liveView} onChange={(e)=>setLiveView(e.target.checked)}/>Live View</label>
@@ -525,7 +559,7 @@ function App() {
   const sceneMatch = path.match(/^scene\/([^/]+)(?:\/(geometry|hierarchy))?$/)
   const activeScene = sceneMatch ? scenes.find((scene) => rowId(scene) === sceneMatch[1]) : undefined
   let page: ReactNode
-  if (sceneMatch && activeScene) page = <SceneWorkspace scene={activeScene} scenes={scenes} onBack={() => go('live')} isAdmin={auth.isAdmin} initialTab={sceneMatch[2] === 'geometry' ? 'Geometry' : sceneMatch[2] === 'hierarchy' ? 'Hierarchy' : 'Live 2D'}/>
+  if (sceneMatch && activeScene) page = <SceneWorkspace scene={activeScene} scenes={scenes} onBack={() => go('live')} onNavigate={go} isAdmin={auth.isAdmin} initialTab={sceneMatch[2] === 'geometry' ? 'Geometry' : sceneMatch[2] === 'hierarchy' ? 'Hierarchy' : 'Live 2D'}/>
   else if (path === 'live') page = <><Header kicker="Operations · data plane" title="Live scenes"><button className="btn" onClick={refresh}>Refresh</button></Header><div className="card-grid">{scenes.map((scene) => <section className="panel scene-card" key={rowId(scene)}><div className="mini-scene"><div className="floor-shape"/><span className="track track-a"/><span className="track track-b"/></div><h2>{rowName(scene)}</h2><code>{rowId(scene)}</code><div className="scene-meta"><span>{scene.map ? 'Map configured' : 'No map'}</span><span>{scene.scale ? `${scene.scale} px/m` : 'Scale unknown'}</span></div><button className="btn btn-primary full" onClick={() => go(`scene/${rowId(scene)}`)}>Open native 2D / 3D scene</button></section>)}</div>{!scenes.length && <div className="empty-state"><h2>No native scenes yet</h2><p>Run <code>./scenescape.sh recover-legacy-data</code> to copy existing Django configuration, or <code>./scenescape.sh seed-native-data</code> for the upstream Retail sample.</p></div>}</>
   else if (path === 'incidents') page = <Incidents/>
   else if (path === 'history') page = <SceneAnalytics scenes={scenes} mode="history"/>
