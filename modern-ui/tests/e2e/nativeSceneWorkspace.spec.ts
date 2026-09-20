@@ -82,7 +82,7 @@ test("UX-97 integrated Analyze uses persisted observation/history/runtime data",
   await page.locator(".scene-primary-nav").getByRole("button", { name: "Analyze" }).click()
   await expect(page.getByRole("heading", { name: "Persisted observations" })).toBeVisible()
   await page.getByRole("button", { name: "Load history" }).click()
-  await expect(page.locator(".table-wrap tbody tr").first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator(".history-list > div").first()).toBeVisible({ timeout: 15_000 })
 
   await page.locator(".scene-secondary-nav").getByRole("button", { name: "Trends" }).click()
   await page.getByRole("button", { name: "Apply range" }).click()
