@@ -10,7 +10,7 @@ const scene = {
   name: "Retail Lab",
   scale: 100,
   map: "",
-  thumbnail: "",
+  thumbnail: "/media/floor.png",
   revision: 3,
   camera_calibration: "Manual",
 }
@@ -130,6 +130,13 @@ const overview = {
 }
 
 async function mockNativeApi(page: Page) {
+  await page.route("**/media/floor.png", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500"><rect width="800" height="500" fill="#17282d"/><path d="M40 40H760V460H40Z" fill="#203a40" stroke="#4ed1ce" stroke-width="4"/><path d="M400 40V460M40 250H760" stroke="#49646a" stroke-width="2"/></svg>',
+    })
+  })
   await page.route("**/api/v2/**", async (route) => {
     const request = route.request()
     const url = new URL(request.url())
@@ -177,6 +184,14 @@ async function mockNativeApi(page: Page) {
         body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#13262c"/><circle cx="320" cy="180" r="42" fill="#4ed1ce"/></svg>',
       })
     }
+    if (path === "/api/v2/regions/region-1" && request.method() === "PUT") {
+      const body = request.postDataJSON()
+      return json({ ...region, ...body, revision: 2 })
+    }
+    if (path === "/api/v2/tripwires/tripwire-1" && request.method() === "PUT") {
+      const body = request.postDataJSON()
+      return json({ ...tripwire, ...body, revision: 2 })
+    }
 
     if (request.method() === "GET") return json([])
     return json({ ok: true })
@@ -200,6 +215,7 @@ test.beforeEach(async ({ page }) => {
 test("UX-93 Live 2D smoke: live overlays, diagnostics and keyboard inspector", async ({ page }, testInfo) => {
   await openScene(page)
   await expect(page.locator(".native-map")).toBeVisible()
+  await expect(page.locator(".native-map image")).toBeVisible()
   await expect(page.getByText("LIVE", { exact: true })).toBeVisible()
 
   await page.getByRole("checkbox", { name: /Trails/ }).check()
@@ -217,7 +233,11 @@ test("UX-93 Live 2D smoke: live overlays, diagnostics and keyboard inspector", a
   await object.press("Enter")
   await expect(page.locator('[aria-label="Scene inspector"]')).toContainText("Object 1")
   await expect(page.locator('[aria-label="Scene inspector"]')).toContainText("0.85 m/s")
-  await expect(page.getByRole("button", { name: "Fullscreen" })).toBeVisible()
+  const fullscreen = page.getByRole("button", { name: "Fullscreen" })
+  await fullscreen.click()
+  await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true)
+  await page.keyboard.press("Escape")
+  await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(false)
 
   await screenshot(page, testInfo, "ux93-live-2d.png")
 })
@@ -227,14 +247,32 @@ test("UX-94 Live 3D smoke: WebGL view and renderer-specific controls", async ({ 
   await page.locator(".scene-secondary-nav").getByRole("button", { name: "3D Scene" }).click()
 
   await expect(page.locator(".three-canvas")).toBeVisible()
-  await expect(page.getByRole("checkbox", { name: /Floor plane/ })).toBeVisible()
-  await expect(page.getByRole("checkbox", { name: /Camera frames/ })).toBeVisible()
-  await expect(page.getByLabel("Select tracked object for inspector")).toBeVisible()
-  await expect(page.getByRole("slider", { name: /Camera opacity/ })).toBeVisible()
-  await expect(page.getByRole("slider", { name: /Light/ })).toBeVisible()
+  const floor = page.getByRole("checkbox", { name: /Floor plane/ })
+  const cameraFrames = page.getByRole("checkbox", { name: /Camera frames/ })
+  await expect(floor).toBeChecked()
+  await floor.uncheck()
+  await expect(floor).not.toBeChecked()
+  await cameraFrames.check()
+  await expect(cameraFrames).toBeChecked()
 
-  await page.getByLabel("Select tracked object for inspector").selectOption("1")
+  const objectSelector = page.getByLabel("Select tracked object for inspector")
+  await expect(objectSelector).toBeVisible()
+  await objectSelector.selectOption("1")
   await expect(page.locator('[aria-label="Scene inspector"]')).toContainText("Object 1")
+
+  const viewControls = page.getByRole("group", { name: "3D view" })
+  const cameraSelector = viewControls.getByLabel("Camera", { exact: true })
+  await cameraSelector.selectOption("cam-1")
+  const cameraView = viewControls.getByRole("checkbox", { name: /Camera view/ })
+  await cameraView.check()
+  await expect(cameraView).toBeChecked()
+
+  const opacity = page.getByRole("slider", { name: /Camera opacity/ })
+  const light = page.getByRole("slider", { name: /Light/ })
+  await opacity.fill("60")
+  await light.fill("150")
+  await expect(opacity).toHaveValue("60")
+  await expect(light).toHaveValue("150")
 
   await screenshot(page, testInfo, "ux94-live-3d.png")
 })
@@ -285,6 +323,18 @@ test("UX-98 Configure smoke: geometry, hierarchy, calibration and inventory rout
   await openScene(page)
   await page.locator(".scene-primary-nav").getByRole("button", { name: "Configure" }).click()
   await expect(page.getByRole("heading", { name: "Spatial analytics" })).toBeVisible()
+
+  await page.getByRole("button", { name: /Checkout/ }).first().click()
+  await page.getByLabel("Name").fill("Checkout updated")
+  await page.getByRole("button", { name: "Save region" }).click()
+  await expect(page.getByText("Region saved.", { exact: true })).toBeVisible()
+
+  await page.getByRole("button", { name: /Tripwires \(1\)/ }).click()
+  await page.getByRole("button", { name: /Exit line/ }).first().click()
+  await page.getByLabel("Name").fill("Exit updated")
+  await page.getByRole("button", { name: "Reverse direction" }).click()
+  await page.getByRole("button", { name: "Save tripwire" }).click()
+  await expect(page.getByText("Tripwire saved.", { exact: true })).toBeVisible()
 
   await page.locator(".scene-secondary-nav").getByRole("button", { name: "Hierarchy" }).click()
   await expect(page.getByRole("heading", { name: "Scene hierarchy" }).first()).toBeVisible()
