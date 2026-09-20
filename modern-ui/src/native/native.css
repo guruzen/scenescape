@@ -97,3 +97,5 @@
 .visualization-status{position:absolute;z-index:5;left:12px;bottom:12px;display:flex;gap:10px;flex-wrap:wrap;padding:7px 9px;border-radius:7px;background:rgba(7,17,21,.86);color:#d7e6e9;font-size:10px;pointer-events:none}
 .map-frame{position:relative}
 .three-viewer{position:relative}
+
+.scene-workspace-visual{position:relative}
