@@ -398,14 +398,14 @@ test("integrity: visual hierarchy and supported themes remain explicit", () => {
   ]);
   assert.deepEqual(
     SUPPORTED_UI_THEMES.map((theme) => theme.value),
-    ["light", "light-air", "dark", "dark-command"],
+    ["light", "light-air", "dark", "dark-command", "liquid-glass"],
   );
 });
 
 test("integrity: visual design system uses neutral surfaces and restrained theme labels", () => {
   assert.deepEqual(
     SUPPORTED_UI_THEMES.map((theme) => theme.label),
-    ["Spatial Light", "Soft Light", "Spatial Dark", "Dense Dark"],
+    ["Spatial Light", "Soft Light", "Spatial Dark", "Dense Dark", "Liquid Glass"],
   );
 
   const css = readFileSync(
@@ -444,6 +444,17 @@ test("integrity: visual design system uses neutral surfaces and restrained theme
   assert.match(appSource, />Configuration<\/div>/);
   assert.doesNotMatch(appSource, /Operations · data plane/);
   assert.doesNotMatch(appSource, /Configuration · control plane/);
+});
+
+test("integrity: Liquid Glass keeps glass on chrome and visual content crisp", () => {
+  const themeCss = readFileSync(
+    new URL("../src/themes.css", import.meta.url),
+    "utf8",
+  );
+  assert.match(themeCss, /data-theme="liquid-glass"[^]*?backdrop-filter: blur\(30px\)/);
+  assert.match(themeCss, /data-theme="liquid-glass"[^]*?\.panel[^]*?backdrop-filter: blur\(22px\)/);
+  assert.match(themeCss, /data-theme="liquid-glass"[^]*?\.map-frame[^]*?backdrop-filter: none/);
+  assert.match(themeCss, /@supports not \(\(backdrop-filter: blur\(1px\)\)\)/);
 });
 
 test("unit: keyboard selection uses native activation keys only", () => {
