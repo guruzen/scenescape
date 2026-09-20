@@ -262,6 +262,36 @@ test.beforeEach(async ({ page }) => {
   await mockNativeApi(page);
 });
 
+test("UX-120 Liquid Glass theme smoke: selectable, persistent and rendered", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/tests/e2e/index.html#/overview");
+  const theme = page.getByLabel("Visual theme");
+  await expect(theme).toBeVisible();
+  await expect(theme.locator('option[value="liquid-glass"]')).toHaveText(
+    "Liquid Glass",
+  );
+  await theme.selectOption("liquid-glass");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-theme",
+    "liquid-glass",
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("scenescape-theme")),
+    )
+    .toBe("liquid-glass");
+
+  const glass = page.locator(".panel").first();
+  await expect(glass).toBeVisible();
+  const backdropFilter = await glass.evaluate(
+    (element) => getComputedStyle(element).backdropFilter,
+  );
+  expect(backdropFilter).toContain("blur");
+
+  await screenshot(page, testInfo, "ux120-liquid-glass.png");
+});
+
 test("UX-93 Live 2D smoke: live overlays, diagnostics and keyboard inspector", async ({
   page,
 }, testInfo) => {
