@@ -1213,3 +1213,15 @@ def test_resource_kind_uid_unique_index_survives_migrate(tmp_path, monkeypatch):
         with pytest.raises(IntegrityError):
             db.commit()
         db.rollback()
+
+
+def test_native_delete_requires_current_revision(tmp_path, monkeypatch):
+    client,d=boot(tmp_path,monkeypatch); h=headers(client)
+    created=client.post('/api/v2/scenes',headers=h,json={'uid':'delete-cas','name':'Delete CAS'})
+    assert created.status_code==200
+    assert client.delete('/api/v2/scenes/delete-cas',headers=h).status_code==422
+    changed=client.put('/api/v2/scenes/delete-cas?revision=1',headers=h,json={'name':'Changed'})
+    assert changed.status_code==200 and changed.json()['revision']==2
+    assert client.delete('/api/v2/scenes/delete-cas?revision=1',headers=h).status_code==409
+    assert client.delete('/api/v2/scenes/delete-cas?revision=2',headers=h).status_code==200
+    assert client.get('/api/v2/scenes/delete-cas',headers=h).status_code==404
