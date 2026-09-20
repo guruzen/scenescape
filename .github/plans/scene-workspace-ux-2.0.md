@@ -589,16 +589,18 @@ Evidence: `.github/evidence/scene-workspace-ux/UX-100-UX-107-incidents-evidence.
 
 ### Phase 11 — Visual design system refresh
 
-- [ ] **UX-110** Establish neutral spatial-operations design tokens for light and dark themes.
-- [ ] **UX-111** Reduce accent-color saturation/usage and reserve semantic colors for status/alerts.
-- [ ] **UX-112** Modernize sidebar, brand, top bar, and navigation hierarchy without changing routes.
-- [ ] **UX-113** Modernize page typography and replace console-oriented control-plane/data-plane labels in the global shell.
-- [ ] **UX-114** Reduce border density and introduce restrained surface/elevation hierarchy for panels, cards, lists, and tables.
-- [ ] **UX-115** Modernize buttons, inputs, selects, pills, selected states, and focus treatment.
-- [ ] **UX-116** Refresh Incidents/list-detail presentation and shared operational metadata styling.
-- [ ] **UX-117** Preserve responsive behavior, accessibility contrast, and existing theme IDs/localStorage compatibility.
-- [ ] **UX-118** Run UX contract, TypeScript, production build, browser smoke, and integrated native smoke regression gates.
-- [ ] **UX-119** Capture visual evidence, document design decisions, and mark the visual refresh complete.
+- [x] **UX-110** Establish neutral spatial-operations design tokens for light and dark themes.
+- [x] **UX-111** Reduce accent-color saturation/usage and reserve semantic colors for status/alerts.
+- [x] **UX-112** Modernize sidebar, brand, top bar, and navigation hierarchy without changing routes.
+- [x] **UX-113** Modernize page typography and replace console-oriented control-plane/data-plane labels in the global shell.
+- [x] **UX-114** Reduce border density and introduce restrained surface/elevation hierarchy for panels, cards, lists, and tables.
+- [x] **UX-115** Modernize buttons, inputs, selects, pills, selected states, and focus treatment.
+- [x] **UX-116** Refresh Incidents/list-detail presentation and shared operational metadata styling.
+- [x] **UX-117** Preserve responsive behavior, accessibility contrast, and existing theme IDs/localStorage compatibility.
+- [x] **UX-118** Run UX contract, TypeScript, production build, browser smoke, and integrated native smoke regression gates.
+- [x] **UX-119** Capture visual evidence, document design decisions, and mark the visual refresh complete.
+
+Evidence: `.github/evidence/scene-workspace-ux/UX-110-UX-119-visual-design-refresh-evidence.md`.
 
 ---
 
@@ -758,6 +760,7 @@ Scene Workspace UX 2.0 is complete only when:
 | 2026-09-20 | UX-80–UX-85 | `e72fa035a7fe22dc391c21d020c549fed516a19c` | Keyboard navigation, keyboard scene selection, visible focus, labelled status/inspector controls, textual health state, and scoped live-region behavior validated. Final browser smoke: 7 passed. Evidence: `.github/evidence/scene-workspace-ux/UX-80-UX-85-accessibility-evidence.md`. |
 | 2026-09-20 | UX-90–UX-99 | `7b7cc29310b20407c084da0edc7a96afd1a17a05` | Production build, 24 UX tests, 7 browser smokes, 21 backend regressions, and 6 real UI/FastAPI/SQLite/SSE integration smokes passed. Final integration exposed and fixed scene/camera observation contamination before completion. Documentation updated and screenshot artifacts captured. Evidence: `.github/evidence/scene-workspace-ux/UX-90-UX-99-final-evidence.md`. |
 | 2026-09-20 | UX-100–UX-107 | `6ee4389c240f308e7ac08d73cc0ab813cb8c3a9a` | Incident workflow enriched from retained analytics Events; region/tripwire identity, operational titles, object context, API/UI filters, and detail context added. Focused incident verification run `35495287728` and full Scene Workspace gate `35495291350` passed. Camera filtering intentionally deferred until reliable source-camera provenance exists. Evidence: `.github/evidence/scene-workspace-ux/UX-100-UX-107-incidents-evidence.md`. |
+| 2026-09-20 | UX-110–UX-119 | `307a181cca914debe79a411f2425f33791de46db` | Visual system refreshed to neutral spatial-operations themes; cyan usage reduced, shell/controls/surfaces modernized, Scene Workspace hierarchy aligned, Incidents full-width/list-detail behavior improved, and sidebar typography cleaned after visual review. Full Scene Workspace gate `35496097097` and required lint gate `35496100038` passed. Evidence: `.github/evidence/scene-workspace-ux/UX-110-UX-119-visual-design-refresh-evidence.md`. |
 
 ---
 
