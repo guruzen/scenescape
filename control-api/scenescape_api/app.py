@@ -1472,9 +1472,9 @@ def incidents(
   if status:
     records = [row for row in records if row["status"] == status]
   if start:
-    records = [row for row in records if datetime.fromisoformat(row["timestamp"]) >= start]
+    records = [row for row in records if _incident_time(row["timestamp"], "incident") >= start]
   if end:
-    records = [row for row in records if datetime.fromisoformat(row["timestamp"]) <= end]
+    records = [row for row in records if _incident_time(row["timestamp"], "incident") <= end]
   if q:
     needle = q.casefold()
     records = [
