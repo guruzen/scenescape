@@ -60,7 +60,10 @@ export default function SecurityAdmin({ scenes }: { scenes: Row[] }) {
   const hasRole = (role: string) => Array.isArray(draft.roles) && draft.roles.includes(role)
   const toggleRole = (role: string, enabled: boolean) => {
     const current = Array.isArray(draft.roles) ? draft.roles.map(String) : []
-    field('roles', enabled ? Array.from(new Set([...current, role])) : current.filter((item) => item !== role))
+    let next = enabled ? Array.from(new Set([...current, role])) : current.filter((item) => item !== role)
+    if (role === 'scenescape-admin' && enabled) next = Array.from(new Set([...next, 'scenescape-viewer']))
+    if (role === 'scenescape-viewer' && !enabled && next.includes('scenescape-admin')) return
+    field('roles', next)
   }
   const hasScene = (uid: string) => Array.isArray(draft.scenes) && draft.scenes.includes(uid)
   const toggleScene = (uid: string, enabled: boolean) => {
@@ -160,7 +163,7 @@ export default function SecurityAdmin({ scenes }: { scenes: Row[] }) {
         <div className="scene-subsection">
           <h3>Realm roles</h3>
           <div className="security-check-list">
-            <label><input type="checkbox" checked={hasRole('scenescape-viewer')} onChange={(e) => toggleRole('scenescape-viewer', e.target.checked)}/><span><b>Viewer</b><small>Read operational data and authorized scenes.</small></span></label>
+            <label><input type="checkbox" checked={hasRole('scenescape-viewer')} disabled={hasRole('scenescape-admin')} onChange={(e) => toggleRole('scenescape-viewer', e.target.checked)}/><span><b>Viewer</b><small>Read operational data and authorized scenes.</small></span></label>
             <label><input type="checkbox" checked={hasRole('scenescape-admin')} onChange={(e) => toggleRole('scenescape-admin', e.target.checked)}/><span><b>Administrator</b><small>Configuration and identity administration.</small></span></label>
           </div>
         </div>
