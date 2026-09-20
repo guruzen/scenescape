@@ -23,6 +23,7 @@ import { heatmapOpacityValue, velocityArrow2D } from './ux/sceneVisualization'
 import type { SceneSelection, SceneSelectionKind } from './ux/sceneInspector'
 import { SUPPORTED_UI_THEMES } from './ux/sceneLayout'
 import type { UiTheme } from './ux/sceneLayout'
+import { isSelectionActivationKey, selectionAriaLabel } from './ux/sceneAccessibility'
 import {
   DEFAULT_SCENE_DESTINATION,
   PRIMARY_MODES,
@@ -132,6 +133,12 @@ function Map2D({ bundle, live, onPoint, onSelect, onClearSelection, selected, sh
   const childSensors = bundle.child_sensors || []
   const childRegionPoints = points(childRegions)
   const childTripPoints = points(childTripwires)
+  const activateSelection = (event: { key: string; preventDefault: () => void; stopPropagation: () => void }, selection: NonNullable<SceneSelection>) => {
+    if (!isSelectionActivationKey(event.key)) return
+    event.preventDefault()
+    event.stopPropagation()
+    onSelect?.(selection)
+  }
 
   return <div className="map-frame">
     <svg className="native-map" viewBox={`0 0 ${size[0]} ${size[1]}`} onClick={(event) => {
@@ -147,13 +154,13 @@ function Map2D({ bundle, live, onPoint, onSelect, onClearSelection, selected, sh
         </marker>
       </defs>
       {mapUrl && <image href={mapUrl} x="0" y="0" width={size[0]} height={size[1]} preserveAspectRatio="none" />}
-      {visualizeRois && bundle.regions.map((row, i) => row.visible && regionPoints[i] && <polygon key={rowId(row) || i} points={regionPoints[i]} className={selected?.kind === 'region' && selected.id === (rowId(row) || String(i)) ? 'region-shape selected-entity' : 'region-shape'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'region',id:rowId(row)||String(i),value:row})}} />)}
+      {visualizeRois && bundle.regions.map((row, i) => row.visible && regionPoints[i] && <polygon key={rowId(row) || i} points={regionPoints[i]} role="button" tabIndex={0} aria-label={selectionAriaLabel('region',rowName(row))} aria-pressed={selected?.kind === 'region' && selected.id === (rowId(row) || String(i))} className={selected?.kind === 'region' && selected.id === (rowId(row) || String(i)) ? 'region-shape selected-entity' : 'region-shape'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'region',id:rowId(row)||String(i),value:row})}} onKeyDown={(event)=>activateSelection(event,{kind:'region',id:rowId(row)||String(i),value:row})} />)}
       {visualizeRois && childRegions.map((row, i) => childRegionPoints[i] && <polygon key={`child-region-${rowId(row)||i}`} points={childRegionPoints[i]} className="child-region-shape" />)}
-      {visualizeRois && bundle.tripwires.map((row, i) => row.visible && tripPoints[i] && <polyline key={rowId(row) || i} points={tripPoints[i]} className={selected?.kind === 'tripwire' && selected.id === (rowId(row) || String(i)) ? 'tripwire-line selected-entity' : 'tripwire-line'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'tripwire',id:rowId(row)||String(i),value:row})}} />)}
+      {visualizeRois && bundle.tripwires.map((row, i) => row.visible && tripPoints[i] && <polyline key={rowId(row) || i} points={tripPoints[i]} role="button" tabIndex={0} aria-label={selectionAriaLabel('tripwire',rowName(row))} aria-pressed={selected?.kind === 'tripwire' && selected.id === (rowId(row) || String(i))} className={selected?.kind === 'tripwire' && selected.id === (rowId(row) || String(i)) ? 'tripwire-line selected-entity' : 'tripwire-line'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'tripwire',id:rowId(row)||String(i),value:row})}} onKeyDown={(event)=>activateSelection(event,{kind:'tripwire',id:rowId(row)||String(i),value:row})} />)}
       {childTripwires.map((row, i) => childTripPoints[i] && <polyline key={`child-trip-${rowId(row)||i}`} points={childTripPoints[i]} className="child-tripwire-line" />)}
       {bundle.cameras.map((camera, i) => {
         const [x, y] = xy(camera.translation || [i + 1, i + 1])
-        return <g key={rowId(camera) || i} className={selected?.kind === 'camera' && selected.id === (rowId(camera) || String(i)) ? 'selectable-entity selected-entity' : 'selectable-entity'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'camera',id:rowId(camera)||String(i),value:camera})}}><circle cx={x} cy={y} r="8" className="camera-dot"/>{showLabels && <text x={x + 11} y={y - 7} className="map-label">{rowName(camera)}</text>}</g>
+        return <g key={rowId(camera) || i} role="button" tabIndex={0} aria-label={selectionAriaLabel('camera',rowName(camera))} aria-pressed={selected?.kind === 'camera' && selected.id === (rowId(camera) || String(i))} className={selected?.kind === 'camera' && selected.id === (rowId(camera) || String(i)) ? 'selectable-entity selected-entity' : 'selectable-entity'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'camera',id:rowId(camera)||String(i),value:camera})}} onKeyDown={(event)=>activateSelection(event,{kind:'camera',id:rowId(camera)||String(i),value:camera})}><circle cx={x} cy={y} r="8" className="camera-dot"/>{showLabels && <text x={x + 11} y={y - 7} className="map-label">{rowName(camera)}</text>}</g>
       })}
       {childSensors.map((sensor, i) => {
         if (sensor.area === 'scene') return null
@@ -178,7 +185,7 @@ function Map2D({ bundle, live, onPoint, onSelect, onClearSelection, selected, sh
             : null
         const polygon = Array.isArray(sensor.points) ? sensor.points.map((point: any) => xy(point).join(',')).join(' ') : ''
         const position = center ? xy(center) : null
-        return <g key={rowId(sensor) || i} className={selected?.kind === 'sensor' && selected.id === (rowId(sensor) || String(i)) ? 'selectable-entity selected-entity' : 'selectable-entity'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'sensor',id:rowId(sensor)||String(i),value:sensor})}}>
+        return <g key={rowId(sensor) || i} role="button" tabIndex={0} aria-label={selectionAriaLabel('sensor',rowName(sensor))} aria-pressed={selected?.kind === 'sensor' && selected.id === (rowId(sensor) || String(i))} className={selected?.kind === 'sensor' && selected.id === (rowId(sensor) || String(i)) ? 'selectable-entity selected-entity' : 'selectable-entity'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'sensor',id:rowId(sensor)||String(i),value:sensor})}} onKeyDown={(event)=>activateSelection(event,{kind:'sensor',id:rowId(sensor)||String(i),value:sensor})}>
           {sensor.area === 'scene' && <rect x="2" y="2" width={Math.max(0,size[0]-4)} height={Math.max(0,size[1]-4)} className="sensor-scene-area"/>}
           {sensor.area === 'poly' && polygon && <polygon points={polygon} className="sensor-poly-area"/>}
           {sensor.area === 'circle' && position && <circle cx={position[0]} cy={position[1]} r={Math.max(1, Number(sensor.radius || 0) * scale)} className="sensor-circle-area"/>}
@@ -207,7 +214,7 @@ function Map2D({ bundle, live, onPoint, onSelect, onClearSelection, selected, sh
           dwell != null && Number.isFinite(dwell) ? `dwell ${dwell.toFixed(1)}s` : '',
         ].filter(Boolean) : []
         const heatRadius = Math.max(14, Math.min(90, Number(object.tracking_radius || 0.6) * scale))
-        return <g key={String(object.id ?? i)} className={selected?.kind === 'object' && selected.id === String(object.id ?? i) ? 'selectable-entity selected-entity' : 'selectable-entity'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'object',id:String(object.id ?? i),value:object})}}>
+        return <g key={String(object.id ?? i)} role="button" tabIndex={0} aria-label={selectionAriaLabel('object',String(object.id ?? label))} aria-pressed={selected?.kind === 'object' && selected.id === String(object.id ?? i)} className={selected?.kind === 'object' && selected.id === String(object.id ?? i) ? 'selectable-entity selected-entity' : 'selectable-entity'} onClick={(event)=>{event.stopPropagation();onSelect?.({kind:'object',id:String(object.id ?? i),value:object})}} onKeyDown={(event)=>activateSelection(event,{kind:'object',id:String(object.id ?? i),value:object})}>
           {showHeatmap && <circle cx={x} cy={y} r={heatRadius} className="object-heatmap" style={{opacity: heatmapOpacityValue(heatmapOpacity)}}/>}
           {showHeatmap && <circle cx={x} cy={y} r={Math.max(8,heatRadius*0.45)} className="object-heatmap-core" style={{opacity: heatmapOpacityValue(heatmapOpacity)}}/>}
           {showVelocity && velocityEnd && <line x1={x} y1={y} x2={velocityEnd[0]} y2={velocityEnd[1]} className="object-velocity" markerEnd="url(#velocity-arrow-head)"/>}
@@ -474,6 +481,7 @@ function SceneWorkspace({ scene, scenes, onBack, onNavigate, isAdmin, initialTab
         <div className="scene-control-grid">
           <label><input type="checkbox" checked={showFloor} onChange={(e)=>{setShowFloor(e.target.checked);localStorage.setItem('showFloor',String(e.target.checked))}}/><span>Floor plane<small>ground reference</small></span></label>
           <label><input type="checkbox" checked={projectCameraFrames} onChange={(e)=>setProjectCameraFrames(e.target.checked)}/><span>Camera frames<small>project live snapshots</small></span></label>
+          {availability.total > 0 && <label><span>Tracked object<select aria-label="Select tracked object for inspector" value={selection?.kind==='object'?selection.id:''} onChange={(e)=>{const value=e.target.value;if(!value){setSelection(null);return}const rows=live.objects||[];const index=rows.findIndex((row:Row,i:number)=>String(row.id??i)===value);if(index>=0)chooseSelection('object',rows[index],String(index))}}><option value="">None</option>{(live.objects||[]).map((object:Row,i:number)=><option key={String(object.id??i)} value={String(object.id??i)}>{String(object.category||object.type||'object')} · {String(object.id??i)}</option>)}</select></span></label>}
           {bundle.cameras.length > 0 && <label><span>Camera<select value={selectedCameraId} onChange={(e)=>{setSelectedCameraId(e.target.value);if(!e.target.value)setCameraView(false)}}><option value="">None</option>{bundle.cameras.map((camera)=><option key={rowId(camera)} value={rowId(camera)}>{rowName(camera)}</option>)}</select></span></label>}
           <label><input type="checkbox" disabled={!selectedCameraId} checked={cameraView} onChange={(e)=>setCameraView(e.target.checked)}/><span>Camera view<small>{selectedCameraId ? 'use selected camera' : 'select a camera first'}</small></span></label>
         </div>
