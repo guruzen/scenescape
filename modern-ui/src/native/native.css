@@ -121,3 +121,17 @@
 .scene-status-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.scene-status-metrics>div{min-width:0;padding:4px 8px}.scene-status-metrics b{display:block;margin-top:4px;font-size:12px;overflow-wrap:anywhere}
 @media(max-width:1100px){.scene-status-header{grid-template-columns:1fr}.scene-status-identity{border-right:0;border-bottom:1px solid rgb(var(--line));padding:0 0 10px}.scene-status-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:760px){.scene-status-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.scene-view-toolbar{display:grid;grid-template-columns:minmax(300px,1.35fr) minmax(220px,.65fr);gap:10px;margin:0 0 12px;align-items:start}
+.scene-control-group{min-width:0;margin:0;padding:10px 12px 12px;border:1px solid rgb(var(--line));border-radius:9px;background:rgb(var(--panel))}
+.scene-control-group legend{padding:0 6px;color:rgb(var(--muted));font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.09em}
+.scene-control-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px}
+.scene-control-grid>label{display:flex;gap:8px;align-items:flex-start;min-width:0;padding:7px 8px;border-radius:7px;background:rgb(var(--soft));color:rgb(var(--text));font-size:11px;font-weight:700;cursor:pointer}
+.scene-control-grid>label:hover{outline:1px solid rgb(var(--line))}.scene-control-grid input{margin-top:2px}.scene-control-grid label>span{min-width:0}.scene-control-grid small{display:block;margin-top:2px;color:rgb(var(--muted));font-size:9px;font-weight:500;line-height:1.3}
+.scene-control-grid select{display:block;min-width:130px;margin-top:5px;padding:5px 7px}
+.scene-renderer-controls{grid-column:1/-1}
+.scene-control-ranges{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:9px;padding-top:9px;border-top:1px solid rgb(var(--line))}
+.scene-control-ranges label{display:grid;grid-template-columns:auto 110px 42px;gap:7px;align-items:center;color:rgb(var(--muted));font-size:10px;font-weight:700}.scene-control-ranges input{width:110px}.scene-control-ranges span{font-variant-numeric:tabular-nums;color:rgb(var(--text))}
+.scene-view-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:10px;padding:0 4px}
+@media(max-width:980px){.scene-view-toolbar{grid-template-columns:1fr}.scene-renderer-controls,.scene-view-actions{grid-column:auto}}
+@media(max-width:600px){.scene-control-grid{grid-template-columns:1fr}.scene-control-ranges label{grid-template-columns:1fr}.scene-control-ranges input{width:100%}}
