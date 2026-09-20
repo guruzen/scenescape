@@ -75,6 +75,52 @@ def test_incident_action_and_audit(tmp_path, monkeypatch):
   r=client.post(f"/api/v2/incidents/{inc['id']}/action",headers=h,json={'status':'acknowledged','note':'checked'})
   assert r.status_code==200 and r.json()['status']=='acknowledged' and r.json()['notes'][-1]['note']=='checked'
 
+def test_incident_enrichment_and_filters(tmp_path, monkeypatch):
+  client,d=boot(tmp_path,monkeypatch); h=headers(client)
+  from scenescape_api.ingest import persist
+  with d.sessions()() as db:
+    persist(db,'scenescape/event/region/scene-a/region-1/objects',json.dumps({
+        'scene_id':'scene-a','scene_name':'Factory Floor','region_id':'region-1','region_name':'Restricted Zone',
+        'counts':{'person':1},'objects':[{'id':'person-7','type':'person'}],
+        'entered':[{'id':'person-7','type':'person'}],'exited':[],'timestamp':'2026-09-20T05:00:00Z'
+    }).encode())
+    persist(db,'scenescape/event/tripwire/scene-a/trip-1/objects',json.dumps({
+        'scene_id':'scene-a','scene_name':'Factory Floor','tripwire_id':'trip-1','tripwire_name':'Exit Gate',
+        'counts':{'person':1},'objects':[{'id':'person-7','type':'person','direction':1}],
+        'timestamp':'2026-09-20T05:01:00Z'
+    }).encode())
+    persist(db,'scenescape/event/region/scene-b/region-2/count',json.dumps({
+        'scene_id':'scene-b','scene_name':'Warehouse','region_id':'region-2','region_name':'Loading Area',
+        'counts':{'forklift':2},'objects':[{'id':'fork-1','type':'forklift'},{'id':'fork-2','type':'forklift'}],
+        'timestamp':'2026-09-20T05:02:00Z'
+    }).encode())
+    db.commit()
+
+  rows=client.get('/api/v2/incidents',headers=h)
+  assert rows.status_code==200
+  assert len(rows.json())==3
+  tripwire=next(row for row in rows.json() if row['rule_type']=='tripwire')
+  assert tripwire['title']=='Tripwire crossed · Exit Gate'
+  assert tripwire['scene_name']=='Factory Floor'
+  assert tripwire['rule_id']=='trip-1' and tripwire['rule_name']=='Exit Gate'
+  assert tripwire['event_type']=='objects' and tripwire['action']=='crossing'
+  assert tripwire['object_types']==['person'] and tripwire['object_ids']==['person-7']
+
+  region=next(row for row in rows.json() if row['rule_id']=='region-1')
+  assert region['title']=='Entered region · Restricted Zone'
+  assert region['action']=='enter'
+
+  filtered=client.get('/api/v2/incidents?scene_id=scene-a&rule_type=tripwire&object_type=person&status=new',headers=h)
+  assert filtered.status_code==200 and len(filtered.json())==1
+  assert filtered.json()[0]['rule_id']=='trip-1'
+
+  searched=client.get('/api/v2/incidents?q=restricted',headers=h)
+  assert searched.status_code==200 and [row['rule_id'] for row in searched.json()]==['region-1']
+
+  timed=client.get('/api/v2/incidents?from=2026-09-20T05:01:30Z&to=2026-09-20T05:02:30Z',headers=h)
+  assert timed.status_code==200 and [row['rule_id'] for row in timed.json()]==['region-2']
+
+
 def test_media_path_is_bounded(tmp_path, monkeypatch):
   client,d=boot(tmp_path,monkeypatch); h=headers(client)
   (tmp_path/'media'/'ok.txt').write_text('safe'); (tmp_path/'secret.txt').write_text('secret')
