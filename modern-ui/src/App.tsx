@@ -2281,7 +2281,7 @@ function Incidents() {
           <button className="btn" onClick={clearFilters}>Clear filters</button>
         </div>
       </section>
-      <div className="incident-layout">
+      <div className={selected ? "incident-layout has-detail" : "incident-layout"}>
         <section className="panel incident-list">
           {filteredRows.map((row) => (
             <button
