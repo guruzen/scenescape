@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 name: "Temporary branch formatter"
-# Trigger formatting after workflow registration.
 
 on:
   push:
@@ -34,8 +33,58 @@ jobs:
         run: make prettier-write
 
       - name: Apply repository two-space Python indentation
+        shell: bash
         run: |
-          tests/scripts/reindent -n --level=2             control-api/scenescape_api/app.py             control-api/scenescape_api/asset_service.py             control-api/scenescape_api/auth.py             control-api/scenescape_api/calibration_service.py             control-api/scenescape_api/camera_io.py             control-api/scenescape_api/camera_service.py             control-api/scenescape_api/cli.py             control-api/scenescape_api/contracts.py             control-api/scenescape_api/database.py             control-api/scenescape_api/hierarchy.py             control-api/scenescape_api/ingest.py             control-api/scenescape_api/intrinsics.py             control-api/scenescape_api/keycloak_admin.py             control-api/scenescape_api/map_processing.py             control-api/scenescape_api/mapping_service.py             control-api/scenescape_api/markers.py             control-api/scenescape_api/media_files.py             control-api/scenescape_api/migrate_legacy.py             control-api/scenescape_api/mqtt_commands.py             control-api/scenescape_api/pipeline_generation.py             control-api/scenescape_api/resources.py             control-api/scenescape_api/scene_config.py             control-api/scenescape_api/scene_import_native.py             control-api/scenescape_api/scene_service.py             control-api/scenescape_api/sensor_service.py             control-api/tests/browser_server.py             control-api/tests/test_contracts.py             control-api/tests/test_hierarchy.py             control-api/tests/test_hierarchy_api.py             control-api/tests/test_keycloak_admin.py             control-api/tests/test_mqtt_commands.py             control-api/tests/test_native_api.py             control-api/tests/test_native_data.py             control-api/tests/test_runtime.py             control-api/tests/test_scene_config_lifecycle.py             modern-ui/tests/browser_checks.py             tools/export_legacy.py             tools/native_data.py             tools/native_runtime.py
+          files="
+          control-api/scenescape_api/app.py
+          control-api/scenescape_api/asset_service.py
+          control-api/scenescape_api/auth.py
+          control-api/scenescape_api/calibration_service.py
+          control-api/scenescape_api/camera_io.py
+          control-api/scenescape_api/camera_service.py
+          control-api/scenescape_api/cli.py
+          control-api/scenescape_api/contracts.py
+          control-api/scenescape_api/database.py
+          control-api/scenescape_api/hierarchy.py
+          control-api/scenescape_api/ingest.py
+          control-api/scenescape_api/intrinsics.py
+          control-api/scenescape_api/keycloak_admin.py
+          control-api/scenescape_api/map_processing.py
+          control-api/scenescape_api/mapping_service.py
+          control-api/scenescape_api/markers.py
+          control-api/scenescape_api/media_files.py
+          control-api/scenescape_api/migrate_legacy.py
+          control-api/scenescape_api/mqtt_commands.py
+          control-api/scenescape_api/pipeline_generation.py
+          control-api/scenescape_api/resources.py
+          control-api/scenescape_api/scene_config.py
+          control-api/scenescape_api/scene_import_native.py
+          control-api/scenescape_api/scene_service.py
+          control-api/scenescape_api/sensor_service.py
+          control-api/tests/browser_server.py
+          control-api/tests/test_contracts.py
+          control-api/tests/test_hierarchy.py
+          control-api/tests/test_hierarchy_api.py
+          control-api/tests/test_keycloak_admin.py
+          control-api/tests/test_mqtt_commands.py
+          control-api/tests/test_native_api.py
+          control-api/tests/test_native_data.py
+          control-api/tests/test_runtime.py
+          control-api/tests/test_scene_config_lifecycle.py
+          modern-ui/tests/browser_checks.py
+          tools/export_legacy.py
+          tools/native_data.py
+          tools/native_runtime.py
+          "
+          while IFS= read -r file; do
+            file="${file#"${file%%[![:space:]]*}"}"
+            file="${file%"${file##*[![:space:]]}"}"
+            [ -z "$file" ] && continue
+            tmp="${file}.reindent.tmp"
+            tests/scripts/reindent < "$file" > "$tmp"
+            cat "$tmp" > "$file"
+            rm "$tmp"
+          done <<< "$files"
 
       - name: Verify formatter gates before commit
         run: |
