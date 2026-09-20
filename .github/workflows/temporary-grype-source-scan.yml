@@ -1,0 +1,169 @@
+---
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: "Temporary Grype source scan"
+
+on:
+  push:
+    branches:
+      - feature/react-keycloak-modern-ui
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  grype-source:
+    name: "Grype source dependency scan"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install latest Grype
+        shell: bash
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh |             sudo sh -s -- -b /usr/local/bin
+          grype version
+
+      - name: Scan branch filesystem
+        shell: bash
+        env:
+          GRYPE_DB_AUTO_UPDATE: "true"
+        run: |
+          set -o pipefail
+          grype dir:. -o json > grype-source.json
+          python3 - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          data = json.loads(Path("grype-source.json").read_text())
+          matches = data.get("matches", [])
+          source = data.get("source", {})
+          descriptor = data.get("descriptor", {})
+          db = descriptor.get("db", {}) if isinstance(descriptor, dict) else {}
+
+          rows = []
+          seen = set()
+          for match in matches:
+              vuln = match.get("vulnerability", {}) or {}
+              artifact = match.get("artifact", {}) or {}
+              fix = vuln.get("fix", {}) or {}
+              key = (
+                  vuln.get("id"),
+                  artifact.get("name"),
+                  artifact.get("version"),
+                  artifact.get("type"),
+              )
+              if key in seen:
+                  continue
+              seen.add(key)
+              locations = artifact.get("locations", []) or []
+              paths = sorted({
+                  loc.get("path")
+                  for loc in locations
+                  if isinstance(loc, dict) and loc.get("path")
+              })
+              rows.append({
+                  "severity": vuln.get("severity") or "Unknown",
+                  "id": vuln.get("id") or "",
+                  "package": artifact.get("name") or "",
+                  "version": artifact.get("version") or "",
+                  "type": artifact.get("type") or "",
+                  "fix_state": fix.get("state") or "",
+                  "fix_versions": fix.get("versions") or [],
+                  "locations": paths[:5],
+                  "data_source": vuln.get("dataSource") or "",
+              })
+
+          order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Negligible": 4, "Unknown": 5}
+          rows.sort(key=lambda r: (order.get(r["severity"], 99), r["id"], r["package"]))
+          counts = Counter(r["severity"] for r in rows)
+          fixable = sum(1 for r in rows if r["fix_versions"])
+          critical_high = [r for r in rows if r["severity"] in {"Critical", "High"}]
+
+          print("GRYPE_REPORT_BEGIN")
+          print("unique_matches=" + str(len(rows)))
+          for sev in ["Critical", "High", "Medium", "Low", "Negligible", "Unknown"]:
+              print(f"{sev.lower()}={counts.get(sev, 0)}")
+          print("fixable=" + str(fixable))
+          print("critical_high=" + str(len(critical_high)))
+          print("db_built=" + str(db.get("built", "")))
+          print("db_schema=" + str(db.get("schemaVersion", "")))
+          print("source_type=" + str(source.get("type", "")))
+          for r in critical_high:
+              fixes = ",".join(r["fix_versions"]) if r["fix_versions"] else "-"
+              locs = ",".join(r["locations"]) if r["locations"] else "-"
+              print(
+                  "FINDING|{severity}|{id}|{package}|{version}|{type}|{fix_state}|{fixes}|{locs}".format(
+                      severity=r["severity"],
+                      id=r["id"],
+                      package=r["package"],
+                      version=r["version"],
+                      type=r["type"],
+                      fix_state=r["fix_state"],
+                      fixes=fixes,
+                      locs=locs,
+                  )
+              )
+          print("GRYPE_REPORT_END")
+
+          md = []
+          md.append("# Grype Source Dependency Vulnerability Report")
+          md.append("")
+          md.append("Scope: `grype dir:.` against branch `feature/react-keycloak-modern-ui`.")
+          md.append("")
+          md.append("## Summary")
+          md.append("")
+          md.append("| Severity | Unique package/vulnerability matches |")
+          md.append("|---|---:|")
+          for sev in ["Critical", "High", "Medium", "Low", "Negligible", "Unknown"]:
+              md.append(f"| {sev} | {counts.get(sev, 0)} |")
+          md.append("")
+          md.append(f"- Total unique matches: **{len(rows)}**")
+          md.append(f"- Matches with a published fixed version: **{fixable}**")
+          md.append("")
+          md.append("## Critical and High findings")
+          md.append("")
+          if not critical_high:
+              md.append("No Critical or High findings.")
+          else:
+              md.append("| Severity | Vulnerability | Package | Installed | Type | Fix | Location |")
+              md.append("|---|---|---|---|---|---|---|")
+              for r in critical_high:
+                  fixes = "<br>".join(r["fix_versions"]) if r["fix_versions"] else "No fixed version reported"
+                  locs = "<br>".join(r["locations"]) if r["locations"] else "-"
+                  md.append(
+                      f"| {r['severity']} | {r['id']} | {r['package']} | {r['version']} | "
+                      f"{r['type']} | {fixes} | {locs} |"
+                  )
+          md.append("")
+          md.append("## All findings")
+          md.append("")
+          md.append("| Severity | Vulnerability | Package | Installed | Type | Fix | Location |")
+          md.append("|---|---|---|---|---|---|---|")
+          for r in rows:
+              fixes = "<br>".join(r["fix_versions"]) if r["fix_versions"] else "-"
+              locs = "<br>".join(r["locations"]) if r["locations"] else "-"
+              md.append(
+                  f"| {r['severity']} | {r['id']} | {r['package']} | {r['version']} | "
+                  f"{r['type']} | {fixes} | {locs} |"
+              )
+          Path("grype-source-report.md").write_text("\n".join(md) + "\n")
+          PY
+
+      - name: Upload Grype reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: grype-source-report
+          path: |
+            grype-source.json
+            grype-source-report.md
+          if-no-files-found: error
+          retention-days: 14
