@@ -32,6 +32,8 @@ with sessions()() as db:
     camera = upsert(db, "camera", None, {"name": "Test camera 01", "sensor_id": "test-camera-01", "scene": scene_id,
         "translation": [2, 2, 3], "rotation": [0, 0, 0], "resolution": [1920, 1080],
         "intrinsics": {"fx": 1000, "fy": 1000, "cx": 960, "cy": 540}}, actor)
+    sensor = upsert(db, "sensor", None, {"name": "Test temperature", "sensor_id": "test-temperature-01", "scene": scene_id,
+        "singleton_type": "environmental", "area": "circle", "center": [4, 4], "radius": 0.8, "visible": True}, actor)
     region = upsert(db, "region", None, {"name": "Packing safety area", "scene": scene_id, "points": [[1,1],[5,1],[5,4],[1,4]]}, actor)
     region_id = region.uid
     db.commit()
@@ -40,11 +42,18 @@ def tick():
     for n in range(1800):
         now = datetime.now(timezone.utc)
         data = {"id": scene_id, "timestamp": now.isoformat(), "rate": {"test-camera-01": 12},
-            "objects": [{"id": "test-track-1", "category": "person", "translation": [2+n%30/20, 3, 0], "confidence": .9},
-                        {"id": "test-track-2", "category": "vehicle", "translation": [6, 2+n%20/20, 0]}]}
+            "objects": [{"id": "test-track-1", "category": "person", "translation": [2+n%30/20, 3, 0], "velocity": [0.75, 0.15, 0], "confidence": .9,
+                         "visibility": [camera.uid], "persistent_data": {"badge": {"id": "fixture-A7"}}},
+                        {"id": "test-track-2", "category": "vehicle", "translation": [6, 2+n%20/20, 0], "velocity": [0, 0.5, 0]}]}
         with sessions()() as db:
             db.merge(Heartbeat(key="mqtt", state="connected", details={"synthetic_fixture": True}, updated_at=now))
             persist(db, f"scenescape/regulated/scene/{scene_id}", json.dumps(data).encode())
+            persist(db, f"scenescape/data/camera/{camera.uid}", json.dumps({
+                "scene_id": scene_id, "timestamp": now.isoformat(), "objects": {"person": [data["objects"][0]], "vehicle": [data["objects"][1]]}
+            }).encode())
+            persist(db, f"scenescape/data/sensor/{sensor.uid}", json.dumps({
+                "timestamp": now.isoformat(), "type": "temperature", "subtype": "ambient", "value": round(21.5 + (n % 6) * 0.1, 1)
+            }).encode())
             if n == 0:
                 event = {"scene_id": scene_id, "region_id": region_id, "region_name": "Packing safety area",
                          "timestamp": now.isoformat(), "entered": [data["objects"][0]], "exited": [], "objects": data["objects"], "counts": {"person": 1}}
@@ -52,6 +61,19 @@ def tick():
             db.commit()
         time.sleep(1)
 threading.Thread(target=tick, daemon=True).start()
-from scenescape_api.app import app
+import io
+import scenescape_api.app as app_module
+
+def synthetic_snapshot(_camera_id):
+    frame = Image.new("RGB", (640, 360), "#13262c")
+    frame_draw = ImageDraw.Draw(frame)
+    frame_draw.ellipse((270, 130, 370, 230), fill="#4ed1ce")
+    frame_draw.text((18, 18), "SYNTHETIC CAMERA FRAME", fill="#ffffff")
+    output = io.BytesIO()
+    frame.save(output, format="JPEG")
+    return output.getvalue()
+
+app_module.fetch_camera_snapshot = synthetic_snapshot
+app = app_module.app
 import uvicorn
 uvicorn.run(app, host="127.0.0.1", port=8765, access_log=False)
