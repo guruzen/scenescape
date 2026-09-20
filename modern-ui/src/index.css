@@ -816,6 +816,114 @@ td {
   border-radius: 7px;
   color: #ffd3d6;
 }
+.incident-filters {
+  padding: 14px;
+  margin-bottom: 16px;
+}
+.incident-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) repeat(7, minmax(130px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+.incident-filter-grid label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  font-size: 10px;
+  color: rgb(var(--muted));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.incident-filter-grid input,
+.incident-filter-grid select {
+  min-width: 0;
+  width: 100%;
+}
+.incident-filter-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  color: rgb(var(--muted));
+  font-size: 11px;
+}
+.incident-filter-summary .btn {
+  min-height: auto;
+  padding: 6px 10px;
+}
+.incident-row-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.incident-row-heading em {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 1px solid rgb(var(--line));
+  border-radius: 999px;
+  color: rgb(var(--muted));
+  font-size: 9px;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.incident-context-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 16px 14px;
+}
+.incident-context-grid > div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgb(var(--line));
+  border-radius: 6px;
+  background: rgb(var(--soft));
+}
+.incident-context-grid span,
+.incident-context-grid b {
+  display: block;
+}
+.incident-context-grid span {
+  margin-bottom: 4px;
+  color: rgb(var(--muted));
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.incident-context-grid b {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+@media (max-width: 1500px) {
+  .incident-filter-grid {
+    grid-template-columns: repeat(4, minmax(150px, 1fr));
+  }
+  .incident-search {
+    grid-column: span 2;
+  }
+}
+@media (max-width: 900px) {
+  .incident-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .incident-search {
+    grid-column: 1 / -1;
+  }
+  .incident-context-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .incident-filter-grid,
+  .incident-context-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .incident-layout {
   display: grid;
   grid-template-columns: minmax(280px, 0.6fr) minmax(420px, 1.4fr);
