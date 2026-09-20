@@ -1,4 +1,9 @@
+/* SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type { SceneStatusModel } from "./sceneStatus"
+import { LIVE_REGION_POLICY } from "./sceneAccessibility"
 
 export default function SceneStatusHeader({
   sceneName,
@@ -23,7 +28,7 @@ export default function SceneStatusHeader({
   return <section className="scene-status-header" aria-label="Scene operational status">
     <div className="scene-status-identity">
       <div><span>Scene</span><strong>{sceneName}</strong><code>{sceneId}</code></div>
-      <span className={`scene-status-state ${stateClass}`}><i aria-hidden="true"/>{status.state}</span>
+      <span className={`scene-status-state ${stateClass}`} role="status" aria-live={LIVE_REGION_POLICY.sceneState} aria-atomic="true"><i aria-hidden="true"/>{status.state}</span>
     </div>
     <div className="scene-status-metrics">
       <div><span>Objects</span><b>{status.objectCount}</b></div>
