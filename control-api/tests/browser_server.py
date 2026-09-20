@@ -36,6 +36,7 @@ with sessions()() as db:
         "singleton_type": "environmental", "area": "circle", "center": [4, 4], "radius": 0.8, "visible": True}, actor)
     region = upsert(db, "region", None, {"name": "Packing safety area", "scene": scene_id, "points": [[1,1],[5,1],[5,4],[1,4]]}, actor)
     region_id = region.uid
+    upsert(db, "tripwire", None, {"name": "Packing exit line", "scene": scene_id, "points": [[5.5,1],[5.5,4]], "direction": "positive"}, actor)
     db.commit()
 
 def tick():
