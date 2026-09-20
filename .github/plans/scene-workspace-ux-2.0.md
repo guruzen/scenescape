@@ -445,19 +445,19 @@ The primary objective is monitoring, not full editing.
 
 ### Phase 1 — Information architecture foundation
 
-- [ ] **UX-10** Introduce primary mode navigation: Monitor / Analyze / Configure.
-- [ ] **UX-11** Introduce secondary navigation for Monitor.
-- [ ] **UX-12** Introduce secondary navigation for Analyze.
-- [ ] **UX-13** Introduce secondary navigation for Configure.
-- [ ] **UX-14** Remove the existing single long tab row after all destinations are represented in the new structure.
-- [ ] **UX-15** Preserve direct scene-entry behavior and sensible default selection: Monitor → 2D Scene.
+- [x] **UX-10** Introduce primary mode navigation: Monitor / Analyze / Configure.
+- [x] **UX-11** Introduce secondary navigation for Monitor.
+- [x] **UX-12** Introduce secondary navigation for Analyze.
+- [x] **UX-13** Introduce secondary navigation for Configure.
+- [x] **UX-14** Remove the existing single long tab row after all destinations are represented in the new structure.
+- [x] **UX-15** Preserve direct scene-entry behavior and sensible default selection: Monitor → 2D Scene.
 
 **Acceptance gate — Phase 1**
 
-- [ ] Every pre-overhaul Scene Workspace destination remains reachable.
-- [ ] No duplicated destination exists in conflicting navigation structures.
-- [ ] Browser refresh/navigation does not leave the workspace in an invalid state.
-- [ ] Monitor/Analyze/Configure intent is visually obvious.
+- [x] Every pre-overhaul Scene Workspace destination remains reachable.
+- [x] No duplicated destination exists in conflicting navigation structures.
+- [x] Browser refresh/navigation does not leave the workspace in an invalid state.
+- [x] Monitor/Analyze/Configure intent is visually obvious.
 
 ### Phase 2 — Persistent operational status
 
@@ -718,6 +718,7 @@ Scene Workspace UX 2.0 is complete only when:
 | --- | --- | --- | --- |
 | 2026-09-20 | UX-00 | `7060e99c387e84873fbae1cda7cc1e29c916bb8d` | Durable UX specification and execution checklist created. |
 | 2026-09-20 | UX-01, UX-02 | `9cd022212cb8476c042271a3017f1a32d652b791` | Component/state map captured; zero-dependency UX contract suite added. Unit, integrity, and regression checks: 3 passed, 0 failed. |
+| 2026-09-20 | UX-10–UX-15 | `e5b8b39e9b2450828c6d589650e92bcf99cd7f63` | New primary/secondary navigation implemented; legacy tab row removed; direct-entry compatibility preserved. Unit/integrity/regression suite: 6 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-10-UX-15-navigation-evidence.md`. |
 
 ---
 
