@@ -461,17 +461,17 @@ The primary objective is monitoring, not full editing.
 
 ### Phase 2 — Persistent operational status
 
-- [ ] **UX-20** Build a reusable SceneStatusHeader component.
-- [ ] **UX-21** Display scene freshness, object count, scene rate, camera health summary, and MQTT state.
-- [ ] **UX-22** Implement LIVE / DEGRADED / STALE semantics using only available runtime data.
-- [ ] **UX-23** Make unknown health explicit instead of mapping it to healthy.
-- [ ] **UX-24** Verify status remains visible while switching scene subviews.
+- [x] **UX-20** Build a reusable SceneStatusHeader component.
+- [x] **UX-21** Display scene freshness, object count, scene rate, camera health summary, and MQTT state.
+- [x] **UX-22** Implement LIVE / DEGRADED / STALE semantics using only available runtime data.
+- [x] **UX-23** Make unknown health explicit instead of mapping it to healthy.
+- [x] **UX-24** Verify status remains visible while switching scene subviews.
 
 **Acceptance gate — Phase 2**
 
-- [ ] Operator can determine scene health without opening Runtime.
-- [ ] Stale scene feed is unmistakable.
-- [ ] Unknown and degraded states are differentiated.
+- [x] Operator can determine scene health without opening Runtime.
+- [x] Stale scene feed is unmistakable.
+- [x] Unknown and degraded states are differentiated.
 
 ### Phase 3 — Contextual view controls
 
@@ -719,6 +719,7 @@ Scene Workspace UX 2.0 is complete only when:
 | 2026-09-20 | UX-00 | `7060e99c387e84873fbae1cda7cc1e29c916bb8d` | Durable UX specification and execution checklist created. |
 | 2026-09-20 | UX-01, UX-02 | `9cd022212cb8476c042271a3017f1a32d652b791` | Component/state map captured; zero-dependency UX contract suite added. Unit, integrity, and regression checks: 3 passed, 0 failed. |
 | 2026-09-20 | UX-10–UX-15 | `e5b8b39e9b2450828c6d589650e92bcf99cd7f63` | New primary/secondary navigation implemented; legacy tab row removed; direct-entry compatibility preserved. Unit/integrity/regression suite: 6 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-10-UX-15-navigation-evidence.md`. |
+| 2026-09-20 | UX-20–UX-24 | `b63a443477c81f0d0a1eb4bf0513805112f1c10c` | Persistent operational status header added with explicit LIVE/DEGRADED/STALE and Unknown semantics. Unit/integrity/regression suite: 7 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-20-UX-24-status-evidence.md`. |
 
 ---
 
