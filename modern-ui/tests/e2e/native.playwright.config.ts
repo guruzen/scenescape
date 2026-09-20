@@ -7,7 +7,7 @@ import { defineConfig, devices } from "@playwright/test"
 export default defineConfig({
   testDir: ".",
   testMatch: "nativeSceneWorkspace.spec.ts",
-  outputDir: "../../../test-results-native",
+  outputDir: "../../test-results-native",
   fullyParallel: false,
   retries: 0,
   workers: 1,
