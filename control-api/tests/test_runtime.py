@@ -122,8 +122,12 @@ def test_native_operator_parity_surface_is_present():
     ui = (root / "modern-ui/src/App.tsx").read_text()
     viewer = (root / "modern-ui/src/native/ThreeScene.tsx").read_text()
     assert '/api/v2/cameras/{camera_id}/telemetry' in app
-    assert 'Show Heatmap' in ui
-    assert 'Show Velocity' in ui
-    assert 'Show Telemetry' in ui
+    # UX 2.0 groups these controls under Layers/Diagnostics rather than the
+    # legacy "Show ..." labels. Lock the capability, not the old copy.
+    assert '>Heatmap<' in ui
+    assert '>Velocity<' in ui
+    assert '>Telemetry<' in ui
+    assert 'SceneTelemetryHud' in ui
+    assert 'SceneVisualizationLegend' in ui
     assert 'showHeatmap' in viewer
     assert 'showVelocity' in viewer
