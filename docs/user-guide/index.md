@@ -65,9 +65,9 @@ Computes camera parameters utilizing known priors and camera feed. For more info
 
 Mosquitto MQTT broker which acts as the primary message bus connecting sensors, internal components, and applications, including the web interface.
 
-### **Web Server**
+### **Web and Operations Services**
 
-Apache web server providing a Django-based web UI which allows users to view updates to the scene graph and manage scenes, cameras, sensors, and analytics. It also serves the Scenescape REST API.
+The native operations experience uses a React user interface with Keycloak authentication and a FastAPI control API. The interface provides live 2D/3D scene monitoring, camera and sensor views, retained history and trends, spatial configuration, hierarchy management, and camera calibration. Native deployments keep authorization and scene scope enforcement in the API rather than relying on browser-side checks.
 
 ### **NTP Server**
 
