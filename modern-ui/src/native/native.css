@@ -110,3 +110,14 @@
 .scene-secondary-nav-item.active{color:rgb(var(--text));border-bottom-color:rgb(var(--accent))}
 .scene-nav-route-mark{margin-left:5px;color:rgb(var(--muted));font-size:9px}
 @media(max-width:760px){.scene-primary-nav{overflow-x:auto}.scene-primary-nav-item{white-space:nowrap}.scene-secondary-nav{flex-wrap:nowrap;overflow-x:auto}.scene-secondary-nav-item{white-space:nowrap}}
+
+.scene-status-header{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,2.2fr);gap:14px;align-items:stretch;margin:0 0 12px;padding:12px 14px;border:1px solid rgb(var(--line));border-radius:10px;background:rgb(var(--panel))}
+.scene-status-identity{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-right:14px;border-right:1px solid rgb(var(--line))}
+.scene-status-identity>div>span,.scene-status-metrics span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:rgb(var(--muted))}
+.scene-status-identity strong{display:block;margin-top:3px;font-size:15px}.scene-status-identity code{display:block;margin-top:3px;font-size:9px;color:rgb(var(--muted));overflow-wrap:anywhere}
+.scene-status-state{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:6px 9px;border:1px solid rgb(var(--line));border-radius:999px;font-size:10px;font-weight:800}
+.scene-status-state i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 16%,transparent)}
+.scene-status-state.live{color:rgb(var(--success))}.scene-status-state.degraded{color:rgb(var(--warning))}.scene-status-state.stale{color:rgb(var(--danger))}
+.scene-status-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.scene-status-metrics>div{min-width:0;padding:4px 8px}.scene-status-metrics b{display:block;margin-top:4px;font-size:12px;overflow-wrap:anywhere}
+@media(max-width:1100px){.scene-status-header{grid-template-columns:1fr}.scene-status-identity{border-right:0;border-bottom:1px solid rgb(var(--line));padding:0 0 10px}.scene-status-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.scene-status-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
