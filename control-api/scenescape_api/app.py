@@ -740,6 +740,8 @@ def legacy_delete(thing: str, uid: str, p=Depends(service_principal), db=Depends
     if kind == "child":
         row = resolve_child_link(db, uid)
         link_uid = row.uid
+        if row.revision != revision:
+            raise HTTPException(409, "Revision conflict")
         db.delete(row)
         db.commit()
         notify_config_change(kind, link_uid)
@@ -1540,6 +1542,8 @@ def update_any(
         return marker_to_dict(row, native=True)
 
     current = get_resource(db, kind, uid)
+    if current.revision != revision:
+        raise HTTPException(409, "Revision conflict")
     previous = to_dict(current) if kind == "camera" else None
     if kind == "camera":
         row, _ = update_camera_resource(db, uid, body, p, legacy=False, expected_revision=revision)
@@ -1558,7 +1562,7 @@ def update_any(
 
 
 @app.delete("/api/v2/{plural}/{uid}")
-def delete_any(plural: str, uid: str, p=Depends(current_principal), db=Depends(db_dep)):
+def delete_any(plural: str, uid: str, revision: int = Query(..., ge=1), p=Depends(current_principal), db=Depends(db_dep)):
     if not p.is_admin:
         raise HTTPException(403, "Administrator role required")
     kind = _kind(plural)
@@ -1572,6 +1576,8 @@ def delete_any(plural: str, uid: str, p=Depends(current_principal), db=Depends(d
 
     if kind == "marker":
         current = resolve_marker(db, uid); marker_id = marker_to_dict(current)["marker_id"]
+        if current.revision != revision:
+            raise HTTPException(409, "Revision conflict")
         db.delete(current); db.commit(); notify_config_change(kind, current.uid)
         return {"deleted": True, "uid": marker_id, "kind": kind}
     current = get_resource(db, kind, uid)
