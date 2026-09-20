@@ -430,7 +430,7 @@ test("integrity: navigation controls and scene selections remain native keyboard
     /scene-primary-nav-item[^]*?<button|<button[^]*?scene-primary-nav-item/,
   );
   assert.match(appSource, /scene-secondary-nav-item/);
-  assert.match(appSource, /<input type="checkbox"/);
+  assert.match(appSource, /<input\s+[^>]*type="checkbox"/);
   assert.match(appSource, /role="button" tabIndex=\{0\}/);
   assert.match(appSource, /aria-label=\{selectionAriaLabel\('object'/);
   assert.match(appSource, /aria-label="Select tracked object for inspector"/);
