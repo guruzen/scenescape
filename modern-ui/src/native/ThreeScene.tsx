@@ -17,6 +17,8 @@ export default function ThreeScene({
   meshRotation,
   meshScale,
   onPick,
+  onSelectObject,
+  selectedObjectId = '',
   pickedPoints = [],
   regions = [],
   tripwires = [],
@@ -45,6 +47,8 @@ export default function ThreeScene({
   meshRotation?: number[]
   meshScale?: number[]
   onPick?: (point: number[]) => void
+  onSelectObject?: (id: string) => void
+  selectedObjectId?: string
   pickedPoints?: number[][]
   regions?: Row[]
   tripwires?: Row[]
@@ -74,12 +78,14 @@ export default function ThreeScene({
   const cameraGroup = useRef<THREE.Group | null>(null)
   const cameraViewRef = useRef<Record<string, THREE.PerspectiveCamera>>({})
   const onPickRef = useRef(onPick)
+  const onSelectObjectRef = useRef(onSelectObject)
   const assetPrototypes = useRef<Record<string, THREE.Object3D>>({})
   const [assets, setAssets] = useState<Row[]>([])
   const [assetVersion, setAssetVersion] = useState(0)
   const [error, setError] = useState('')
 
   useEffect(() => { onPickRef.current = onPick }, [onPick])
+  useEffect(() => { onSelectObjectRef.current = onSelectObject }, [onSelectObject])
 
   useEffect(() => {
     if (previewAsset) {
@@ -291,6 +297,23 @@ export default function ThreeScene({
       if (hit) onPickRef.current([hit.point.x, hit.point.y, hit.point.z])
     }
     renderer.domElement.addEventListener('dblclick', handlePick)
+    const handleObjectSelect = (event: MouseEvent) => {
+      if (!onSelectObjectRef.current || !objectGroup.current?.children.length) return
+      const rect = renderer.domElement.getBoundingClientRect()
+      pointer.x = ((event.clientX - rect.left) / Math.max(rect.width, 1)) * 2 - 1
+      pointer.y = -((event.clientY - rect.top) / Math.max(rect.height, 1)) * 2 + 1
+      const activeCamera = useSelectedCameraView && selectedCameraId && cameraViewRef.current[selectedCameraId]
+        ? cameraViewRef.current[selectedCameraId]
+        : camera
+      raycaster.setFromCamera(pointer, activeCamera)
+      const hit = raycaster.intersectObjects(objectGroup.current.children, true)[0]
+      if (!hit) return
+      let target: THREE.Object3D | null = hit.object
+      while (target && target.parent !== objectGroup.current && target.userData?.selectionId == null) target = target.parent
+      const selectionId = target?.userData?.selectionId
+      if (selectionId != null) onSelectObjectRef.current(String(selectionId))
+    }
+    renderer.domElement.addEventListener('click', handleObjectSelect)
 
     const loop = () => {
       controls.update()
@@ -313,6 +336,7 @@ export default function ThreeScene({
       controls.dispose()
       container.removeEventListener('scenescape-view', onViewerCommand)
       renderer.domElement.removeEventListener('dblclick', handlePick)
+      renderer.domElement.removeEventListener('click', handleObjectSelect)
       renderer.dispose()
       renderer.domElement.remove()
       if (mediaUrl && mediaUrl !== mediaOverrideUrl) URL.revokeObjectURL(mediaUrl)
@@ -400,6 +424,7 @@ export default function ThreeScene({
         : []
       const dwell = activeDwells.length ? Math.max(...activeDwells) : null
       root.userData.objectId = item.id ?? index
+      root.userData.selectionId = String(item.id ?? index)
       root.userData.category = category
       root.userData.dwell = dwell
       root.traverse((node:any) => {
@@ -411,6 +436,15 @@ export default function ThreeScene({
         }
       })
       group.add(root)
+      if (selectedObjectId && selectedObjectId === String(item.id ?? index)) {
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(0.3, 0.42, 32),
+          new THREE.MeshBasicMaterial({ color: 0xffb454, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }),
+        )
+        ring.userData.generatedGeometry = true
+        ring.position.set(root.position.x, root.position.y, 0.03)
+        group.add(ring)
+      }
 
       if (showVelocity && Array.isArray(item.velocity) && item.velocity.length >= 2) {
         const vx = Number(item.velocity[0] || 0), vy = Number(item.velocity[1] || 0)
@@ -439,7 +473,7 @@ export default function ThreeScene({
     } else if (showTrackedObjects) {
       ;(objects || []).forEach(renderItem)
     }
-  }, [objects, assets, assetVersion, mapPath, previewAsset, showTrackedObjects, showHeatmap, showVelocity])
+  }, [objects, assets, assetVersion, mapPath, previewAsset, showTrackedObjects, showHeatmap, showVelocity, selectedObjectId])
 
   useEffect(() => {
     const group = spatialGroup.current
