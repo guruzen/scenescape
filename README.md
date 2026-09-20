@@ -8,7 +8,7 @@ This fork is based on SceneScape **2026.2.0**. The `feature/react-keycloak-moder
 
 ![Native scene workspace, rendered against synthetic test data](docs/ux/native/scene-workspace.jpg)
 
-*Screenshot of the actual React application using the native API and synthetic test observations. It is not a photograph, live camera feed, or proof of a deployed physical system.*
+_Screenshot of the actual React application using the native API and synthetic test observations. It is not a photograph, live camera feed, or proof of a deployed physical system._
 
 ## Architecture
 
@@ -33,16 +33,16 @@ The production API package `control-api/scenescape_api` does not import Django. 
 
 ## What is implemented
 
-| Workspace | Native implementation |
-| --- | --- |
-| Live scenes | Authenticated scene/map loading, native 2D map with object positions, trails, cameras, regions and tripwires; a Three.js 3D viewer for self-contained GLB/image maps. Missing/stale observations are identified explicitly. |
-| Configuration | Native CRUD for scenes, cameras, sensors, regions, tripwires, assets, child-scene links and calibration markers; typed validation and revision checks. Advanced fields currently use a schema-guided JSON editor. |
-| Geometry | Draw polygons and directional boundaries, edit coordinates, validate geometry, save to the native API and publish configuration-change commands through an outbox. |
-| Calibration | Manual poses, 2D/3D point correspondence, camera-frame requests and integration endpoints for the existing autocalibration service. |
-| History | Sampled Analytics observations, event-time queries, retained configuration snapshots, metadata replay, occupancy/crossing/dwell summaries and CSV export. |
-| Incidents | Convert an analytics event to a durable incident; acknowledge, investigate, assign, add notes, resolve and reopen with an audit record. |
-| Identity | Keycloak Authorization Code + PKCE, server-side token issuer/audience/expiry checks, application roles and optional scene scopes; separate machine credential compatibility. |
-| Appearance | Light, Light Air, Dark and Dark Command, with persistent selection and layout/density variations. |
+| Workspace     | Native implementation                                                                                                                                                                                                       |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Live scenes   | Authenticated scene/map loading, native 2D map with object positions, trails, cameras, regions and tripwires; a Three.js 3D viewer for self-contained GLB/image maps. Missing/stale observations are identified explicitly. |
+| Configuration | Native CRUD for scenes, cameras, sensors, regions, tripwires, assets, child-scene links and calibration markers; typed validation and revision checks. Advanced fields currently use a schema-guided JSON editor.           |
+| Geometry      | Draw polygons and directional boundaries, edit coordinates, validate geometry, save to the native API and publish configuration-change commands through an outbox.                                                          |
+| Calibration   | Manual poses, 2D/3D point correspondence, camera-frame requests and integration endpoints for the existing autocalibration service.                                                                                         |
+| History       | Sampled Analytics observations, event-time queries, retained configuration snapshots, metadata replay, occupancy/crossing/dwell summaries and CSV export.                                                                   |
+| Incidents     | Convert an analytics event to a durable incident; acknowledge, investigate, assign, add notes, resolve and reopen with an audit record.                                                                                     |
+| Identity      | Keycloak Authorization Code + PKCE, server-side token issuer/audience/expiry checks, application roles and optional scene scopes; separate machine credential compatibility.                                                |
+| Appearance    | Light, Light Air, Dark and Dark Command, with persistent selection and layout/density variations.                                                                                                                           |
 
 There is no fake live-object animation, invented historical trend, hidden Django iframe or automatic browser handoff in the native application. A missing upstream service is an error/unavailable state, not a working feature.
 

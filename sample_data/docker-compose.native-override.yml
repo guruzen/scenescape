@@ -62,7 +62,13 @@ services:
       - calibration.auth
       - browser.auth
     healthcheck:
-      test: ["CMD", "python", "-c", "import ssl,urllib.request; urllib.request.urlopen('https://localhost:443/api/v1/health',context=ssl._create_unverified_context(),timeout=5)"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import ssl,urllib.request; urllib.request.urlopen('https://localhost:443/api/v1/health',context=ssl._create_unverified_context(),timeout=5)",
+        ]
       interval: 10s
       timeout: 8s
       retries: 12

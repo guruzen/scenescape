@@ -5,14 +5,16 @@
 export const LIVE_REGION_POLICY = {
   sceneState: "polite",
   telemetryMetrics: "off",
-} as const
+} as const;
 
 export function isSelectionActivationKey(key: string): boolean {
-  return key === "Enter" || key === " "
+  return key === "Enter" || key === " ";
 }
 
 export function selectionAriaLabel(kind: string, name: string): string {
-  const normalizedKind = kind === "object" ? "tracked object" : kind
-  const value = String(name || "").trim()
-  return value ? `Inspect ${normalizedKind} ${value}` : `Inspect ${normalizedKind}`
+  const normalizedKind = kind === "object" ? "tracked object" : kind;
+  const value = String(name || "").trim();
+  return value
+    ? `Inspect ${normalizedKind} ${value}`
+    : `Inspect ${normalizedKind}`;
 }

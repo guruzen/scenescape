@@ -58,18 +58,18 @@ The three checks are intentionally separated by purpose:
 
 ## Legacy-to-target navigation mapping
 
-| Legacy destination | Primary mode | Secondary view |
-| --- | --- | --- |
-| Live 2D | Monitor | 2D Scene |
-| Live 3D | Monitor | 3D Scene |
-| Camera feeds | Monitor | Cameras |
-| Sensors & telemetry | Monitor | Sensors |
-| Runtime | Analyze | Runtime |
-| History & replay | Analyze | History |
-| Trends & analytics | Analyze | Trends |
-| Geometry | Configure | Geometry |
-| Hierarchy | Configure | Hierarchy |
-| Camera calibration | Configure | Calibration |
+| Legacy destination  | Primary mode | Secondary view |
+| ------------------- | ------------ | -------------- |
+| Live 2D             | Monitor      | 2D Scene       |
+| Live 3D             | Monitor      | 3D Scene       |
+| Camera feeds        | Monitor      | Cameras        |
+| Sensors & telemetry | Monitor      | Sensors        |
+| Runtime             | Analyze      | Runtime        |
+| History & replay    | Analyze      | History        |
+| Trends & analytics  | Analyze      | Trends         |
+| Geometry            | Configure    | Geometry       |
+| Hierarchy           | Configure    | Hierarchy      |
+| Camera calibration  | Configure    | Calibration    |
 
 ## Evidence quality
 

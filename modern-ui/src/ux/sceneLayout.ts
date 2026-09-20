@@ -5,7 +5,7 @@
 export const SCENE_LAYOUT_BREAKPOINTS = {
   drawer: 1100,
   narrow: 600,
-} as const
+} as const;
 
 export const SCENE_VISUAL_HIERARCHY = [
   "status",
@@ -14,20 +14,20 @@ export const SCENE_VISUAL_HIERARCHY = [
   "view-controls",
   "visualization",
   "inspector",
-] as const
+] as const;
 
 export const SUPPORTED_UI_THEMES = [
   { value: "light", label: "Light" },
   { value: "light-air", label: "Light Air" },
   { value: "dark", label: "Dark" },
   { value: "dark-command", label: "Dark Command" },
-] as const
+] as const;
 
-export type UiTheme = (typeof SUPPORTED_UI_THEMES)[number]["value"]
-export type SceneLayoutMode = "desktop" | "drawer" | "narrow"
+export type UiTheme = (typeof SUPPORTED_UI_THEMES)[number]["value"];
+export type SceneLayoutMode = "desktop" | "drawer" | "narrow";
 
 export function layoutModeForWidth(width: number): SceneLayoutMode {
-  if (width <= SCENE_LAYOUT_BREAKPOINTS.narrow) return "narrow"
-  if (width <= SCENE_LAYOUT_BREAKPOINTS.drawer) return "drawer"
-  return "desktop"
+  if (width <= SCENE_LAYOUT_BREAKPOINTS.narrow) return "narrow";
+  if (width <= SCENE_LAYOUT_BREAKPOINTS.drawer) return "drawer";
+  return "desktop";
 }

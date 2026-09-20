@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { defineConfig, devices } from "@playwright/test"
+import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: ".",
@@ -27,4 +27,4 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 120000,
   },
-})
+});

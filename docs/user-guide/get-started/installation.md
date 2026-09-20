@@ -142,17 +142,17 @@ This asks for `UNINSTALL`, then removes **this Compose project's** containers an
 
 ## Troubleshooting
 
-| Symptom | Check |
-| --- | --- |
-| Docker unavailable | Start Docker Desktop and enable this WSL distribution; use Linux containers. |
-| `!override` parsing error | Update Docker Compose to 2.24.4 or later. |
-| Missing `sub` or audience | Reconcile the correct Keycloak client, then sign out/in. Do not disable JWT claim verification. |
-| API TLS verification error | The mounted CA and `SCENESCAPE_API_SERVER_NAME` must match the API certificate. Do not fix this by disabling verification. |
-| Migration validation failure | Keep the stopped/exported snapshot and backup; unsupported fields are rejected rather than discarded. The script attempts legacy recovery. |
-| Media permission error | API UID 1000 needs read access to existing maps and write access to `native-uploads`; avoid recursively changing ownership of all old media without review. |
-| No live objects | Check native worker MQTT connectivity, Analytics regulated output, scene IDs and timestamps; API readiness alone is insufficient. |
-| Camera/auto-calibration request fails | Confirm the corresponding upstream camera/calibration service and TLS/credentials. Native forms cannot create an unavailable upstream capability. |
-| No WebGL2 | Use native 2D; the application does not redirect to Django. GPU/WSL/browser configuration is separate from the API. |
+| Symptom                               | Check                                                                                                                                                       |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Docker unavailable                    | Start Docker Desktop and enable this WSL distribution; use Linux containers.                                                                                |
+| `!override` parsing error             | Update Docker Compose to 2.24.4 or later.                                                                                                                   |
+| Missing `sub` or audience             | Reconcile the correct Keycloak client, then sign out/in. Do not disable JWT claim verification.                                                             |
+| API TLS verification error            | The mounted CA and `SCENESCAPE_API_SERVER_NAME` must match the API certificate. Do not fix this by disabling verification.                                  |
+| Migration validation failure          | Keep the stopped/exported snapshot and backup; unsupported fields are rejected rather than discarded. The script attempts legacy recovery.                  |
+| Media permission error                | API UID 1000 needs read access to existing maps and write access to `native-uploads`; avoid recursively changing ownership of all old media without review. |
+| No live objects                       | Check native worker MQTT connectivity, Analytics regulated output, scene IDs and timestamps; API readiness alone is insufficient.                           |
+| Camera/auto-calibration request fails | Confirm the corresponding upstream camera/calibration service and TLS/credentials. Native forms cannot create an unavailable upstream capability.           |
+| No WebGL2                             | Use native 2D; the application does not redirect to Django. GPU/WSL/browser configuration is separate from the API.                                         |
 
 ## Kubernetes
 

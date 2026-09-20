@@ -16,17 +16,17 @@ A full WSL2 + Docker Desktop installation; building/running every upstream proce
 
 ## Working native surfaces vs specialized gaps
 
-| Area | Implemented in code | Remaining qualification/parity work |
-| --- | --- | --- |
-| Scene viewing | Native 2D, protected maps, live observations, trails/geometry/camera layers; Three.js GLB/image viewer | Actual GPU verification; all upstream 3D interactions and asset rendering parity |
-| Configuration | Native typed resource CRUD, schema-driven advanced fields, revision checks, notification outbox | Dedicated UX for every advanced field; every upstream side effect and serialization edge case |
-| Geometry | Polygon/tripwire authoring and validation, persisted configuration snapshots | All volumetric editing/visualization affordances and specialized region options |
-| Calibration | Manual pose, point-correspondence calculations, camera-frame requests and integration endpoints for the existing autocalibration service | End-to-end physical calibration; all specialized intrinsics/LiDAR/markerless workflows |
-| Import/migration | JSON/ZIP bundles, IDs retained, validation in one transaction, backup/rollback tooling | Actual full legacy export fixture coverage, very large imports, filesystem crash recovery |
-| Live/history | Regulated Analytics ingestion, events, sampling, replay and coverage gaps | Broker outage/recovery tests, HA collector design, performance/retention sizing |
-| Incidents | Owned incident records and action/audit lifecycle | Full rule evaluator, automatic notification delivery/escalation and external integrations |
-| Advanced manager features | Fields/assets/child links represented as native resources | Geospatial map rendering, mesh reconstruction, complete remote-child forwarding and Kubernetes pipeline/model orchestration |
-| Security | JWT signature/issuer/audience/expiry, roles/scopes, protected media, bounded uploads, TLS upstream verification | External penetration testing, deployment threat review, secret rotation, tenancy/HA qualification |
+| Area                      | Implemented in code                                                                                                                      | Remaining qualification/parity work                                                                                         |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Scene viewing             | Native 2D, protected maps, live observations, trails/geometry/camera layers; Three.js GLB/image viewer                                   | Actual GPU verification; all upstream 3D interactions and asset rendering parity                                            |
+| Configuration             | Native typed resource CRUD, schema-driven advanced fields, revision checks, notification outbox                                          | Dedicated UX for every advanced field; every upstream side effect and serialization edge case                               |
+| Geometry                  | Polygon/tripwire authoring and validation, persisted configuration snapshots                                                             | All volumetric editing/visualization affordances and specialized region options                                             |
+| Calibration               | Manual pose, point-correspondence calculations, camera-frame requests and integration endpoints for the existing autocalibration service | End-to-end physical calibration; all specialized intrinsics/LiDAR/markerless workflows                                      |
+| Import/migration          | JSON/ZIP bundles, IDs retained, validation in one transaction, backup/rollback tooling                                                   | Actual full legacy export fixture coverage, very large imports, filesystem crash recovery                                   |
+| Live/history              | Regulated Analytics ingestion, events, sampling, replay and coverage gaps                                                                | Broker outage/recovery tests, HA collector design, performance/retention sizing                                             |
+| Incidents                 | Owned incident records and action/audit lifecycle                                                                                        | Full rule evaluator, automatic notification delivery/escalation and external integrations                                   |
+| Advanced manager features | Fields/assets/child links represented as native resources                                                                                | Geospatial map rendering, mesh reconstruction, complete remote-child forwarding and Kubernetes pipeline/model orchestration |
+| Security                  | JWT signature/issuer/audience/expiry, roles/scopes, protected media, bounded uploads, TLS upstream verification                          | External penetration testing, deployment threat review, secret rotation, tenancy/HA qualification                           |
 
 Metadata replay is **not recorded video playback**. The code does not manufacture historical footage or physical camera data. Samples/CSV averages are based on retained observations, not an assertion of uninterrupted coverage.
 

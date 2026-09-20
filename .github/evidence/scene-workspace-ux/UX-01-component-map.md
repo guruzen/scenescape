@@ -45,21 +45,21 @@ This flat navigation is the primary target of UX-10 through UX-15.
 
 ### View-control state currently owned by SceneWorkspace
 
-| State | Current purpose | Future owner |
-| --- | --- | --- |
-| `liveView` | Enable live objects | Monitor workspace |
-| `showTrails` | Object trails | Layer controls |
-| `showTelemetry` | Telemetry HUD/text | Diagnostic controls |
-| `showHeatmap` | Position heat overlay | Layer controls |
-| `showVelocity` | Velocity vectors | Layer controls |
-| `visualizeRois` | Regions/tripwires | Layer controls |
-| `showFloor` | 3D floor | 3D view controls |
-| `projectCameraFrames` | 3D camera projection | 3D view controls |
-| `cameraOpacity` | Camera projection opacity | 3D view controls |
-| `selectedCameraId` | Camera selection | Monitor/inspector selection |
-| `cameraView` | Selected camera POV | 3D view controls |
-| `lightIntensity` | 3D lighting | 3D view controls |
-| `runtimeOverview` | MQTT/runtime health | Status header / Analyze |
+| State                 | Current purpose           | Future owner                |
+| --------------------- | ------------------------- | --------------------------- |
+| `liveView`            | Enable live objects       | Monitor workspace           |
+| `showTrails`          | Object trails             | Layer controls              |
+| `showTelemetry`       | Telemetry HUD/text        | Diagnostic controls         |
+| `showHeatmap`         | Position heat overlay     | Layer controls              |
+| `showVelocity`        | Velocity vectors          | Layer controls              |
+| `visualizeRois`       | Regions/tripwires         | Layer controls              |
+| `showFloor`           | 3D floor                  | 3D view controls            |
+| `projectCameraFrames` | 3D camera projection      | 3D view controls            |
+| `cameraOpacity`       | Camera projection opacity | 3D view controls            |
+| `selectedCameraId`    | Camera selection          | Monitor/inspector selection |
+| `cameraView`          | Selected camera POV       | 3D view controls            |
+| `lightIntensity`      | 3D lighting               | 3D view controls            |
+| `runtimeOverview`     | MQTT/runtime health       | Status header / Analyze     |
 
 ## Current child components
 

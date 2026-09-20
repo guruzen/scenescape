@@ -11,37 +11,37 @@ from .resources import get_resource, to_dict, upsert
 
 
 def update_sensor_resource(db, uid: str, body: dict, actor, *, legacy: bool, expected_revision: int | None = None):
-    current = get_resource(db, "sensor", uid)
-    before = to_dict(current)
-    normalized, resolved_uid = normalize_resource(
-        db, "sensor", body, uid=uid, creating=False, legacy=legacy
-    )
-    target_uid = str(resolved_uid or uid)
+  current = get_resource(db, "sensor", uid)
+  before = to_dict(current)
+  normalized, resolved_uid = normalize_resource(
+      db, "sensor", body, uid=uid, creating=False, legacy=legacy
+  )
+  target_uid = str(resolved_uid or uid)
 
-    if target_uid == uid:
-        row = upsert(db, "sensor", uid, normalized, actor, expected_revision)
-        return row, before
+  if target_uid == uid:
+    row = upsert(db, "sensor", uid, normalized, actor, expected_revision)
+    return row, before
 
-    conflict = db.scalar(
-        select(Resource).where(Resource.kind == "sensor", Resource.uid == target_uid)
-    )
-    if conflict is not None and conflict.id != current.id:
-        raise HTTPException(400, {"sensor_id": [f"A sensor with ID '{target_uid}' already exists."]})
+  conflict = db.scalar(
+      select(Resource).where(Resource.kind == "sensor", Resource.uid == target_uid)
+  )
+  if conflict is not None and conflict.id != current.id:
+    raise HTTPException(400, {"sensor_id": [f"A sensor with ID '{target_uid}' already exists."]})
 
-    payload = {**(current.payload or {}), **normalized, "uid": target_uid, "sensor_id": target_uid}
-    if expected_revision is not None:
-        result = db.execute(
-            update(Resource).where(Resource.id == current.id, Resource.revision == expected_revision).values(
-                uid=target_uid, payload=payload, revision=expected_revision + 1, updated_at=datetime.now(timezone.utc)
-            )
+  payload = {**(current.payload or {}), **normalized, "uid": target_uid, "sensor_id": target_uid}
+  if expected_revision is not None:
+    result = db.execute(
+        update(Resource).where(Resource.id == current.id, Resource.revision == expected_revision).values(
+            uid=target_uid, payload=payload, revision=expected_revision + 1, updated_at=datetime.now(timezone.utc)
         )
-        if result.rowcount != 1:
-            raise HTTPException(409, "Revision conflict")
-        db.flush(); db.expire(current); db.refresh(current)
-    else:
-        current.uid = target_uid
-        current.payload = payload
-        current.revision += 1
-        current.updated_at = datetime.now(timezone.utc)
-        db.flush()
-    return current, before
+    )
+    if result.rowcount != 1:
+      raise HTTPException(409, "Revision conflict")
+    db.flush(); db.expire(current); db.refresh(current)
+  else:
+    current.uid = target_uid
+    current.payload = payload
+    current.revision += 1
+    current.updated_at = datetime.now(timezone.utc)
+    db.flush()
+  return current, before
