@@ -86,9 +86,13 @@ def _age_seconds(value: datetime) -> float:
 
 
 def _scene_observation_clause(scene_id: str):
+    regulated = f"scenescape/regulated/scene/{scene_id}"
+    unregulated = f"scenescape/data/scene/{scene_id}"
     return or_(
-        Observation.scene_id == scene_id,
-        Observation.topic == f"scenescape/regulated/scene/{scene_id}",
+        Observation.topic == regulated,
+        Observation.topic.startswith(regulated + "/", autoescape=True),
+        Observation.topic == unregulated,
+        Observation.topic.startswith(unregulated + "/", autoescape=True),
     )
 
 
