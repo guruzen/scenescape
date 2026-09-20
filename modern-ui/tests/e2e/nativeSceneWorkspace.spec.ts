@@ -24,6 +24,11 @@ test("UX-93 integrated Live 2D uses the native API and live observation stream",
   await expect(page.getByRole("status")).toContainText("LIVE")
 
   await expect.poll(async () => page.getByRole("button", { name: /Inspect tracked object test-track-1/ }).count(), { timeout: 15_000 }).toBe(1)
+  const object = page.getByRole("button", { name: /Inspect tracked object test-track-1/ })
+  const movingDot = object.locator(".track-dot")
+  const initialCx = await movingDot.getAttribute("cx")
+  await expect.poll(async () => movingDot.getAttribute("cx"), { timeout: 6_000 }).not.toBe(initialCx)
+
   await page.getByRole("checkbox", { name: /Trails/ }).check()
   await page.getByRole("checkbox", { name: /Telemetry/ }).check()
   await page.getByRole("checkbox", { name: /Heatmap/ }).check()
@@ -31,8 +36,12 @@ test("UX-93 integrated Live 2D uses the native API and live observation stream",
 
   await expect(page.locator('[aria-label="Live scene telemetry"]')).toBeVisible()
   await expect(page.locator('[aria-label="Visualization legend"]')).toContainText("2/2 vectors")
+  await expect(page.locator(".region-shape")).toHaveCount(1)
+  await expect(page.locator(".tripwire-line")).toHaveCount(0)
+  await expect(page.locator(".object-heatmap")).toHaveCount(4)
+  await expect(page.locator(".object-velocity")).toHaveCount(2)
+  await expect.poll(async () => page.locator(".object-trail").count(), { timeout: 6_000 }).toBeGreaterThan(0)
 
-  const object = page.getByRole("button", { name: /Inspect tracked object test-track-1/ })
   await object.focus()
   await object.press("Enter")
   await expect(page.locator('[aria-label="Scene inspector"]')).toContainText("Object test-track-1")
