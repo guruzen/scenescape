@@ -124,9 +124,9 @@ def test_native_operator_parity_surface_is_present():
   assert '/api/v2/cameras/{camera_id}/telemetry' in app
   # UX 2.0 groups these controls under Layers/Diagnostics rather than the
   # legacy "Show ..." labels. Lock the capability, not the old copy.
-  assert '>Heatmap<' in ui
-  assert '>Velocity<' in ui
-  assert '>Telemetry<' in ui
+  assert 'checked={showHeatmap}' in ui
+  assert 'checked={showVelocity}' in ui
+  assert 'checked={showTelemetry}' in ui
   assert 'SceneTelemetryHud' in ui
   assert 'SceneVisualizationLegend' in ui
   assert 'showHeatmap' in viewer
