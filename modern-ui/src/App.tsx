@@ -202,14 +202,14 @@ function SceneSensorTelemetry({ sensors }: { sensors: Row[] }) {
       return <div className="sensor-runtime-card" key={id}>
         <div><b>{rowName(sensor)}</b><code>{id}</code></div>
         <span className={latest?'status-pill ok-pill':'status-pill warning-pill'}>{latest?'Telemetry retained':'No telemetry'}</span>
-        <dl><dt>Area</dt><dd>{String(sensor.area||'scene')}</dd><dt>Type</dt><dd>{String(sensor.singleton_type||'environmental')}</dd><dt>Latest</dt><dd>{latest ? String(latest.observed_at || latest.timestamp || '—') : '—'}</dd></dl>
+        <dl><dt>Area</dt><dd>{String(sensor.area||'scene')}</dd><dt>Type</dt><dd>{String(sensor.singleton_type||'environmental')}</dd><dt>Latest</dt><dd>{latest ? String(latest.timestamp || '—') : '—'}</dd></dl>
         <div className="sensor-runtime-values">{rows.slice(0,5).map((row,i)=><div key={String(row.id??i)}><b>{String(row.payload?.subtype || row.payload?.type || 'value')}</b><span>{text(row.payload?.value ?? row.payload)}</span></div>)}{!rows.length&&<div className="table-empty">No retained values.</div>}</div>
       </div>
     })}</div>
   </section>
 }
 
-function SceneRuntime({ live, bundle }: { live: Row; bundle: Bundle }) {
+function SceneRuntime({ live, bundle, overview }: { live: Row; bundle: Bundle; overview?: Row | null }) {
   const observed = live.observed_at ? new Date(String(live.observed_at)) : null
   const age = observed ? Math.max(0,(Date.now()-observed.getTime())/1000) : null
   return <div className="metric-grid compact">
@@ -217,6 +217,7 @@ function SceneRuntime({ live, bundle }: { live: Row; bundle: Bundle }) {
     <div className="metric"><span>Scene rate</span><strong>{Number(live.scene_rate||0).toFixed(1)}</strong><small>Hz reported by regulated scene feed</small></div>
     <div className="metric"><span>Tracked objects</span><strong>{(live.objects||[]).length}</strong><small>Current retained observation</small></div>
     <div className="metric"><span>Configured inputs</span><strong>{bundle.cameras.length + bundle.sensors.length}</strong><small>{bundle.cameras.length} cameras · {bundle.sensors.length} sensors</small></div>
+    <div className="metric"><span>MQTT ingestion</span><strong className="small-value">{String(overview?.health?.mqtt || 'unknown')}</strong><small>Server-side broker heartbeat</small></div>
   </div>
 }
 
@@ -284,6 +285,7 @@ function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D'
   const [selectedCameraId, setSelectedCameraId] = useState('')
   const [cameraView, setCameraView] = useState(false)
   const [lightIntensity, setLightIntensity] = useState(1)
+  const [runtimeOverview, setRuntimeOverview] = useState<Row | null>(null)
   const visualRef = useRef<HTMLDivElement | null>(null)
   const id = rowId(scene)
 
@@ -351,7 +353,7 @@ function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D'
     {tab === 'Geometry' && <SpatialEditor scene={bundle.scene} regions={bundle.regions} tripwires={bundle.tripwires} isAdmin={isAdmin} onSaved={loadBundle}/>}
     {tab === 'Hierarchy' && <HierarchyEditor scenes={scenes} isAdmin={isAdmin} initialParent={id}/>}
     {tab === 'Camera calibration' && <CameraCalibration scene={bundle.scene} cameras={bundle.cameras} isAdmin={isAdmin} onSaved={loadBundle}/>}
-    {tab === 'Runtime' && <SceneRuntime live={live} bundle={bundle}/>}
+    {tab === 'Runtime' && <><div className="header-actions runtime-refresh"><button className="btn" onClick={()=>void apiFetch<Row>('/api/v2/overview').then(setRuntimeOverview)}>Refresh runtime</button></div><SceneRuntime live={live} bundle={bundle} overview={runtimeOverview}/></>}
     {tab === 'History & replay' && <section className="panel history-panel"><div className="panel-title"><div><h2>Persisted observations</h2><p>Metadata replay from the native historian.</p></div><button className="btn btn-primary" onClick={() => void apiFetch<Row[]>(`/api/v2/scenes/${id}/history`).then(setHistory)}>Load history</button></div>{history.length > 0 ? <><input type="range" min="0" max={history.length - 1}/><div className="history-list">{history.slice(-12).map((row) => <div key={row.id}><b>{row.timestamp}</b><span>{(row.payload?.objects || []).length} objects</span></div>)}</div></> : <div className="table-empty">No retained samples loaded yet.</div>}</section>}
     {tab === 'Trends & analytics' && <section className="panel"><div className="panel-title"><div><h2>24-hour object trend</h2><p>Calculated from retained observations, not synthetic data.</p></div><button className="btn btn-primary" onClick={() => void apiFetch<Row[]>(`/api/v2/scenes/${id}/trends`).then(setTrends)}>Apply range</button></div><div className="table-wrap"><table><thead><tr><th>Hour</th><th>Average objects</th><th>Samples</th></tr></thead><tbody>{trends.map((row) => <tr key={row.bucket}><td>{row.bucket}</td><td>{row.average_objects}</td><td>{row.samples}</td></tr>)}</tbody></table>{!trends.length && <div className="table-empty">No trend samples loaded yet.</div>}</div></section>}
   </>
