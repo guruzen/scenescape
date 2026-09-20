@@ -162,6 +162,9 @@ export default function ThreeScene({
 
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
     renderer.domElement.className = 'three-canvas'
+    renderer.domElement.tabIndex = 0
+    renderer.domElement.setAttribute('role', 'region')
+    renderer.domElement.setAttribute('aria-label', 'Interactive 3D scene. Use the tracked object selector or pointer to inspect objects.')
     renderSurface.replaceChildren(renderer.domElement)
 
     const hemisphere = new THREE.HemisphereLight(0xffffff, 0x334455, 1.8 * lightIntensity)
