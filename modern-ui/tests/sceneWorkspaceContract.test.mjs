@@ -3,6 +3,7 @@ import test from "node:test"
 
 import { deriveSceneStatus } from "../src/ux/sceneStatus.ts"
 import { controlsForRenderer, summarizeLiveObjectAvailability } from "../src/ux/sceneViewControls.ts"
+import { buildInspectorModel, refreshObjectSelection } from "../src/ux/sceneInspector.ts"
 
 import {
   DEFAULT_SCENE_DESTINATION,
@@ -147,4 +148,31 @@ test("unit: data-dependent layer availability reports velocity coverage", () => 
   assert.deepEqual(summarizeLiveObjectAvailability([]), {
     total: 0, velocityVectors: 0, trailsAvailable: false, heatmapAvailable: false, velocityAvailable: false,
   })
+})
+
+
+test("unit: object inspector derives current speed dwell visibility and persistent data", () => {
+  const selection = { kind: "object", id: "42", value: { id: 42, category: "person", translation: [1, 2, 0], velocity: [3, 4], regions: { checkout: { dwell: 12.5 } }, visibility: ["cam-a"], persistent_data: { badge: "A7" } } }
+  const model = buildInspectorModel(selection)
+  assert.equal(model.title, "Object 42")
+  assert.equal(model.fields.find((field) => field.label === "Speed").value, "5.00 m/s")
+  assert.equal(model.fields.find((field) => field.label === "Dwell").value, "12.5 s")
+  assert.equal(model.fields.find((field) => field.label === "Visible cameras").value, "cam-a")
+  assert.match(model.persistentData, /A7/)
+})
+
+test("unit: inspector preserves Unknown for unavailable optional data", () => {
+  const camera = buildInspectorModel({ kind: "camera", id: "cam-1", value: { name: "Camera 1" } })
+  assert.equal(camera.fields.find((field) => field.label === "FPS").value, "Unknown")
+  assert.equal(camera.fields.find((field) => field.label === "Feed").value, "Unknown")
+  const sensor = buildInspectorModel({ kind: "sensor", id: "s1", value: { name: "Temp" } })
+  assert.equal(sensor.fields.find((field) => field.label === "Latest value").value, "Unknown")
+})
+
+test("regression: selected tracked object refreshes from the latest live observation", () => {
+  const previous = { kind: "object", id: "7", value: { id: 7, translation: [1, 1] } }
+  const refreshed = refreshObjectSelection(previous, [{ id: 7, translation: [2, 3] }])
+  assert.deepEqual(refreshed.value.translation, [2, 3])
+  const retained = refreshObjectSelection(previous, [])
+  assert.deepEqual(retained.value.translation, [1, 1])
 })
