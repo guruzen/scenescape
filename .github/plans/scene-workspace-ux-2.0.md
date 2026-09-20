@@ -544,13 +544,13 @@ The primary objective is monitoring, not full editing.
 
 ### Phase 7 — Visual hierarchy and responsive polish
 
-- [ ] **UX-70** Establish clear primary/secondary/tertiary visual hierarchy.
-- [ ] **UX-71** Reduce equal-weight borders/buttons where they create visual noise.
-- [ ] **UX-72** Standardize spacing and toolbar density.
-- [ ] **UX-73** Implement responsive inspector drawer behavior.
-- [ ] **UX-74** Validate at desktop, medium, and narrow breakpoints.
-- [ ] **UX-75** Verify all existing themes.
-- [ ] **UX-76** Verify fullscreen behavior after layout refactor.
+- [x] **UX-70** Establish clear primary/secondary/tertiary visual hierarchy.
+- [x] **UX-71** Reduce equal-weight borders/buttons where they create visual noise.
+- [x] **UX-72** Standardize spacing and toolbar density.
+- [x] **UX-73** Implement responsive inspector drawer behavior.
+- [x] **UX-74** Validate at desktop, medium, and narrow breakpoints.
+- [x] **UX-75** Verify all existing themes.
+- [x] **UX-76** Verify fullscreen behavior after layout refactor.
 
 ### Phase 8 — Accessibility and interaction quality
 
@@ -724,6 +724,7 @@ Scene Workspace UX 2.0 is complete only when:
 | 2026-09-20 | UX-40–UX-49 | `d464a752999151d106dbf1de20033b2ef8cbae72` | Contextual inspector added for objects/cameras/sensors/regions/tripwires; 2D and 3D object selection included. Unit/integrity/regression suite: 12 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-40-UX-49-inspector-evidence.md`. |
 | 2026-09-20 | UX-50–UX-56 | `3349ffb72be52a7a640d2e7dc2bbf99d1aac7620` | Shared telemetry HUD added; unknown values stay unknown; persistent object data moved to inspector; scene-switch reset prevents stale telemetry. UX suite: 14 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-50-UX-56-telemetry-evidence.md`. |
 | 2026-09-20 | UX-60–UX-67 | `5d48a7a7b67a6807e57aa18040a47a0d46d47c84` | Heatmap legend/opacity and bounded 2D/3D velocity semantics added. Final UX suite: 16 passed, 0 failed after one caught/fixed -0 edge case. Evidence: `.github/evidence/scene-workspace-ux/UX-60-UX-67-visualization-evidence.md`. |
+| 2026-09-20 | UX-70–UX-76 | `d198a225997239673b694e44d707990f758e7ceb` | Visual hierarchy simplified; responsive inspector drawer and corrected 2D/3D fullscreen added; theme/breakpoint contract tested. UX suite: 18 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-70-UX-76-layout-evidence.md`. |
 
 ---
 
