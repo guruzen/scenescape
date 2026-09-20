@@ -23,7 +23,7 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: "npx vite --config vite.native-tests.config.ts",
+    command: "cd ../.. && npx vite --config vite.native-tests.config.ts",
     url: "http://127.0.0.1:4174/tests/harness.html",
     reuseExistingServer: false,
     timeout: 120000,
