@@ -7,7 +7,8 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
-    "test:ux": "node --experimental-strip-types --test tests/*.test.mjs"
+    "test:ux": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test:smoke:ux": "playwright test --config tests/e2e/playwright.config.ts"
   },
   "dependencies": {
     "keycloak-js": "26.2.4",
@@ -23,6 +24,7 @@
     "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
     "vite": "8.3.0",
-    "@types/three": "0.180.0"
+    "@types/three": "0.180.0",
+    "@playwright/test": "1.55.0"
   }
 }
