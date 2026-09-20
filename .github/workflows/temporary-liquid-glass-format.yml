@@ -1,0 +1,52 @@
+---
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: "Temporary Liquid Glass formatter"
+
+on:
+  push:
+    branches:
+      - feature/react-keycloak-modern-ui
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feature/react-keycloak-modern-ui
+          persist-credentials: true
+
+      - name: Install Prettier dependencies
+        run: |
+          cp .github/resources/package.json package.json
+          npm install
+          rm package.json
+
+      - name: Apply repository Prettier formatting
+        run: |
+          make prettier-write
+          git checkout -- .github/workflows
+
+      - name: Verify Prettier
+        run: make prettier-check
+
+      - name: Commit formatting
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git reset .github/workflows
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No formatting changes required."
+            exit 0
+          fi
+          git commit -m "Format Liquid Glass theme changes"
+          git push origin HEAD:feature/react-keycloak-modern-ui
