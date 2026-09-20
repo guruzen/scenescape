@@ -7,7 +7,7 @@ from copy import deepcopy
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from .database import Resource
 
@@ -366,18 +366,27 @@ def create_child_link(db, body: dict, actor, *, legacy: bool = False) -> Resourc
 
 
 def update_child_link(db, row: Resource, body: dict, actor, *, legacy: bool = False, expected_revision: int | None = None) -> tuple[Resource, bool]:
-    if expected_revision is not None and row.revision != expected_revision:
-        raise HTTPException(409, "Revision conflict")
     payload, _, notify = normalize_child(db, body, row=row, creating=False, legacy=legacy)
     current = dict(row.payload or {})
     if notify:
         # A normal hierarchy edit canonicalizes the pre-1C ``scene`` parent
         # artifact. Cache-only writes intentionally leave hierarchy fields alone.
         current.pop("scene", None)
-    row.payload = {**current, **payload, "uid": row.uid}
-    row.revision += 1
-    row.updated_at = datetime.now(timezone.utc)
-    db.flush()
+    merged = {**current, **payload, "uid": row.uid}
+    if expected_revision is not None:
+        result = db.execute(
+            update(Resource).where(Resource.id == row.id, Resource.revision == expected_revision).values(
+                payload=merged, revision=expected_revision + 1, updated_at=datetime.now(timezone.utc)
+            )
+        )
+        if result.rowcount != 1:
+            raise HTTPException(409, "Revision conflict")
+        db.flush(); db.expire(row); db.refresh(row)
+    else:
+        row.payload = merged
+        row.revision += 1
+        row.updated_at = datetime.now(timezone.utc)
+        db.flush()
     return row, notify
 
 
