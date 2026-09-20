@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 name: "Temporary visual refresh formatter"
+# Registered workflow; this edit triggers the one-shot formatter.
 
 on:
   push:
