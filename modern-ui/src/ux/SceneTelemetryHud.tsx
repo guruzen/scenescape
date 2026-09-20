@@ -3,6 +3,7 @@
  */
 
 import { deriveSceneTelemetry } from "./sceneTelemetry"
+import { LIVE_REGION_POLICY } from "./sceneAccessibility"
 
 type Row = Record<string, any>
 
@@ -11,7 +12,7 @@ export default function SceneTelemetryHud({ live }: { live: Row }) {
   const sceneRate = telemetry.sceneRate === null ? "Unknown" : `${telemetry.sceneRate.toFixed(1)} Hz`
   const age = telemetry.ageSeconds === null ? "Unknown" : `${telemetry.ageSeconds.toFixed(1)} s`
 
-  return <aside className="scene-telemetry-hud" aria-label="Live scene telemetry">
+  return <aside className="scene-telemetry-hud" aria-label="Live scene telemetry" aria-live={LIVE_REGION_POLICY.telemetryMetrics}>
     <div className="scene-telemetry-title-row">
       <b>Live telemetry</b>
       <span className={telemetry.freshness === "Receiving" ? "ok-text" : telemetry.freshness === "Stale" ? "warning-text" : ""}>{telemetry.freshness}</span>
