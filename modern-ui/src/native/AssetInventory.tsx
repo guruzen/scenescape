@@ -72,7 +72,7 @@ export default function AssetInventory({isAdmin}:{isAdmin:boolean}){
   const remove=async()=>{
     if(!selected||!isAdmin||!window.confirm(`Delete ${nameOf(selected)}?`))return
     setBusy(true)
-    try{await apiFetch(`/api/v2/assets/${encodeURIComponent(idOf(selected))}`,{method:'DELETE'});open(null);setSelected(null);load()}
+    try{await apiFetch(`/api/v2/assets/${encodeURIComponent(idOf(selected))}?revision=${selected.revision}`,{method:'DELETE'});open(null);setSelected(null);load()}
     catch(e){setError(String(e))}finally{setBusy(false)}
   }
   const clearModel=()=>{setModelFile(null);field('model_3d',null);setModelUrl('')}
