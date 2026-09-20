@@ -30,7 +30,10 @@ jobs:
           rm package.json
 
       - name: Apply repository Prettier formatting
-        run: make prettier-write
+        run: |
+          make prettier-write
+          cp .github/workflows/scene-workspace-ux-gate.yml /tmp/scene-workspace-ux-gate.yml
+          git checkout -- .github/workflows
 
       - name: Apply repository two-space Python indentation
         shell: bash
@@ -86,22 +89,25 @@ jobs:
             rm "$tmp"
           done <<< "$files"
 
-      - name: Verify formatter gates before commit
+      - name: Verify Python indentation
+        run: make indent-check
+
+      - name: Emit formatted workflow
         run: |
-          make prettier-check
-          make indent-check
+          echo "FORMATTED_SCENE_WORKFLOW_BEGIN"
+          base64 -w0 /tmp/scene-workspace-ux-gate.yml
+          echo
+          echo "FORMATTED_SCENE_WORKFLOW_END"
 
-      - name: Remove temporary formatter workflow
-        run: rm .github/workflows/temporary-branch-format.yml
-
-      - name: Commit formatting
+      - name: Commit non-workflow formatting
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
+          git reset .github/workflows
           git diff --cached --check
           if git diff --cached --quiet; then
-            echo "No formatting changes required."
+            echo "No non-workflow formatting changes required."
             exit 0
           fi
           git commit -m "Fix repository lint formatting"
