@@ -6,7 +6,7 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
 async function openNativeScene(page: Page) {
   await page.goto("/tests/harness.html#/overview")
-  const open = page.getByRole("button", { name: "Open live view" }).first()
+  const open = page.getByRole("button", { name: "Open native scene" }).first()
   await expect(open).toBeVisible({ timeout: 20_000 })
   await open.click()
   await expect(page.getByRole("heading", { name: "Test distribution floor", exact: true })).toBeVisible()
