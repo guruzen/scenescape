@@ -402,6 +402,28 @@ test("integrity: visual hierarchy and supported themes remain explicit", () => {
   );
 });
 
+test("integrity: visual design system uses neutral surfaces and restrained theme labels", () => {
+  assert.deepEqual(
+    SUPPORTED_UI_THEMES.map((theme) => theme.label),
+    ["Spatial Light", "Soft Light", "Spatial Dark", "Dense Dark"],
+  );
+
+  const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8");
+  assert.match(css, /--panel-raised:/);
+  assert.match(css, /--surface-hover:/);
+  assert.match(css, /--accent-soft:/);
+  assert.match(css, /--info:/);
+  assert.match(css, /\.nav-item\.active[^]*?inset 2px 0 0 rgb\(var\(--accent\)\)/);
+  assert.match(css, /\.incident-layout\.has-detail/);
+
+  const appSource = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+  assert.match(appSource, /Spatial operations/);
+  assert.match(appSource, />Operations<\/div>/);
+  assert.match(appSource, />Configuration<\/div>/);
+  assert.doesNotMatch(appSource, /Operations · data plane/);
+  assert.doesNotMatch(appSource, /Configuration · control plane/);
+});
+
 test("unit: keyboard selection uses native activation keys only", () => {
   assert.equal(isSelectionActivationKey("Enter"), true);
   assert.equal(isSelectionActivationKey(" "), true);
