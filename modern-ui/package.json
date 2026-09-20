@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "test:ux": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
     "keycloak-js": "26.2.4",
