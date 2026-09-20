@@ -118,28 +118,28 @@ a {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: 248px minmax(0, 1fr);
 }
 .sidebar {
   position: sticky;
   top: 0;
   height: 100vh;
   overflow: auto;
-  padding: 18px 12px;
+  padding: 20px 14px;
   background: color-mix(in srgb, rgb(var(--panel)) 94%, rgb(var(--bg)));
   border-right: 1px solid color-mix(in srgb, rgb(var(--line)) 72%, transparent);
 }
 .brand {
   display: flex;
-  gap: 11px;
+  gap: 12px;
   align-items: center;
-  padding: 4px 8px 18px;
-  margin-bottom: 6px;
+  padding: 4px 8px 20px;
+  margin-bottom: 8px;
   border-bottom: 1px solid color-mix(in srgb, rgb(var(--line)) 58%, transparent);
 }
 .brand-mark {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 9px;
   display: grid;
   place-items: center;
@@ -151,23 +151,27 @@ a {
 }
 .brand b {
   display: block;
-  font-size: 14px;
-  font-weight: 680;
-  letter-spacing: -0.01em;
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.015em;
 }
 .brand span {
   display: block;
+  margin-top: 3px;
   color: rgb(var(--muted));
-  font-size: 10px;
-  letter-spacing: 0.01em;
-  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 .nav-label {
-  margin: 20px 10px 7px;
-  color: rgb(var(--muted));
-  font-size: 10px;
+  margin: 24px 10px 8px;
+  color: color-mix(in srgb, rgb(var(--text)) 62%, rgb(var(--muted)));
+  font-size: 11px;
+  line-height: 1.25;
   font-weight: 650;
-  letter-spacing: 0.025em;
+  letter-spacing: 0.005em;
 }
 .nav-item {
   position: relative;
@@ -181,8 +185,9 @@ a {
   color: rgb(var(--muted));
   text-align: left;
   cursor: pointer;
-  font-weight: 570;
-  font-size: 12.5px;
+  font-weight: 520;
+  font-size: 13px;
+  line-height: 1.35;
   transition:
     background 140ms ease,
     color 140ms ease;
@@ -193,8 +198,9 @@ a {
 }
 .nav-item.active {
   color: rgb(var(--text));
-  background: color-mix(in srgb, rgb(var(--accent)) 10%, rgb(var(--panel)));
+  background: color-mix(in srgb, rgb(var(--accent)) 9%, rgb(var(--panel)));
   box-shadow: inset 2px 0 0 rgb(var(--accent));
+  font-weight: 630;
 }
 .content-shell {
   min-width: 0;
