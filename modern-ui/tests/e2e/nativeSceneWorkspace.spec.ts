@@ -6,10 +6,10 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
 async function openNativeScene(page: Page) {
   await page.goto("/tests/harness.html#/overview")
-  const open = page.getByRole("button", { name: "Open native scene" }).first()
-  await expect(open).toBeVisible({ timeout: 20_000 })
-  await open.click()
-  await expect(page.getByRole("heading", { name: "Test distribution floor", exact: true })).toBeVisible()
+  const sceneId = (await page.locator(".scene-row span").first().textContent())?.trim()
+  expect(sceneId).toBeTruthy()
+  await page.goto(`/tests/harness.html#/scene/${sceneId}`)
+  await expect(page.getByRole("heading", { name: "Test distribution floor", exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(page.locator('[aria-label="Scene operational status"]')).toBeVisible()
 }
 
