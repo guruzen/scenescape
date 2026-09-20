@@ -37,7 +37,7 @@ export default function HierarchyEditor({scenes,isAdmin,initialParent=''}:{scene
   const localOptions=scenes.filter((scene)=>idOf(scene)!==String(draft.parent||'')&&!linkedLocalChildren.has(idOf(scene)))
   const open=(row:Row|null,parent=initialParent)=>{
     setSelected(row)
-    if(row)setDraft(editDraft(row))
+    if(row)setDraft({...editDraft(row),mqtt_password:''})
     else setDraft({...defaultDraft,parent,matrix:[...identity],quaternion:[0,0,0,1]})
     setMessage('');setError('')
   }
@@ -111,7 +111,7 @@ export default function HierarchyEditor({scenes,isAdmin,initialParent=''}:{scene
           <label>Remote child UUID<input value={String(draft.remote_child_id||'')} onChange={(e)=>field('remote_child_id',e.target.value)}/></label>
           <label className="wide">MQTT host<input value={String(draft.host_name||'')} onChange={(e)=>field('host_name',e.target.value)} placeholder="broker.example.com"/></label>
           <label>MQTT username<input value={String(draft.mqtt_username||'')} onChange={(e)=>field('mqtt_username',e.target.value)}/></label>
-          <label>MQTT password<input type="password" value={String(draft.mqtt_password||'')} onChange={(e)=>field('mqtt_password',e.target.value)}/></label>
+          <label>MQTT password<input type="password" value={String(draft.mqtt_password||'')} onChange={(e)=>field('mqtt_password',e.target.value)} placeholder={draft.has_mqtt_password?'Stored — leave blank to keep':'Required'}/></label>
         </>}
         <label className="checkbox-label"><input type="checkbox" checked={Boolean(draft.retrack)} onChange={(e)=>field('retrack',e.target.checked)}/>Retrack child objects in parent</label>
         <label>Transform<select value={String(draft.transform_type||'euler')} onChange={(e)=>field('transform_type',e.target.value)}><option value="euler">Euler</option><option value="quaternion">Quaternion</option><option value="matrix">Matrix</option></select></label>
