@@ -165,7 +165,7 @@ export default function CameraInventory({ isAdmin }: { isAdmin: boolean }) {
     if (!selected || !isAdmin || !window.confirm(`Delete ${nameOf(selected)}?`)) return
     setBusy(true)
     try {
-      await apiFetch(`/api/v2/cameras/${encodeURIComponent(idOf(selected))}`, {method:'DELETE'})
+      await apiFetch(`/api/v2/cameras/${encodeURIComponent(idOf(selected))}?revision=${selected.revision}`, {method:'DELETE'})
       open(null); setSelected(null); load()
     } catch(e) { setError(String(e)) } finally { setBusy(false) }
   }
