@@ -97,3 +97,9 @@ export function defaultDestinationForMode(mode: ScenePrimaryMode): SceneDestinat
 export function routeForDestination(destination: SceneDestination): string | null {
   return ROUTE_BY_DESTINATION_KEY[destinationKey(destination)] ?? null
 }
+
+export function initialLegacyTabForSceneSuffix(suffix: string | undefined): LegacySceneTab {
+  if (suffix === "geometry") return "Geometry"
+  if (suffix === "hierarchy") return "Hierarchy"
+  return "Live 2D"
+}
