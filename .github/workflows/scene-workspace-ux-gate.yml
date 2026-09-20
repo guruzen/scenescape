@@ -75,3 +75,27 @@ jobs:
             modern-ui/test-results/
           if-no-files-found: warn
           retention-days: 14
+
+  backend:
+    name: "Native control API regression"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Create Python environment
+        run: |
+          python3 -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r control-api/requirements.txt -r control-api/requirements-test.txt
+
+      - name: Run native control API regression suite
+        env:
+          PYTHONPATH: control-api
+        run: |
+          . .venv/bin/activate
+          pytest control-api/tests -q
