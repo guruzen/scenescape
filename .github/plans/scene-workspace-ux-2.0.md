@@ -527,20 +527,20 @@ The primary objective is monitoring, not full editing.
 
 ### Phase 6 — Heatmap and velocity refinement
 
-- [ ] **UX-60** Formalize current heatmap layer styling and legend.
-- [ ] **UX-61** Ensure heatmap works consistently in 2D and 3D.
-- [ ] **UX-62** Add heatmap intensity/opacity control if it improves usability without excessive complexity.
-- [ ] **UX-63** Add historical range choices only if backed by real retained data.
-- [ ] **UX-64** Refine 2D velocity arrows.
-- [ ] **UX-65** Refine 3D velocity arrows.
-- [ ] **UX-66** Add numeric speed/velocity to object inspector.
-- [ ] **UX-67** Add explicit vector availability count.
+- [x] **UX-60** Formalize current heatmap layer styling and legend.
+- [x] **UX-61** Ensure heatmap works consistently in 2D and 3D.
+- [x] **UX-62** Add heatmap intensity/opacity control if it improves usability without excessive complexity.
+- [x] **UX-63** Add historical range choices only if backed by real retained data.
+- [x] **UX-64** Refine 2D velocity arrows.
+- [x] **UX-65** Refine 3D velocity arrows.
+- [x] **UX-66** Add numeric speed/velocity to object inspector.
+- [x] **UX-67** Add explicit vector availability count.
 
 **Acceptance gate — Phase 6**
 
-- [ ] Heatmap semantics are explained by the UI.
-- [ ] Velocity semantics are explained by the UI.
-- [ ] No historical visualization is synthesized from unavailable data.
+- [x] Heatmap semantics are explained by the UI.
+- [x] Velocity semantics are explained by the UI.
+- [x] No historical visualization is synthesized from unavailable data.
 
 ### Phase 7 — Visual hierarchy and responsive polish
 
@@ -723,6 +723,7 @@ Scene Workspace UX 2.0 is complete only when:
 | 2026-09-20 | UX-30–UX-36 | `23ea0b7335d04c42c3d0bcbd528fb08f0485121f` | Flat live controls replaced with Layers/Diagnostics/2D/3D groups; data availability is explicit. Unit/integrity/regression suite: 9 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-30-UX-36-controls-evidence.md`. |
 | 2026-09-20 | UX-40–UX-49 | `d464a752999151d106dbf1de20033b2ef8cbae72` | Contextual inspector added for objects/cameras/sensors/regions/tripwires; 2D and 3D object selection included. Unit/integrity/regression suite: 12 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-40-UX-49-inspector-evidence.md`. |
 | 2026-09-20 | UX-50–UX-56 | `3349ffb72be52a7a640d2e7dc2bbf99d1aac7620` | Shared telemetry HUD added; unknown values stay unknown; persistent object data moved to inspector; scene-switch reset prevents stale telemetry. UX suite: 14 passed, 0 failed. Evidence: `.github/evidence/scene-workspace-ux/UX-50-UX-56-telemetry-evidence.md`. |
+| 2026-09-20 | UX-60–UX-67 | `5d48a7a7b67a6807e57aa18040a47a0d46d47c84` | Heatmap legend/opacity and bounded 2D/3D velocity semantics added. Final UX suite: 16 passed, 0 failed after one caught/fixed -0 edge case. Evidence: `.github/evidence/scene-workspace-ux/UX-60-UX-67-visualization-evidence.md`. |
 
 ---
 
