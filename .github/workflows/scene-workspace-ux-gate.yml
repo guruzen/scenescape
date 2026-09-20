@@ -116,3 +116,80 @@ jobs:
             control-api/tests/test_native_api.py::test_scene_import_zip_rejects_duplicate_basenames_symlinks_and_zip_bombs \
             control-api/tests/test_keycloak_admin.py \
             control-api/tests/test_runtime.py::test_native_operator_parity_surface_is_present
+
+
+  integrated-browser:
+    name: "Integrated native UI/API browser smoke"
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 22
+        shell: bash
+        run: |
+          export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+          if [ -s "$NVM_DIR/nvm.sh" ]; then
+            # shellcheck source=/dev/null
+            . "$NVM_DIR/nvm.sh"
+            nvm install 22
+            nvm use 22
+          fi
+          node --version
+          npm --version
+
+      - name: Install Modern UI dependencies
+        working-directory: modern-ui
+        run: npm install --no-audit --no-fund
+
+      - name: Create native API test environment
+        run: |
+          python3 -m venv .venv-native-browser
+          . .venv-native-browser/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r control-api/requirements.txt -r control-api/requirements-test.txt
+
+      - name: Start synthetic live native API
+        shell: bash
+        run: |
+          . .venv-native-browser/bin/activate
+          PYTHONPATH=control-api nohup python control-api/tests/browser_server.py > /tmp/scenescape-native-browser-api.log 2>&1 &
+          echo $! > /tmp/scenescape-native-browser-api.pid
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:8765/api/v1/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/scenescape-native-browser-api.log
+          exit 1
+
+      - name: Install Chromium for integrated smoke
+        working-directory: modern-ui
+        run: npx playwright install --with-deps chromium
+
+      - name: Run integrated native Scene Workspace smoke
+        working-directory: modern-ui
+        run: npm run test:smoke:native
+
+      - name: Upload integrated native UX evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scene-workspace-native-integration
+          path: |
+            modern-ui/test-results-native/**
+            /tmp/scenescape-native-browser-api.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop synthetic native API
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/scenescape-native-browser-api.pid ]; then
+            kill "$(cat /tmp/scenescape-native-browser-api.pid)" || true
+          fi
