@@ -230,8 +230,8 @@ test("UX-94 Live 3D smoke: WebGL view and renderer-specific controls", async ({ 
   await expect(page.getByRole("checkbox", { name: /Floor plane/ })).toBeVisible()
   await expect(page.getByRole("checkbox", { name: /Camera frames/ })).toBeVisible()
   await expect(page.getByLabel("Select tracked object for inspector")).toBeVisible()
-  await expect(page.getByText("Camera opacity", { exact: true })).toBeVisible()
-  await expect(page.getByText("Light", { exact: true })).toBeVisible()
+  await expect(page.getByRole("slider", { name: /Camera opacity/ })).toBeVisible()
+  await expect(page.getByRole("slider", { name: /Light/ })).toBeVisible()
 
   await page.getByLabel("Select tracked object for inspector").selectOption("1")
   await expect(page.locator('[aria-label="Scene inspector"]')).toContainText("Object 1")
