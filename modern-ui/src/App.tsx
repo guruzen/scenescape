@@ -60,7 +60,7 @@ function Header({ title, kicker, children }: { title: string; kicker: string; ch
   return <div className="page-header"><div><div className="kicker">{kicker}</div><h1>{title}</h1></div><div className="header-actions">{children}</div></div>
 }
 
-function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = false, visualizeRois = true, trails = {} }: { bundle: Bundle; live: Row; onPoint?: (point: number[]) => void; showTrails?: boolean; showTelemetry?: boolean; visualizeRois?: boolean; trails?: Record<string, number[][]> }) {
+function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = false, showHeatmap = false, showVelocity = false, visualizeRois = true, trails = {} }: { bundle: Bundle; live: Row; onPoint?: (point: number[]) => void; showTrails?: boolean; showTelemetry?: boolean; showHeatmap?: boolean; showVelocity?: boolean; visualizeRois?: boolean; trails?: Record<string, number[][]> }) {
   const scene = bundle.scene
   const [mapUrl, setMapUrl] = useState('')
   const [size, setSize] = useState<[number, number]>([1000, 700])
@@ -122,6 +122,11 @@ function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = fals
       const py = ((event.clientY - rect.top) / rect.height) * size[1]
       onPoint([px / scale, (size[1] - py) / scale])
     }}>
+      <defs>
+        <marker id="velocity-arrow-head" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L8,4 L0,8 z" className="velocity-arrow-head"/>
+        </marker>
+      </defs>
       {mapUrl && <image href={mapUrl} x="0" y="0" width={size[0]} height={size[1]} preserveAspectRatio="none" />}
       {visualizeRois && bundle.regions.map((row, i) => row.visible && regionPoints[i] && <polygon key={rowId(row) || i} points={regionPoints[i]} className="region-shape" />)}
       {visualizeRois && childRegions.map((row, i) => childRegionPoints[i] && <polygon key={`child-region-${rowId(row)||i}`} points={childRegionPoints[i]} className="child-region-shape" />)}
@@ -167,19 +172,55 @@ function Map2D({ bundle, live, onPoint, showTrails = false, showTelemetry = fals
       })}
       {(live.objects || []).map((object: Row, i: number) => {
         const [x, y] = xy(object.translation || [i + 1, i + 1])
-        const label = String(object.category || object.id || 'object')
+        const label = String(object.category || object.type || object.id || 'object')
         const activeDwells = object.regions && typeof object.regions === 'object'
           ? Object.values(object.regions as Row).filter((value:any)=>value?.entered && value?.dwell != null).map((value:any)=>Number(value.dwell))
           : []
         const dwell = activeDwells.length ? Math.max(...activeDwells) : null
+        const velocity = Array.isArray(object.velocity) && object.velocity.length >= 2
+          ? [Number(object.velocity[0] || 0), Number(object.velocity[1] || 0)]
+          : null
+        const magnitude = velocity ? Math.hypot(velocity[0], velocity[1]) : 0
+        const velocityLength = Math.min(2.5, Math.max(0.4, magnitude)) * scale
+        const velocityEnd = velocity && magnitude > 0.001
+          ? [x + (velocity[0] / magnitude) * velocityLength, y - (velocity[1] / magnitude) * velocityLength]
+          : null
+        const persistent = object.persistent_data && typeof object.persistent_data === 'object'
+          ? Object.entries(object.persistent_data as Row).flatMap(([key,value]) =>
+              value && typeof value === 'object'
+                ? Object.entries(value as Row).map(([nested,nestedValue])=>`${key}.${nested}=${String(nestedValue)}`)
+                : [`${key}=${String(value)}`]
+            ).slice(0,3)
+          : []
         const telemetry = showTelemetry ? [
           object.id != null ? `#${object.id}` : '',
-          Array.isArray(object.velocity) ? `v ${object.velocity.slice(0,2).map((v:any)=>Number(v).toFixed(2)).join(',')}` : '',
+          velocity ? `v ${velocity.map((v)=>v.toFixed(2)).join(',')}` : '',
           dwell != null && Number.isFinite(dwell) ? `dwell ${dwell.toFixed(1)}s` : '',
-        ].filter(Boolean).join(' · ') : ''
-        return <g key={String(object.id ?? i)}><circle cx={x} cy={y} r="7" className="track-dot"/><text x={x + 10} y={y + 4} className="map-label">{label}</text>{telemetry && <text x={x + 10} y={y + 18} className="map-telemetry">{telemetry}</text>}</g>
+          ...persistent,
+        ].filter(Boolean) : []
+        const heatRadius = Math.max(14, Math.min(90, Number(object.tracking_radius || 0.6) * scale))
+        return <g key={String(object.id ?? i)}>
+          {showHeatmap && <circle cx={x} cy={y} r={heatRadius} className="object-heatmap"/>}
+          {showHeatmap && <circle cx={x} cy={y} r={Math.max(8,heatRadius*0.45)} className="object-heatmap-core"/>}
+          {showVelocity && velocityEnd && <line x1={x} y1={y} x2={velocityEnd[0]} y2={velocityEnd[1]} className="object-velocity" markerEnd="url(#velocity-arrow-head)"/>}
+          <circle cx={x} cy={y} r="7" className="track-dot"/>
+          <text x={x + 10} y={y + 4} className="map-label">{label}</text>
+          {telemetry.map((line,index)=><text key={line+index} x={x + 10} y={y + 18 + index*12} className="map-telemetry">{line}</text>)}
+        </g>
       })}
     </svg>
+    {showTelemetry && <div className="scene-telemetry-hud">
+      <b>Live telemetry</b>
+      <span>Scene {Number(live.scene_rate || 0).toFixed(1)} Hz</span>
+      <span>{(live.objects || []).length} objects</span>
+      {live.rate && typeof live.rate === 'object'
+        ? Object.entries(live.rate as Row).map(([camera,value])=><span key={camera}>{camera}: {Number(value || 0).toFixed(1)} FPS</span>)
+        : <span>No per-camera rate in current feed</span>}
+    </div>}
+    {(showHeatmap || showVelocity) && <div className="visualization-status">
+      {showHeatmap && <span>Heatmap: {(live.objects || []).length} tracked positions</span>}
+      {showVelocity && <span>Velocity: {(live.objects || []).filter((object:Row)=>Array.isArray(object.velocity)&&object.velocity.length>=2).length}/{(live.objects || []).length} vectors</span>}
+    </div>}
     {!mapUrl && <div className="map-watermark">No renderable 2D scene map is available; geometry and live coordinates are still shown.</div>}
   </div>
 }
@@ -368,8 +409,21 @@ function SceneWorkspace({ scene, scenes, onBack, isAdmin, initialTab = 'Live 2D'
       <button className="text-button" onClick={()=>{const el=visualRef.current;if(!el)return;if(document.fullscreenElement)void document.exitFullscreen();else void el.requestFullscreen()}}>Fullscreen</button>
     </div>}
     <div ref={visualRef} className={(tab === 'Live 2D' || tab === 'Live 3D') ? 'scene-workspace-visual' : ''}>
-    {tab === 'Live 2D' && <Map2D bundle={bundle} live={liveView ? live : { objects: [] }} showTrails={showTrails} showTelemetry={showTelemetry} visualizeRois={visualizeRois} trails={trails}/>} 
-    {tab === 'Live 3D' && <ThreeScene mapPath={map3DPath} objects={liveView ? (live.objects || []) : []} showTrackedObjects={liveView} showSpatial={visualizeRois} showFloor={showFloor} showHeatmap={showHeatmap} showVelocity={showVelocity} cameras={bundle.cameras} projectCameraFrames={projectCameraFrames} cameraOpacity={cameraOpacity} selectedCameraId={selectedCameraId} useSelectedCameraView={cameraView} lightIntensity={lightIntensity} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors} childRegions={bundle.child_regions||[]} childTripwires={bundle.child_tripwires||[]} childSensors={bundle.child_sensors||[]}/>} 
+    {tab === 'Live 2D' && <Map2D bundle={bundle} live={liveView ? live : { objects: [], stale: true }} showTrails={showTrails} showTelemetry={showTelemetry} showHeatmap={showHeatmap} showVelocity={showVelocity} visualizeRois={visualizeRois} trails={trails}/>} 
+    {tab === 'Live 3D' && <><ThreeScene mapPath={map3DPath} objects={liveView ? (live.objects || []) : []} showTrackedObjects={liveView} showSpatial={visualizeRois} showFloor={showFloor} showHeatmap={showHeatmap} showVelocity={showVelocity} cameras={bundle.cameras} projectCameraFrames={projectCameraFrames} cameraOpacity={cameraOpacity} selectedCameraId={selectedCameraId} useSelectedCameraView={cameraView} lightIntensity={lightIntensity} scale={Number(bundle.scene.scale || 100)} meshTranslation={bundle.scene.mesh_translation} meshRotation={bundle.scene.mesh_rotation} meshScale={bundle.scene.mesh_scale} regions={bundle.regions} tripwires={bundle.tripwires} sensors={bundle.sensors} childRegions={bundle.child_regions||[]} childTripwires={bundle.child_tripwires||[]} childSensors={bundle.child_sensors||[]}/>
+      {showTelemetry && <div className="scene-telemetry-hud three-telemetry-hud">
+        <b>Live telemetry</b>
+        <span>Scene {Number(live.scene_rate || 0).toFixed(1)} Hz</span>
+        <span>{(live.objects || []).length} objects</span>
+        {live.rate && typeof live.rate === 'object'
+          ? Object.entries(live.rate as Row).map(([camera,value])=><span key={camera}>{camera}: {Number(value || 0).toFixed(1)} FPS</span>)
+          : <span>No per-camera rate in current feed</span>}
+      </div>}
+      {(showHeatmap || showVelocity) && <div className="visualization-status three-visualization-status">
+        {showHeatmap && <span>Heatmap: {(live.objects || []).length} tracked positions</span>}
+        {showVelocity && <span>Velocity: {(live.objects || []).filter((object:Row)=>Array.isArray(object.velocity)&&object.velocity.length>=2).length}/{(live.objects || []).length} vectors</span>}
+      </div>}
+    </>} 
     </div>
     {tab === 'Camera feeds' && <><div className="live-controls camera-feed-controls"><label><input type="checkbox" checked={showTelemetry} onChange={(e)=>setShowTelemetry(e.target.checked)}/>Show Telemetry</label></div><CameraFeeds cameras={bundle.cameras} showTelemetry={showTelemetry}/></>} 
     {tab === 'Sensors & telemetry' && <SceneSensorTelemetry sensors={bundle.sensors}/>}
