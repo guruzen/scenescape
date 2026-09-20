@@ -47,7 +47,25 @@ def persist(db, topic: str, raw: bytes):
     event = Event(scene_id=scene_id, topic=topic, observed_at=stamp, payload=payload)
     db.add(event)
     db.flush()
-    title = f"{payload.get('region_name') or 'Scene event'} · {topic.rsplit('/', 1)[-1]}"
+    parts = [part for part in str(topic).split("/") if part]
+    rule_type = parts[2] if len(parts) >= 3 else ""
+    event_type = parts[5] if len(parts) >= 6 else topic.rsplit("/", 1)[-1]
+    rule_name = str(payload.get(f"{rule_type}_name") or payload.get("region_name") or payload.get("tripwire_name") or "").strip()
+    label = rule_name or (parts[4] if len(parts) >= 5 else "Scene event")
+    entered = payload.get("entered") if isinstance(payload.get("entered"), list) else []
+    exited = payload.get("exited") if isinstance(payload.get("exited"), list) else []
+    if rule_type == "tripwire" and event_type == "objects":
+      title = f"Tripwire crossed · {label}"
+    elif rule_type == "region" and event_type == "count":
+      title = f"Region count changed · {label}"
+    elif rule_type == "region" and event_type == "objects" and entered and not exited:
+      title = f"Entered region · {label}"
+    elif rule_type == "region" and event_type == "objects" and exited and not entered:
+      title = f"Exited region · {label}"
+    elif rule_type == "region":
+      title = f"Region activity · {label}"
+    else:
+      title = f"{rule_type.title() or 'Scene'} event · {label}"
     db.add(Incident(event_id=event.id, scene_id=scene_id, title=title, status="new", notes=[], audit=[{"action": "created", "at": stamp.isoformat()}]))
     return event
   obs = Observation(scene_id=scene_id, topic=topic, observed_at=stamp, payload=payload)
