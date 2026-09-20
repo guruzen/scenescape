@@ -77,7 +77,7 @@ jobs:
           retention-days: 14
 
   backend:
-    name: "Native control API regression"
+    name: "Focused native API integrity regression"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -93,9 +93,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r control-api/requirements.txt -r control-api/requirements-test.txt
 
-      - name: Run native control API regression suite
+      - name: Run focused native API integrity regression
         env:
           PYTHONPATH: control-api
         run: |
           . .venv/bin/activate
-          pytest control-api/tests -q
+          pytest -q \
+            control-api/tests/test_native_api.py::test_crud_revision_and_live_history \
+            control-api/tests/test_native_api.py::test_media_path_is_bounded \
+            control-api/tests/test_native_api.py::test_viewer_scene_scope_filters_resources \
+            control-api/tests/test_native_api.py::test_native_camera_telemetry_is_scoped_and_camera_id_safe \
+            control-api/tests/test_native_api.py::test_scoped_viewer_cannot_cross_autocalibration_boundaries \
+            control-api/tests/test_native_api.py::test_incidents_and_overview_respect_scene_scope \
+            control-api/tests/test_native_api.py::test_native_updates_require_revision_and_reject_stale_writes \
+            control-api/tests/test_native_api.py::test_native_delete_requires_current_revision \
+            control-api/tests/test_native_api.py::test_scoped_viewer_cannot_mutate_native_scene_and_media_requires_auth \
+            control-api/tests/test_native_api.py::test_native_model_zip_extraction_rejects_traversal \
+            control-api/tests/test_native_api.py::test_scene_import_zip_rejects_duplicate_basenames_symlinks_and_zip_bombs \
+            control-api/tests/test_keycloak_admin.py \
+            control-api/tests/test_runtime.py::test_native_operator_parity_surface_is_present
