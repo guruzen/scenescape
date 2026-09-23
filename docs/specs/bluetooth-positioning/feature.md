@@ -1,27 +1,38 @@
 # Feature — Bluetooth High-Accuracy Positioning
 
 ## Problem
+
 Camera positioning can lose moving people/assets through occlusion, lighting, coverage gaps, privacy constraints and industrial obstacles. SceneScape needs a second positioning modality based on mobile Bluetooth tags and fixed calibrated anchors.
 
 ## Outcome
+
 Bluetooth positioning becomes a first-class SceneScape modality. Anchors range tags; SceneScape solves positions in scene coordinates and uses them in Live 2D/3D, history, trails, velocity, regions, tripwires and incidents. BLE/vision fusion is deferred to BT-15.
 
 ## Personas and user stories
+
 ### Installer
+
 - Commission anchors/tags and identify them by serial number.
 - Place anchors on the floor map in real scene coordinates.
 - Validate geometry, calibration and ranging visibility.
+
 ### Administrator
+
 - Manage lifecycle, provider, capabilities, activation and assignment.
 - Assign tag to person/asset/vehicle/tool with audit history.
 - See battery/device metadata when available.
+
 ### Operator
+
 - See tag coordinate, source, uncertainty, freshness, anchors used, speed and battery.
 - See degraded/offline states instead of misleading precision.
+
 ### Support engineer
+
 - Diagnose raw measurements, rejection reasons, residuals, geometry/GDOP, provider health and latency.
 
 ## Functional requirements
+
 1. Anchor lifecycle: serial, manufacturer/model/firmware, scene, x/y/z, orientation, capabilities, state and last seen.
 2. Tag lifecycle: serial, state, capabilities, battery, last seen and positioning state.
 3. Versioned tag-to-entity assignment.
@@ -35,16 +46,19 @@ Bluetooth positioning becomes a first-class SceneScape modality. Anchors range t
 11. Later BLE + vision fusion preserves source provenance.
 
 ## Accuracy semantics
+
 Accuracy is an empirical release property, not a protocol claim.
 Initial BT-13 targets:
+
 - High-quality LOS Channel Sounding: target P95 horizontal error <= 0.50 m.
 - Representative mixed indoor conditions: target P95 horizontal error <= 1.00 m.
 - RSSI-only is best-effort/proximity and never receives a high-accuracy badge.
 - Configurable update target 1–10 Hz where hardware/provider capacity permits.
 - Default live stale threshold proposal: 2 seconds.
-Targets may be revised based on measured evidence.
+  Targets may be revised based on measured evidence.
 
 ## Non-functional requirements
+
 - Existing camera/sensor/scene behavior remains compatible.
 - High-rate processing does not block FastAPI request handlers.
 - UTC at rest; source and ingestion timestamps preserved.
@@ -55,4 +69,5 @@ Targets may be revised based on measured evidence.
 - Helm can disable the subsystem without deleting control-plane config.
 
 ## Out of scope
+
 Emergency/life-safety certification, biometrics, indoor route planning, tag firmware ownership, guaranteed centimeter positioning without qualification.
