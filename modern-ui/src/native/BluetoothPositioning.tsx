@@ -639,10 +639,15 @@ export default function BluetoothPositioning({
                   <span>
                     <b>{anchor.serial_number}</b>
                     <small>{sceneName(anchor.scene_id)}</small>
+                    <small>
+                      Provider {anchor.provider_id || "Unknown"} ·{" "}
+                      {capabilityText(anchor.capabilities) || "No capabilities"}
+                    </small>
                   </span>
                   <span className="bt-row-meta">
                     <StatusBadge state={anchor.state} />
                     <small>{anchor.model || "Model unknown"}</small>
+                    <small>Last seen Unknown</small>
                   </span>
                 </button>
               ))}
@@ -895,10 +900,15 @@ export default function BluetoothPositioning({
                           activeAssignment?.entity_id ||
                           "Unassigned"}
                       </small>
+                      <small>
+                        Provider {tag.provider_id || "Unknown"} ·{" "}
+                        {capabilityText(tag.capabilities) || "No capabilities"}
+                      </small>
                     </span>
                     <span className="bt-row-meta">
                       <StatusBadge state={tag.state} />
                       <small>Battery {batteryText(tag)}</small>
+                      <small>Last seen {displayTime(tag.last_seen_at)}</small>
                     </span>
                   </button>
                 );

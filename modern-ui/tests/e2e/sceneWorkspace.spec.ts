@@ -750,6 +750,10 @@ test("BT-03 Bluetooth management smoke: navigation, anchor, tag, assignment and 
   await page.getByLabel("Serial number").fill("ANCHOR-UX-01");
   await page
     .locator(".bt-editor-panel")
+    .getByLabel("Provider ID")
+    .fill("fixture-provider");
+  await page
+    .locator(".bt-editor-panel")
     .getByLabel("Scene")
     .selectOption("scene-a");
   await page.getByRole("button", { name: "Commission anchor" }).click();
@@ -759,19 +763,35 @@ test("BT-03 Bluetooth management smoke: navigation, anchor, tag, assignment and 
   await expect(
     page.getByText("Anchor commissioned.", { exact: true }),
   ).toBeVisible();
+  const anchorRow = page.getByRole("button", { name: /ANCHOR-UX-01/ });
+  await expect(anchorRow).toContainText("Provider fixture-provider");
+  await expect(anchorRow).toContainText("channel_sounding");
+  await expect(anchorRow).toContainText("Last seen Unknown");
 
   await page.getByRole("button", { name: "Activate" }).click();
   await expect(page.locator(".bt-editor-panel .bt-status")).toHaveText(
     /active/i,
   );
 
-  await page.getByRole("tab", { name: "Tags" }).click();
+  const tagsTab = page.getByRole("tab", { name: "Tags" });
+  await tagsTab.focus();
+  await expect(tagsTab).toBeFocused();
+  await tagsTab.press("Enter");
+  await expect(tagsTab).toHaveAttribute("aria-selected", "true");
   await page.getByRole("button", { name: "New tag" }).click();
   await page.getByLabel("Serial number").fill("TAG-UX-01");
+  await page
+    .locator(".bt-editor-panel")
+    .getByLabel("Provider ID")
+    .fill("fixture-provider");
   await page.getByRole("button", { name: "Commission tag" }).click();
   await expect(
     page.getByText("TAG-UX-01", { exact: true }).first(),
   ).toBeVisible();
+  const tagRow = page.getByRole("button", { name: /TAG-UX-01/ });
+  await expect(tagRow).toContainText("Provider fixture-provider");
+  await expect(tagRow).toContainText("channel_sounding");
+  await expect(tagRow).toContainText("Last seen Unknown");
   await expect(
     page.getByText("Unknown", { exact: true }).first(),
   ).toBeVisible();
