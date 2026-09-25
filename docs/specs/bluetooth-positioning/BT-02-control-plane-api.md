@@ -1,6 +1,6 @@
 # BT-02 — Control Plane API
 
-**Status:** IN_PROGRESS  
+**Status:** COMPLETE  
 **Dependencies:** BT-01  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -48,24 +48,24 @@ Expose secure APIs for anchor/tag lifecycle, assignment and basic diagnostics.
 
 ## Required tests
 
-- [ ] CRUD/filter/lifecycle.
-- [ ] Two-scene isolation.
-- [ ] Unauthorized browser/service tests.
-- [ ] Revision/transition.
-- [ ] Oversized input/pagination.
+- [x] CRUD/filter/lifecycle.
+- [x] Two-scene isolation.
+- [x] Unauthorized browser/service tests.
+- [x] Revision/transition.
+- [x] Oversized input/pagination.
 
 ## Evidence required
 
-- [ ] Route/OpenAPI evidence.
-- [ ] Focused pytest.
-- [ ] Auth denial/conflict examples.
+- [x] Route/OpenAPI evidence.
+- [x] Focused pytest.
+- [x] Auth denial/conflict examples.
 
 ## Acceptance criteria
 
-- [ ] Full lifecycle by API.
-- [ ] Cross-scene denied server-side.
-- [ ] No secrets returned.
-- [ ] Existing endpoints unchanged.
+- [x] Full lifecycle by API.
+- [x] Cross-scene denied server-side.
+- [x] No secrets returned.
+- [x] Existing endpoints unchanged.
 
 ## Out of scope
 
@@ -78,8 +78,8 @@ Disable routes/feature; preserve resources.
 
 ## Implementation record
 
-- Implementation commit: _not yet recorded_
-- Evidence: _not yet recorded_
+- Implementation commits: `4fafabae4714814df8d9e7ce15d03b0959d39916`, `c07b8d5179198b690aeb11ac7a814b6f0c5e2405`
+- Evidence: `.github/evidence/bluetooth-positioning/BT-02-control-plane-api.md`
 - Known deviations: Tags are intentionally not assigned a permanent scene in BT-02. Until live positioning supplies a trustworthy scene association, full tag inventory and assignment history are administrator-only; scene-scoped non-admin users receive filtered anchor inventory/diagnostics only.
 
 ## Continuation prompt
