@@ -616,7 +616,6 @@ test("BT-03 contract: Bluetooth management UI is explicit, accessible and qualit
   assert.match(client, /\/api\/v2\/bluetooth\/diagnostics/);
 });
 
-
 test("BT-04 contract: calibration stores scene-local metres with reversible revisions", () => {
   const ui = readFileSync(
     new URL("../src/native/BluetoothCalibration.tsx", import.meta.url),

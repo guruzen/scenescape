@@ -2213,7 +2213,6 @@
   }
 }
 
-
 /* Bluetooth scene anchor calibration (BT-04). */
 .bt-cal-workspace {
   display: grid;
@@ -2303,7 +2302,9 @@
 .bt-cal-anchor-marker.selected circle {
   fill: rgb(var(--warning));
   stroke-width: 5;
-  filter: drop-shadow(0 0 5px color-mix(in srgb, rgb(var(--warning)) 65%, transparent));
+  filter: drop-shadow(
+    0 0 5px color-mix(in srgb, rgb(var(--warning)) 65%, transparent)
+  );
 }
 .bt-cal-anchor-marker:focus-visible {
   outline: none;

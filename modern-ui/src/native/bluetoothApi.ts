@@ -322,13 +322,15 @@ export const bluetoothApi = {
     },
   },
   calibrations: {
-    list(filters: {
-      sceneId?: string;
-      anchorId?: string;
-      state?: string;
-      offset?: number;
-      limit?: number;
-    } = {}) {
+    list(
+      filters: {
+        sceneId?: string;
+        anchorId?: string;
+        state?: string;
+        offset?: number;
+        limit?: number;
+      } = {},
+    ) {
       return apiFetch<BluetoothPage<BluetoothCalibration>>(
         `/api/v2/bluetooth/calibrations${query({
           scene_id: filters.sceneId,

@@ -1,12 +1,7 @@
 // SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type MouseEvent,
-} from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { apiObjectUrl } from "../api/client";
 import {
   bluetoothApi,
@@ -26,8 +21,7 @@ const imagePath = (scene: Row | undefined) => {
     String(value || ""),
   );
   return (
-    values.find((value) => /^\/media\/.+\.(png|jpe?g|webp)$/i.test(value)) ||
-    ""
+    values.find((value) => /^\/media\/.+\.(png|jpe?g|webp)$/i.test(value)) || ""
   );
 };
 
@@ -138,7 +132,10 @@ function CalibrationMap({
       ((event.clientX - rect.left) / Math.max(rect.width, 1)) * size[0];
     const py =
       ((event.clientY - rect.top) / Math.max(rect.height, 1)) * size[1];
-    onPlace(roundCoordinate(px / scale), roundCoordinate((size[1] - py) / scale));
+    onPlace(
+      roundCoordinate(px / scale),
+      roundCoordinate((size[1] - py) / scale),
+    );
   };
 
   const selectedAnchor = anchors.find((row) => row.uid === selectedAnchorId);
@@ -165,7 +162,9 @@ function CalibrationMap({
             preserveAspectRatio="none"
           />
         )}
-        {!url && <rect width={size[0]} height={size[1]} className="bt-cal-grid-bg" />}
+        {!url && (
+          <rect width={size[0]} height={size[1]} className="bt-cal-grid-bg" />
+        )}
         {anchors.map((anchor) => {
           const row = latest.get(anchor.uid);
           if (!row || anchor.uid === selectedAnchorId) return null;
@@ -195,17 +194,19 @@ function CalibrationMap({
             </g>
           );
         })}
-        {selectedMarker && selectedAnchor && (() => {
-          const [cx, cy] = toPixel(selectedMarker.x_m, selectedMarker.y_m);
-          return (
-            <g className="bt-cal-anchor-marker selected">
-              <circle cx={cx} cy={cy} r="13" />
-              <text x={cx + 17} y={cy - 14}>
-                {selectedAnchor.serial_number}
-              </text>
-            </g>
-          );
-        })()}
+        {selectedMarker &&
+          selectedAnchor &&
+          (() => {
+            const [cx, cy] = toPixel(selectedMarker.x_m, selectedMarker.y_m);
+            return (
+              <g className="bt-cal-anchor-marker selected">
+                <circle cx={cx} cy={cy} r="13" />
+                <text x={cx + 17} y={cy - 14}>
+                  {selectedAnchor.serial_number}
+                </text>
+              </g>
+            );
+          })()}
       </svg>
       <div className="bt-cal-map-note">
         <b>{scene ? rowName(scene) : "No scene selected"}</b>
@@ -469,7 +470,11 @@ export default function BluetoothCalibration({
               ))}
             </select>
           </label>
-          <button className="btn" disabled={loading} onClick={() => void load()}>
+          <button
+            className="btn"
+            disabled={loading}
+            onClick={() => void load()}
+          >
             {loading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
@@ -579,7 +584,8 @@ export default function BluetoothCalibration({
                 onChange={(event) =>
                   setDraft((current) => ({
                     ...current,
-                    z_source: event.target.value as CalibrationPayload["z_source"],
+                    z_source: event.target
+                      .value as CalibrationPayload["z_source"],
                   }))
                 }
               >
@@ -628,7 +634,9 @@ export default function BluetoothCalibration({
               ({displayNumber(draft.x_m)}, {displayNumber(draft.y_m)},{" "}
               {displayNumber(draft.z_m)}) m
             </b>
-            <small>Authoritative frame: {latest?.coordinate_frame || "scene_local_m"}</small>
+            <small>
+              Authoritative frame: {latest?.coordinate_frame || "scene_local_m"}
+            </small>
           </div>
           {latest?.parent_projection && (
             <div className="bt-cal-parent-projection">
