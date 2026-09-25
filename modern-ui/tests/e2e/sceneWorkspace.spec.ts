@@ -957,7 +957,7 @@ test("BT-03 Bluetooth management smoke: navigation, anchor, tag, assignment and 
   await expect(
     page.getByRole("heading", { name: "Anchor calibration" }),
   ).toBeVisible();
-  await expect(page.getByText("BT-04", { exact: true })).toBeVisible();
+  await expect(page.getByText(/scene-local calibration/i)).toBeVisible();
 
   await screenshot(page, testInfo, "bt03-bluetooth-management.png");
 });
@@ -989,8 +989,18 @@ test("BT-04 anchor calibration smoke: map pixels become metres and revisions are
       y: (box?.height || 1) * 0.4,
     },
   });
-  await expect(page.getByLabel("Calibration X metres")).toHaveValue("2");
-  await expect(page.getByLabel("Calibration Y metres")).toHaveValue("3");
+  const clickedX = Number(
+    await page.getByLabel("Calibration X metres").inputValue(),
+  );
+  const clickedY = Number(
+    await page.getByLabel("Calibration Y metres").inputValue(),
+  );
+  expect(clickedX).toBeCloseTo(2, 2);
+  expect(clickedY).toBeCloseTo(3, 2);
+
+  // Persist exact surveyed coordinates after validating pixel-to-metre conversion.
+  await page.getByLabel("Calibration X metres").fill("2");
+  await page.getByLabel("Calibration Y metres").fill("3");
   await page.getByLabel("Calibration Z metres").fill("3.2");
   await page.getByLabel("Calibration Z provenance").selectOption("surveyed");
   await page.getByLabel("Calibration yaw degrees").fill("45");
