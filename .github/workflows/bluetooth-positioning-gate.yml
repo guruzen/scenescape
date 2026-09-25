@@ -75,7 +75,6 @@ jobs:
             control-api/tests/test_native_api.py::test_resource_kind_uid_unique_index_survives_migrate \
             control-api/tests/test_native_api.py::test_native_delete_requires_current_revision
 
-
   bt-ui:
     name: "Bluetooth management UI contract and build"
     runs-on: ubuntu-latest
