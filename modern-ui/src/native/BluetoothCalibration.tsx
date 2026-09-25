@@ -546,8 +546,8 @@ export default function BluetoothCalibration({
             <div>
               <h2>{selectedAnchor?.serial_number || "Select an anchor"}</h2>
               <p>
-                {latest
-                  ? `Latest revision ${latest.calibration_revision} · ${latest.state}`
+                {workingCalibration
+                  ? `Working revision ${workingCalibration.calibration_revision} · ${workingCalibration.state}`
                   : "No calibration history yet."}
               </p>
             </div>
@@ -646,18 +646,20 @@ export default function BluetoothCalibration({
               {displayNumber(draft.z_m)}) m
             </b>
             <small>
-              Authoritative frame: {latest?.coordinate_frame || "scene_local_m"}
+              Authoritative frame:{" "}
+              {workingCalibration?.coordinate_frame || "scene_local_m"}
             </small>
           </div>
-          {latest?.parent_projection && (
+          {workingCalibration?.parent_projection && (
             <div className="bt-cal-parent-projection">
               <span>
-                Parent projection · {latest.parent_projection.parent_scene_id}
+                Parent projection ·{" "}
+                {workingCalibration.parent_projection.parent_scene_id}
               </span>
               <b>
-                ({displayNumber(latest.parent_projection.position.x_m)},{" "}
-                {displayNumber(latest.parent_projection.position.y_m)},{" "}
-                {displayNumber(latest.parent_projection.position.z_m)}) m
+                ({displayNumber(workingCalibration.parent_projection.position.x_m)},{" "}
+                {displayNumber(workingCalibration.parent_projection.position.y_m)},{" "}
+                {displayNumber(workingCalibration.parent_projection.position.z_m)}) m
               </b>
               <small>
                 Informational only; stored calibration remains scene-local.
