@@ -1,6 +1,6 @@
 # BT-04 — Scene Anchor Calibration
 
-**Status:** IN_PROGRESS  
+**Status:** COMPLETE  
 **Dependencies:** BT-02, BT-03  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -47,23 +47,23 @@ Place anchors precisely in SceneScape metres using versioned calibration and geo
 
 ## Required tests
 
-- [ ] Pixel-to-scene transform.
-- [ ] Revision/rollback.
-- [ ] E2E placement.
-- [ ] Geometry warnings.
-- [ ] Child-scene behavior.
+- [x] Pixel-to-scene transform.
+- [x] Revision/rollback.
+- [x] E2E placement.
+- [x] Geometry warnings.
+- [x] Child-scene behavior.
 
 ## Evidence required
 
-- [ ] Calibration screenshots.
-- [ ] Stored calibration sample.
-- [ ] Tests.
+- [x] Calibration screenshots.
+- [x] Stored calibration sample.
+- [x] Tests.
 
 ## Acceptance criteria
 
-- [ ] Four anchors reload identically.
-- [ ] Solver gets metres.
-- [ ] Active revision explicit/reversible.
+- [x] Four anchors reload identically.
+- [x] Solver gets metres.
+- [x] Active revision explicit/reversible.
 
 ## Out of scope
 
@@ -76,10 +76,11 @@ Reactivate previous calibration or disable anchors.
 
 ## Implementation record
 
-- Implementation commit: _not yet recorded_
-- Evidence: _not yet recorded_
+- Implementation commits: `defd07a5f44f`, `be2ccfe1b1f4`, `5365d9616d13`, `a2b155fd6f09`, `d6330bc58c53`, `2207fd662e71`, `048db9c569b3`
+- Validated implementation head: `048db9c569b3`
+- Evidence: `.github/evidence/bluetooth-positioning/BT-04-scene-anchor-calibration.md`
 - Known deviations: BT-04 computes immediate-parent projection for local child scenes as provenance, while authoritative stored coordinates remain in the selected scene local metre frame. Advanced GDOP/bias modelling remains BT-11.
 
 ## Continuation prompt
 
-> Implement BT-04 from `docs/specs/bluetooth-positioning`. Read `feature.md`, `architecture.md`, `data-contracts.md`, `implementation-standards.md` and this file first. Verify dependencies and inspect the current branch. Implement only BT-04, add required unit/integration/regression tests and evidence, update this status/checklist/record, and commit with a message beginning `BT-04:`.
+> BT-04 is complete. Continue with BT-05 from `docs/specs/bluetooth-positioning`. Read `feature.md`, `architecture.md`, `data-contracts.md`, `implementation-standards.md`, BT-04 and BT-05 first. Verify dependencies and the current branch, implement only BT-05, add required tests/evidence, update status/checklists, and commit with a message beginning `BT-05:`.
