@@ -75,7 +75,7 @@ Downgrade migration or disable feature resources.
 
 ## Implementation record
 
-- Implementation commits: `a5ea92a16cec170487f61e5eca9c28fd27db1791`, `23b03b99e9d8e19438190f937279bdedd28d8f3b`
+- Implementation commits: `a5ea92a16cec`, `23b03b99e9d8`
 - Evidence: `.github/evidence/bluetooth-positioning/BT-01-domain-model-and-persistence.md`
 - Known deviations: Dedicated relational tables are used instead of generic JSON resources because BT-01 requires portable uniqueness/indexing, assignment history, calibration revisions, and optimistic concurrency across SQLite/PostgreSQL.
 

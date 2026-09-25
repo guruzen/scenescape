@@ -711,7 +711,7 @@ test("BT-03 Bluetooth management smoke: navigation, anchor, tag, assignment and 
 
   await page.getByRole("button", { name: "New anchor" }).click();
   await page.getByLabel("Serial number").fill("ANCHOR-UX-01");
-  await page.getByLabel("Scene").selectOption("scene-a");
+  await page.locator(".bt-editor-panel").getByLabel("Scene").selectOption("scene-a");
   await page.getByRole("button", { name: "Commission anchor" }).click();
   await expect(page.getByText("ANCHOR-UX-01", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Anchor commissioned.", { exact: true })).toBeVisible();

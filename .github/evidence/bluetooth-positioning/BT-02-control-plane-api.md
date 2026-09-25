@@ -6,8 +6,8 @@
 
 ## Implementation commits
 
-- API implementation: `4fafabae4714814df8d9e7ce15d03b0959d39916`
-- Compliance fix: `c07b8d5179198b690aeb11ac7a814b6f0c5e2405`
+- API implementation: `4fafabae4714`
+- Compliance fix: `c07b8d517919`
 
 ## Delivered API surface
 
@@ -158,7 +158,7 @@ The first repository-wide License Check on the API implementation commit failed 
 Failure run:
 https://github.com/guruzen/scenescape/actions/runs/36147054967
 
-The workflow header was corrected in `c07b8d5179198b690aeb11ac7a814b6f0c5e2405`. The subsequent REUSE License Check passed.
+The workflow header was corrected in `c07b8d517919`. The subsequent REUSE License Check passed.
 
 ## Acceptance
 

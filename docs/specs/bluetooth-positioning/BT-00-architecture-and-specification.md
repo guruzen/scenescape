@@ -67,7 +67,7 @@ Revert this documentation commit.
 
 ## Implementation record
 
-- Implementation commit: `de56275646e1b2fad7461aeb4bd20d4609a61c6d`
+- Implementation commit: `de56275646e1`
 - Evidence: `.github/evidence/bluetooth-positioning/BT-00-specification-baseline.md`
 - Known deviations: _none at planning baseline_
 

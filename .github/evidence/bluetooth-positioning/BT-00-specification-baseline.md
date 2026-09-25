@@ -6,8 +6,8 @@
 
 ## Baseline
 
-- Initial specification commit: `de56275646e1b2fad7461aeb4bd20d4609a61c6d`
-- Follow-up automated formatting commit: `4cb72ab9919f047b99eebcab7c890dbf3154c92b`
+- Initial specification commit: `de56275646e1`
+- Follow-up automated formatting commit: `4cb72ab9919f`
 - Branch: `feature/react-keycloak-modern-ui`
 
 ## Delivered

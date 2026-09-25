@@ -18,8 +18,8 @@ High-rate range/position storage remains intentionally deferred to BT-06/BT-07.
 
 ## Implementation commits
 
-- Primary implementation: `a5ea92a16cec170487f61e5eca9c28fd27db1791`
-- Refresh correctness fix: `23b03b99e9d8e19438190f937279bdedd28d8f3b`
+- Primary implementation: `a5ea92a16cec`
+- Refresh correctness fix: `23b03b99e9d8`
 
 ## Key design evidence
 

@@ -78,7 +78,7 @@ Disable routes/feature; preserve resources.
 
 ## Implementation record
 
-- Implementation commits: `4fafabae4714814df8d9e7ce15d03b0959d39916`, `c07b8d5179198b690aeb11ac7a814b6f0c5e2405`
+- Implementation commits: `4fafabae4714`, `c07b8d517919`
 - Evidence: `.github/evidence/bluetooth-positioning/BT-02-control-plane-api.md`
 - Known deviations: Tags are intentionally not assigned a permanent scene in BT-02. Until live positioning supplies a trustworthy scene association, full tag inventory and assignment history are administrator-only; scene-scoped non-admin users receive filtered anchor inventory/diagnostics only.
 
