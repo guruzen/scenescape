@@ -617,7 +617,9 @@ def close_assignment(
   if result.rowcount != 1:
     raise BluetoothRevisionConflict("revision_conflict", "Bluetooth assignment revision conflict")
   db.flush()
-  return db.get(BluetoothAssignment, uid)
+  db.expire(row)
+  db.refresh(row)
+  return row
 
 
 def create_calibration(db, payload: dict[str, Any], actor: str) -> BluetoothCalibration:
@@ -700,7 +702,9 @@ def activate_calibration(
   if result.rowcount != 1:
     raise BluetoothRevisionConflict("revision_conflict", "Bluetooth calibration revision conflict")
   db.flush()
-  return db.get(BluetoothCalibration, uid)
+  db.expire(row)
+  db.refresh(row)
+  return row
 
 
 def cascade_scene_bluetooth(db, scene_uid: str) -> None:
