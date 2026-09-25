@@ -284,7 +284,7 @@ test("BT-03 integrated Bluetooth control-plane CRUD uses the real FastAPI API", 
     page.getByText("ANCHOR-INTEGRATED-01", { exact: true }).first(),
   ).toBeVisible();
   await page.getByRole("button", { name: "Activate" }).click();
-  await expect(page.getByText("active", { exact: true }).first()).toBeVisible();
+  await expect(page.locator(".bt-editor-panel .bt-status")).toHaveText(/active/i);
 
   await page.getByRole("tab", { name: "Tags" }).click();
   await page.getByRole("button", { name: "New tag" }).click();
