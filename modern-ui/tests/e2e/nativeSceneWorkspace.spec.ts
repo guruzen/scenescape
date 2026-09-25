@@ -313,3 +313,79 @@ test("BT-03 integrated Bluetooth control-plane CRUD uses the real FastAPI API", 
   await expect(page.getByText("Tags visible", { exact: true })).toBeVisible();
   await capture(page, testInfo, "bt03-integrated-control-plane.png");
 });
+
+
+test("BT-04 integrated calibration persists scene-local metres through real FastAPI", async ({
+  page,
+}, testInfo) => {
+  const tokenResponse = await page.request.get("/api/test/browser-token");
+  const token = (await tokenResponse.json()).token;
+  const headers = { Authorization: `Bearer ${token}` };
+  const scenesResponse = await page.request.get("/api/v2/scenes", { headers });
+  const scenes = await scenesResponse.json();
+  const sceneId = String(scenes[0].uid || scenes[0].id);
+
+  for (let index = 1; index <= 4; index += 1) {
+    const response = await page.request.post("/api/v2/bluetooth/anchors", {
+      headers,
+      data: {
+        uid: `bt04-integrated-anchor-${index}`,
+        serial_number: `BT04-INTEGRATED-${index}`,
+        scene_id: sceneId,
+        capabilities: ["channel_sounding"],
+      },
+    });
+    expect(response.ok()).toBeTruthy();
+  }
+
+  await page.goto("/tests/harness.html#/bluetooth");
+  await page.getByRole("tab", { name: "Calibration" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Anchor calibration" }),
+  ).toBeVisible({ timeout: 20_000 });
+  await page
+    .getByLabel("Calibration anchor")
+    .selectOption("bt04-integrated-anchor-1");
+
+  const map = page.getByLabel("Bluetooth anchor calibration map");
+  const box = await map.boundingBox();
+  expect(box).not.toBeNull();
+  await map.click({
+    position: {
+      x: (box?.width || 1) * 0.2,
+      y: (box?.height || 1) * 0.4,
+    },
+  });
+  await expect(page.getByLabel("Calibration X metres")).toHaveValue("2");
+  await expect(page.getByLabel("Calibration Y metres")).toHaveValue("4.2");
+  await page.getByLabel("Calibration Z metres").fill("3.4");
+  await page.getByLabel("Calibration Z provenance").selectOption("surveyed");
+  await page.getByRole("button", { name: "Save new draft" }).click();
+  await expect(page.getByText(/Draft revision 1 saved/)).toBeVisible();
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Publish draft r1" }).click();
+  await expect(page.getByText(/Calibration revision 1 is now active/)).toBeVisible();
+
+  const apiHistory = await page.request.get(
+    "/api/v2/bluetooth/anchors/bt04-integrated-anchor-1/calibrations",
+    { headers },
+  );
+  expect(apiHistory.ok()).toBeTruthy();
+  const payload = await apiHistory.json();
+  expect(payload.items[0].position).toEqual({
+    x_m: 2,
+    y_m: 4.2,
+    z_m: 3.4,
+  });
+  expect(payload.items[0].coordinate_frame).toBe("scene_local_m");
+
+  await page.reload();
+  await page.getByRole("tab", { name: "Calibration" }).click();
+  await page
+    .getByLabel("Calibration anchor")
+    .selectOption("bt04-integrated-anchor-1");
+  await expect(page.getByLabel("Calibration X metres")).toHaveValue("2");
+  await expect(page.getByLabel("Calibration Y metres")).toHaveValue("4.2");
+  await capture(page, testInfo, "bt04-integrated-calibration.png");
+});

@@ -175,6 +175,7 @@ async function mockNativeApi(page: Page) {
   let btAnchors: any[] = [];
   let btTags: any[] = [];
   let btAssignments: any[] = [];
+  let btCalibrations: any[] = [];
   await page.route("**/media/floor.png", async (route) => {
     await route.fulfill({
       status: 200,
@@ -286,6 +287,151 @@ async function mockNativeApi(page: Page) {
         ...body,
       };
       btAssignments.push(row);
+      return json(row);
+    }
+    if (
+      path === "/api/v2/bluetooth/calibrations/geometry" &&
+      request.method() === "GET"
+    ) {
+      const sceneId = url.searchParams.get("scene_id") || "";
+      const candidates = btCalibrations.filter(
+        (row) => row.scene_id === sceneId && row.state !== "retired",
+      );
+      const latestByAnchor = new Map<string, any>();
+      candidates.forEach((row) => {
+        const current = latestByAnchor.get(row.anchor_uid);
+        if (!current || row.calibration_revision > current.calibration_revision)
+          latestByAnchor.set(row.anchor_uid, row);
+      });
+      const count = latestByAnchor.size;
+      return json({
+        scene_id: sceneId,
+        anchor_count: count,
+        basis: "latest_draft_or_active",
+        max_span_m: count > 1 ? 5 : 0,
+        spread_ratio: count >= 3 ? 0.25 : 0,
+        ready_for_2d: count >= 3,
+        warnings:
+          count >= 3
+            ? []
+            : [
+                {
+                  code: "insufficient_anchors",
+                  severity: "error",
+                  anchor_uids: [...latestByAnchor.keys()],
+                  message:
+                    "At least three distinct anchor positions are required for a 2D solve.",
+                },
+              ],
+      });
+    }
+    if (
+      path === "/api/v2/bluetooth/calibrations" &&
+      request.method() === "GET"
+    ) {
+      const sceneId = url.searchParams.get("scene_id");
+      const anchorId = url.searchParams.get("anchor_id");
+      const state = url.searchParams.get("state");
+      const items = btCalibrations
+        .filter((row) => !sceneId || row.scene_id === sceneId)
+        .filter((row) => !anchorId || row.anchor_uid === anchorId)
+        .filter((row) => !state || row.state === state)
+        .sort(
+          (a, b) =>
+            String(a.anchor_uid).localeCompare(String(b.anchor_uid)) ||
+            b.calibration_revision - a.calibration_revision,
+        );
+      return json({ items, total: items.length, offset: 0, limit: 500 });
+    }
+    if (
+      path === "/api/v2/bluetooth/calibrations" &&
+      request.method() === "POST"
+    ) {
+      const body = request.postDataJSON();
+      const revision =
+        Math.max(
+          0,
+          ...btCalibrations
+            .filter((row) => row.anchor_uid === body.anchor_uid)
+            .map((row) => row.calibration_revision),
+        ) + 1;
+      const row = {
+        uid: `calibration-${btCalibrations.length + 1}`,
+        anchor_uid: body.anchor_uid,
+        scene_id: body.scene_id,
+        calibration_revision: revision,
+        state: "draft",
+        position: {
+          x_m: body.x_m,
+          y_m: body.y_m,
+          z_m: body.z_m,
+        },
+        orientation: {
+          yaw_deg: body.yaw_deg || 0,
+          pitch_deg: body.pitch_deg || 0,
+          roll_deg: body.roll_deg || 0,
+        },
+        z_source: body.z_source || "measured",
+        details: {
+          ...(body.details || {}),
+          coordinate_frame: "scene_local_m",
+        },
+        coordinate_frame: "scene_local_m",
+        parent_projection: null,
+        created_by: "ux-test",
+        created_at: "2026-09-25T14:40:00Z",
+        updated_at: "2026-09-25T14:40:00Z",
+        revision: 1,
+      };
+      btCalibrations.push(row);
+      return json(row);
+    }
+    if (
+      /^\/api\/v2\/bluetooth\/anchors\/[^/]+\/calibrations$/.test(path) &&
+      request.method() === "GET"
+    ) {
+      const anchorId = path.split("/")[5];
+      const items = btCalibrations
+        .filter((row) => row.anchor_uid === anchorId)
+        .sort((a, b) => b.calibration_revision - a.calibration_revision);
+      return json({ items, total: items.length });
+    }
+    if (
+      /^\/api\/v2\/bluetooth\/calibrations\/[^/]+\/(publish|restore)$/.test(
+        path,
+      ) &&
+      request.method() === "POST"
+    ) {
+      const parts = path.split("/");
+      const uid = parts[5];
+      const action = parts[6];
+      const row = btCalibrations.find((item) => item.uid === uid);
+      if (!row)
+        return json(
+          {
+            detail: {
+              code: "calibration_not_found",
+              message: "Bluetooth calibration not found",
+            },
+          },
+          404,
+        );
+      btCalibrations.forEach((item) => {
+        if (
+          item.anchor_uid === row.anchor_uid &&
+          item.uid !== row.uid &&
+          item.state === "active"
+        ) {
+          item.state = "retired";
+          item.revision += 1;
+        }
+      });
+      row.state = "active";
+      row.revision += 1;
+      row.updated_at =
+        action === "restore"
+          ? "2026-09-25T14:42:00Z"
+          : "2026-09-25T14:41:00Z";
       return json(row);
     }
     if (path === "/api/v2/bluetooth/diagnostics")
@@ -816,4 +962,76 @@ test("BT-03 Bluetooth management smoke: navigation, anchor, tag, assignment and 
   await expect(page.getByText("BT-04", { exact: true })).toBeVisible();
 
   await screenshot(page, testInfo, "bt03-bluetooth-management.png");
+});
+
+
+test("BT-04 anchor calibration smoke: map pixels become metres and revisions are reversible", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/tests/e2e/index.html#/bluetooth");
+  await page.getByRole("button", { name: "New anchor" }).click();
+  await page.getByLabel("Serial number").fill("ANCHOR-CAL-UX-01");
+  await page
+    .locator(".bt-editor-panel")
+    .getByLabel("Scene")
+    .selectOption("scene-a");
+  await page.getByRole("button", { name: "Commission anchor" }).click();
+
+  await page.getByRole("tab", { name: "Calibration" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Anchor calibration" }),
+  ).toBeVisible();
+  await page.getByLabel("Calibration anchor").selectOption({ index: 1 });
+
+  const map = page.getByLabel("Bluetooth anchor calibration map");
+  const box = await map.boundingBox();
+  expect(box).not.toBeNull();
+  await map.click({
+    position: {
+      x: (box?.width || 1) * 0.25,
+      y: (box?.height || 1) * 0.4,
+    },
+  });
+  await expect(page.getByLabel("Calibration X metres")).toHaveValue("2");
+  await expect(page.getByLabel("Calibration Y metres")).toHaveValue("3");
+  await page.getByLabel("Calibration Z metres").fill("3.2");
+  await page.getByLabel("Calibration Z provenance").selectOption("surveyed");
+  await page.getByLabel("Calibration yaw degrees").fill("45");
+
+  await page.getByRole("button", { name: "Save new draft" }).click();
+  await expect(page.getByText(/Draft revision 1 saved/)).toBeVisible();
+  await expect(page.getByText("insufficient anchors", { exact: true })).toBeVisible();
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page
+    .getByRole("button", { name: "Publish draft r1" })
+    .click();
+  await expect(page.getByText(/Calibration revision 1 is now active/)).toBeVisible();
+
+  await page.getByLabel("Calibration X metres").fill("2.5");
+  await page.getByRole("button", { name: "Save new draft" }).click();
+  await expect(page.getByText(/Draft revision 2 saved/)).toBeVisible();
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page
+    .getByRole("button", { name: "Publish draft r2" })
+    .click();
+  await expect(page.getByText(/Calibration revision 2 is now active/)).toBeVisible();
+
+  const revisionOne = page.locator(".bt-cal-history-row").filter({
+    hasText: "r1 · retired",
+  });
+  page.once("dialog", (dialog) => void dialog.accept());
+  await revisionOne.getByRole("button", { name: "Restore" }).click();
+  await expect(page.getByText(/Calibration revision 1 restored as active/)).toBeVisible();
+  await expect(page.getByLabel("Calibration X metres")).toHaveValue("2");
+  await expect(page.getByLabel("Calibration Y metres")).toHaveValue("3");
+
+  await page.reload();
+  await page.getByRole("tab", { name: "Calibration" }).click();
+  await page.getByLabel("Calibration anchor").selectOption({ index: 1 });
+  await expect(page.getByLabel("Calibration X metres")).toHaveValue("2");
+  await expect(page.getByLabel("Calibration Y metres")).toHaveValue("3");
+  await expect(page.getByText(/active r1/i)).toBeVisible();
+
+  await screenshot(page, testInfo, "bt04-anchor-calibration.png");
 });

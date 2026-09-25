@@ -257,15 +257,22 @@ export default function BluetoothCalibration({
         .sort((a, b) => b.calibration_revision - a.calibration_revision),
     [calibrations, selectedAnchorId],
   );
-  const latest = history[0];
+  const workingCalibration =
+    history.find((row) => row.state === "draft") ||
+    history.find((row) => row.state === "active") ||
+    history[0];
   const active = history.find((row) => row.state === "active");
   const latestDraft = history.find((row) => row.state === "draft");
 
   const selectAnchor = (uid: string, rows = calibrations) => {
     setSelectedAnchorId(uid);
-    const row = rows
+    const ordered = rows
       .filter((item) => item.anchor_uid === uid)
-      .sort((a, b) => b.calibration_revision - a.calibration_revision)[0];
+      .sort((a, b) => b.calibration_revision - a.calibration_revision);
+    const row =
+      ordered.find((item) => item.state === "draft") ||
+      ordered.find((item) => item.state === "active") ||
+      ordered[0];
     setDraft({
       ...draftFromCalibration(row),
       anchor_uid: uid,
@@ -299,9 +306,13 @@ export default function BluetoothCalibration({
         anchorPage.items[0]?.uid ||
         "";
       if (nextAnchor) {
-        const row = calibrationPage.items
+        const ordered = calibrationPage.items
           .filter((item) => item.anchor_uid === nextAnchor)
-          .sort((a, b) => b.calibration_revision - a.calibration_revision)[0];
+          .sort((a, b) => b.calibration_revision - a.calibration_revision);
+        const row =
+          ordered.find((item) => item.state === "draft") ||
+          ordered.find((item) => item.state === "active") ||
+          ordered[0];
         setSelectedAnchorId(nextAnchor);
         setDraft({
           ...draftFromCalibration(row),

@@ -3,9 +3,30 @@
 
 import math
 
+import pytest
+
 from scenescape_api.bluetooth_calibration import calibration_public, geometry_report
 from scenescape_api.bluetooth_domain import create_anchor, create_calibration
-from scenescape_api.database import Resource
+from scenescape_api.database import Base, Resource
+
+
+@pytest.fixture
+def db(tmp_path, monkeypatch):
+  monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path}/bt04-calibration.db")
+  import scenescape_api.database as database
+
+  if database._engine is not None:
+    database._engine.dispose()
+  database._engine = None
+  database._Session = None
+  engine = database.get_engine()
+  Base.metadata.create_all(engine)
+  with database.sessions()() as session:
+    yield session
+    session.rollback()
+  engine.dispose()
+  database._engine = None
+  database._Session = None
 
 
 def _scene(db, uid):
