@@ -7,7 +7,7 @@ This directory is the execution evidence ledger for `docs/specs/bluetooth-positi
 | BT-00     | COMPLETE | [BT-00 specification baseline](BT-00-specification-baseline.md)   |
 | BT-01     | COMPLETE | [BT-01 domain/persistence](BT-01-domain-model-and-persistence.md) |
 | BT-02     | COMPLETE | [BT-02 control-plane API](BT-02-control-plane-api.md)             |
-| BT-03     | PLANNED  | —                                                                 |
+| BT-03     | COMPLETE | [BT-03 management UI](BT-03-management-ui.md)                      |
 | BT-04     | PLANNED  | —                                                                 |
 | BT-05     | PLANNED  | —                                                                 |
 | BT-06     | PLANNED  | —                                                                 |
