@@ -588,7 +588,6 @@ test("regression: live scene normalization rejects non-array object payloads wit
   assert.deepEqual(normalizeLiveSceneState(null), { objects: [], stale: true });
 });
 
-
 test("BT-03 contract: Bluetooth management UI is explicit, accessible and quality-honest", () => {
   const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
   const ui = readFileSync(

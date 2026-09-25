@@ -81,7 +81,9 @@ const capabilityText = (values: string[] | undefined) =>
 const displayTime = (value: unknown) => {
   if (!value) return "Unknown";
   const parsed = new Date(String(value));
-  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+  return Number.isNaN(parsed.getTime())
+    ? String(value)
+    : parsed.toLocaleString();
 };
 
 const batteryText = (tag: BluetoothTag) =>
@@ -115,14 +117,14 @@ export default function BluetoothPositioning({
   const [diagnostics, setDiagnostics] = useState<BluetoothDiagnostics | null>(
     null,
   );
-  const [selectedAnchor, setSelectedAnchor] =
-    useState<BluetoothAnchor | null>(null);
+  const [selectedAnchor, setSelectedAnchor] = useState<BluetoothAnchor | null>(
+    null,
+  );
   const [selectedTag, setSelectedTag] = useState<BluetoothTag | null>(null);
   const [anchorDraft, setAnchorDraft] = useState<AnchorPayload>(emptyAnchor);
   const [tagDraft, setTagDraft] = useState<TagPayload>(emptyTag);
-  const [assignmentDraft, setAssignmentDraft] = useState<AssignmentPayload>(
-    emptyAssignment(),
-  );
+  const [assignmentDraft, setAssignmentDraft] =
+    useState<AssignmentPayload>(emptyAssignment());
   const [anchorCapabilities, setAnchorCapabilities] =
     useState("channel_sounding");
   const [tagCapabilities, setTagCapabilities] = useState("channel_sounding");
@@ -138,7 +140,9 @@ export default function BluetoothPositioning({
 
   const sceneName = (uid?: string | null) =>
     scenes.find((scene) => String(scene.uid ?? scene.id ?? "") === String(uid))
-      ?.name || uid || "Unassigned";
+      ?.name ||
+    uid ||
+    "Unassigned";
 
   const loadAnchors = async () => {
     const result = await bluetoothApi.anchors.list({
@@ -149,9 +153,7 @@ export default function BluetoothPositioning({
     setAnchors(result.items);
     setSelectedAnchor((current) => {
       if (!current) return current;
-      return (
-        result.items.find((item) => item.uid === current.uid) ?? current
-      );
+      return result.items.find((item) => item.uid === current.uid) ?? current;
     });
   };
 
@@ -444,7 +446,9 @@ export default function BluetoothPositioning({
     () =>
       assignments
         .filter((item) => item.tag_uid === selectedTag?.uid)
-        .sort((a, b) => String(b.valid_from).localeCompare(String(a.valid_from))),
+        .sort((a, b) =>
+          String(b.valid_from).localeCompare(String(a.valid_from)),
+        ),
     [assignments, selectedTag?.uid],
   );
 
@@ -486,10 +490,7 @@ export default function BluetoothPositioning({
     setBusy(true);
     setError("");
     try {
-      await bluetoothApi.assignments.close(
-        assignment.uid,
-        assignment.revision,
-      );
+      await bluetoothApi.assignments.close(assignment.uid, assignment.revision);
       setMessage("Assignment closed; history retained.");
       await loadAdminData();
     } catch (reason) {
@@ -518,11 +519,18 @@ export default function BluetoothPositioning({
           </p>
         </div>
         <div className="header-actions">
-          <button className="btn" onClick={() => void refresh()} disabled={loading}>
+          <button
+            className="btn"
+            onClick={() => void refresh()}
+            disabled={loading}
+          >
             {loading ? "Refreshing…" : "Refresh"}
           </button>
           {isAdmin && tab === "anchors" && (
-            <button className="btn btn-primary" onClick={() => openAnchor(null)}>
+            <button
+              className="btn btn-primary"
+              onClick={() => openAnchor(null)}
+            >
               New anchor
             </button>
           )}
@@ -534,7 +542,11 @@ export default function BluetoothPositioning({
         </div>
       </div>
 
-      <nav className="bt-tabs panel" role="tablist" aria-label="Bluetooth positioning sections">
+      <nav
+        className="bt-tabs panel"
+        role="tablist"
+        aria-label="Bluetooth positioning sections"
+      >
         {tabs.map((item) => (
           <button
             key={item.key}
@@ -564,7 +576,10 @@ export default function BluetoothPositioning({
 
       {tab === "anchors" && (
         <div className="bt-layout">
-          <section className="panel bt-list-panel" aria-label="Bluetooth anchors">
+          <section
+            className="panel bt-list-panel"
+            aria-label="Bluetooth anchors"
+          >
             <div className="bt-filter-grid">
               <label>
                 Search serial
@@ -986,7 +1001,11 @@ export default function BluetoothPositioning({
               </div>
               <div>
                 <span>Last seen</span>
-                <b>{selectedTag ? displayTime(selectedTag.last_seen_at) : "Unknown"}</b>
+                <b>
+                  {selectedTag
+                    ? displayTime(selectedTag.last_seen_at)
+                    : "Unknown"}
+                </b>
                 <small>Telemetry is read-only in this management UI.</small>
               </div>
             </div>
@@ -1055,9 +1074,7 @@ export default function BluetoothPositioning({
                   {selectedAssignments.map((assignment) => (
                     <div key={assignment.uid} className="bt-assignment-row">
                       <div>
-                        <b>
-                          {assignment.display_name || assignment.entity_id}
-                        </b>
+                        <b>{assignment.display_name || assignment.entity_id}</b>
                         <span>
                           {assignment.entity_type} · {assignment.entity_id}
                         </span>
@@ -1176,7 +1193,7 @@ export default function BluetoothPositioning({
               <span>Tags visible</span>
               <strong>
                 {diagnostics?.tags.visible
-                  ? diagnostics.tags.total ?? 0
+                  ? (diagnostics.tags.total ?? 0)
                   : "Restricted"}
               </strong>
               <small>
@@ -1212,9 +1229,7 @@ export default function BluetoothPositioning({
             <dl>
               <div>
                 <dt>Commissioned anchors</dt>
-                <dd>
-                  {diagnostics?.anchors.by_state?.commissioned ?? 0}
-                </dd>
+                <dd>{diagnostics?.anchors.by_state?.commissioned ?? 0}</dd>
               </div>
               <div>
                 <dt>Maintenance anchors</dt>

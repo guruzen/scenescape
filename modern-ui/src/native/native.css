@@ -1841,7 +1841,6 @@
   filter: drop-shadow(0 0 3px rgba(255, 180, 84, 0.8));
 }
 
-
 /* Bluetooth positioning control plane (BT-03). */
 .bt-tabs {
   display: flex;
@@ -2096,7 +2095,9 @@
 }
 .bt-assignment-form {
   display: grid;
-  grid-template-columns: 120px minmax(130px, 1fr) minmax(150px, 1fr) minmax(150px, 1fr) auto;
+  grid-template-columns:
+    120px minmax(130px, 1fr) minmax(150px, 1fr) minmax(150px, 1fr)
+    auto;
   gap: 9px;
   align-items: end;
   padding: 14px 16px 16px;

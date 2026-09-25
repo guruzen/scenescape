@@ -202,14 +202,32 @@ async function mockNativeApi(page: Page) {
     }
     if (path === "/api/v2/bluetooth/anchors" && request.method() === "POST") {
       const body = request.postDataJSON();
-      const row = { uid: `anchor-${btAnchors.length + 1}`, state: "commissioned", revision: 1, ...body };
+      const row = {
+        uid: `anchor-${btAnchors.length + 1}`,
+        state: "commissioned",
+        revision: 1,
+        ...body,
+      };
       btAnchors.push(row);
       return json(row);
     }
-    if (/^\/api\/v2\/bluetooth\/anchors\/[^/]+\/(activate|deactivate|maintenance|retire)$/.test(path)) {
+    if (
+      /^\/api\/v2\/bluetooth\/anchors\/[^/]+\/(activate|deactivate|maintenance|retire)$/.test(
+        path,
+      )
+    ) {
       const [, , , , , id, action] = path.split("/");
       const row = btAnchors.find((item) => item.uid === id);
-      if (!row) return json({ detail: { code: "anchor_not_found", message: "Bluetooth anchor not found" } }, 404);
+      if (!row)
+        return json(
+          {
+            detail: {
+              code: "anchor_not_found",
+              message: "Bluetooth anchor not found",
+            },
+          },
+          404,
+        );
       row.state =
         action === "activate"
           ? "active"
@@ -234,7 +252,12 @@ async function mockNativeApi(page: Page) {
         uid: `tag-${btTags.length + 1}`,
         state: "commissioned",
         revision: 1,
-        battery: { percent: null, status: "unknown", source: null, observed_at: null },
+        battery: {
+          percent: null,
+          status: "unknown",
+          source: null,
+          observed_at: null,
+        },
         last_seen_at: null,
         ...body,
       };
@@ -242,8 +265,16 @@ async function mockNativeApi(page: Page) {
       return json(row);
     }
     if (path === "/api/v2/bluetooth/assignments" && request.method() === "GET")
-      return json({ items: btAssignments, total: btAssignments.length, offset: 0, limit: 200 });
-    if (path === "/api/v2/bluetooth/assignments" && request.method() === "POST") {
+      return json({
+        items: btAssignments,
+        total: btAssignments.length,
+        offset: 0,
+        limit: 200,
+      });
+    if (
+      path === "/api/v2/bluetooth/assignments" &&
+      request.method() === "POST"
+    ) {
       const body = request.postDataJSON();
       const row = {
         uid: `assignment-${btAssignments.length + 1}`,
@@ -707,7 +738,6 @@ test("UX-80–85 Accessibility smoke: keyboard navigation, controls, focus and s
   await screenshot(page, testInfo, "ux80-85-accessibility.png");
 });
 
-
 test("BT-03 Bluetooth management smoke: navigation, anchor, tag, assignment and honest telemetry", async ({
   page,
 }, testInfo) => {
@@ -718,28 +748,45 @@ test("BT-03 Bluetooth management smoke: navigation, anchor, tag, assignment and 
 
   await page.getByRole("button", { name: "New anchor" }).click();
   await page.getByLabel("Serial number").fill("ANCHOR-UX-01");
-  await page.locator(".bt-editor-panel").getByLabel("Scene").selectOption("scene-a");
+  await page
+    .locator(".bt-editor-panel")
+    .getByLabel("Scene")
+    .selectOption("scene-a");
   await page.getByRole("button", { name: "Commission anchor" }).click();
-  await expect(page.getByText("ANCHOR-UX-01", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Anchor commissioned.", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("ANCHOR-UX-01", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Anchor commissioned.", { exact: true }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "Activate" }).click();
-  await expect(page.locator(".bt-editor-panel .bt-status")).toHaveText(/active/i);
+  await expect(page.locator(".bt-editor-panel .bt-status")).toHaveText(
+    /active/i,
+  );
 
   await page.getByRole("tab", { name: "Tags" }).click();
   await page.getByRole("button", { name: "New tag" }).click();
   await page.getByLabel("Serial number").fill("TAG-UX-01");
   await page.getByRole("button", { name: "Commission tag" }).click();
-  await expect(page.getByText("TAG-UX-01", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Unknown", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("TAG-UX-01", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Unknown", { exact: true }).first(),
+  ).toBeVisible();
 
   await page.getByLabel("Assignment entity ID").fill("forklift-27");
   await page.getByLabel("Display name").fill("Forklift 27");
   await page.getByRole("button", { name: "Assign tag" }).click();
-  await expect(page.getByText("Forklift 27", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("Forklift 27", { exact: true }).first(),
+  ).toBeVisible();
 
   await page.getByRole("tab", { name: "Diagnostics" }).click();
-  await expect(page.getByText("Anchors visible", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Anchors visible", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("Tags visible", { exact: true })).toBeVisible();
 
   await page.getByRole("tab", { name: "Calibration" }).click();

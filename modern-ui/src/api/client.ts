@@ -18,9 +18,15 @@ const apiError = (body: unknown, status: number) => {
     if (typeof detail === "string") return new ApiError(detail, status);
     if (detail && typeof detail === "object") {
       const value = detail as { message?: unknown; code?: unknown };
-      const message = String(value.message || `SceneScape API returned ${status}`);
+      const message = String(
+        value.message || `SceneScape API returned ${status}`,
+      );
       const code = value.code ? String(value.code) : undefined;
-      return new ApiError(code ? `${message} [${code}]` : message, status, code);
+      return new ApiError(
+        code ? `${message} [${code}]` : message,
+        status,
+        code,
+      );
     }
   }
   return new ApiError(`SceneScape API returned ${status}`, status);

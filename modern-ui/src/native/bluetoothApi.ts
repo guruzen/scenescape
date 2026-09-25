@@ -128,14 +128,16 @@ const query = (values: Record<string, string | number | undefined>) => {
 
 export const bluetoothApi = {
   anchors: {
-    list(filters: {
-      sceneId?: string;
-      state?: string;
-      serial?: string;
-      providerId?: string;
-      offset?: number;
-      limit?: number;
-    } = {}) {
+    list(
+      filters: {
+        sceneId?: string;
+        state?: string;
+        serial?: string;
+        providerId?: string;
+        offset?: number;
+        limit?: number;
+      } = {},
+    ) {
       return apiFetch<BluetoothPage<BluetoothAnchor>>(
         `/api/v2/bluetooth/anchors${query({
           scene_id: filters.sceneId,
@@ -177,13 +179,15 @@ export const bluetoothApi = {
     },
   },
   tags: {
-    list(filters: {
-      state?: string;
-      serial?: string;
-      providerId?: string;
-      offset?: number;
-      limit?: number;
-    } = {}) {
+    list(
+      filters: {
+        state?: string;
+        serial?: string;
+        providerId?: string;
+        offset?: number;
+        limit?: number;
+      } = {},
+    ) {
       return apiFetch<BluetoothPage<BluetoothTag>>(
         `/api/v2/bluetooth/tags${query({
           state: filters.state,
@@ -224,14 +228,16 @@ export const bluetoothApi = {
     },
   },
   assignments: {
-    list(filters: {
-      tagId?: string;
-      entityType?: string;
-      entityId?: string;
-      active?: boolean;
-      offset?: number;
-      limit?: number;
-    } = {}) {
+    list(
+      filters: {
+        tagId?: string;
+        entityType?: string;
+        entityId?: string;
+        active?: boolean;
+        offset?: number;
+        limit?: number;
+      } = {},
+    ) {
       return apiFetch<BluetoothPage<BluetoothAssignment>>(
         `/api/v2/bluetooth/assignments${query({
           tag_id: filters.tagId,

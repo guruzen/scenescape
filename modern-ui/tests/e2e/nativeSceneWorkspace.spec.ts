@@ -265,7 +265,6 @@ test("UX-98 integrated Configure keeps native editors and inventory routes reach
   await capture(page, testInfo, "native-ux98-inventories.png");
 });
 
-
 test("BT-03 integrated Bluetooth control-plane CRUD uses the real FastAPI API", async ({
   page,
 }, testInfo) => {
@@ -284,7 +283,9 @@ test("BT-03 integrated Bluetooth control-plane CRUD uses the real FastAPI API", 
     page.getByText("ANCHOR-INTEGRATED-01", { exact: true }).first(),
   ).toBeVisible();
   await page.getByRole("button", { name: "Activate" }).click();
-  await expect(page.locator(".bt-editor-panel .bt-status")).toHaveText(/active/i);
+  await expect(page.locator(".bt-editor-panel .bt-status")).toHaveText(
+    /active/i,
+  );
 
   await page.getByRole("tab", { name: "Tags" }).click();
   await page.getByRole("button", { name: "New tag" }).click();
@@ -293,7 +294,9 @@ test("BT-03 integrated Bluetooth control-plane CRUD uses the real FastAPI API", 
   await expect(
     page.getByText("TAG-INTEGRATED-01", { exact: true }).first(),
   ).toBeVisible();
-  await expect(page.getByText("Unknown", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("Unknown", { exact: true }).first(),
+  ).toBeVisible();
 
   await page.getByLabel("Assignment entity type").selectOption("asset");
   await page.getByLabel("Assignment entity ID").fill("forklift-integrated-27");
@@ -304,7 +307,9 @@ test("BT-03 integrated Bluetooth control-plane CRUD uses the real FastAPI API", 
   ).toBeVisible();
 
   await page.getByRole("tab", { name: "Diagnostics" }).click();
-  await expect(page.getByText("Anchors visible", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Anchors visible", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("Tags visible", { exact: true })).toBeVisible();
   await capture(page, testInfo, "bt03-integrated-control-plane.png");
 });
