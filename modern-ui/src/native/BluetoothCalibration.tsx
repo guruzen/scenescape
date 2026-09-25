@@ -264,7 +264,11 @@ export default function BluetoothCalibration({
   const active = history.find((row) => row.state === "active");
   const latestDraft = history.find((row) => row.state === "draft");
 
-  const selectAnchor = (uid: string, rows = calibrations) => {
+  const selectAnchor = (
+    uid: string,
+    rows = calibrations,
+    clearFeedback = true,
+  ) => {
     setSelectedAnchorId(uid);
     const ordered = rows
       .filter((item) => item.anchor_uid === uid)
@@ -279,8 +283,10 @@ export default function BluetoothCalibration({
       scene_id: sceneId,
     });
     setHasPlacement(Boolean(row));
-    setMessage("");
-    setError("");
+    if (clearFeedback) {
+      setMessage("");
+      setError("");
+    }
   };
 
   const load = async () => {
@@ -375,10 +381,11 @@ export default function BluetoothCalibration({
         `Draft revision ${saved.calibration_revision} saved for ${selectedAnchor.serial_number}.`,
       );
       await load();
-      selectAnchor(selectedAnchor.uid, [
-        saved,
-        ...calibrations.filter((row) => row.uid !== saved.uid),
-      ]);
+      selectAnchor(
+        selectedAnchor.uid,
+        [saved, ...calibrations.filter((row) => row.uid !== saved.uid)],
+        false,
+      );
     } catch (reason) {
       setError(String(reason));
     } finally {
