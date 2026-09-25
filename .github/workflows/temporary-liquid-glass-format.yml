@@ -45,6 +45,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
+          echo "=== WORKFLOW FORMAT DIFF ==="
+          git diff --cached -- .github/workflows/bluetooth-positioning-gate.yml || true
+          git reset .github/workflows
           git diff --cached --check
           if git diff --cached --quiet; then
             echo "No formatting changes required."
