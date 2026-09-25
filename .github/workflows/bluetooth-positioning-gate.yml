@@ -20,6 +20,7 @@ on: # yamllint disable-line rule:truthy
       - "modern-ui/src/App.tsx"
       - "modern-ui/src/api/client.ts"
       - "modern-ui/src/native/BluetoothPositioning.tsx"
+      - "modern-ui/src/native/BluetoothCalibration.tsx"
       - "modern-ui/src/native/bluetoothApi.ts"
       - "modern-ui/src/native/native.css"
       - "modern-ui/tests/AuthFixture.tsx"

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useMemo, useState } from "react";
+import BluetoothCalibration from "./BluetoothCalibration";
 import {
   bluetoothApi,
   type AnchorPayload,
@@ -1259,21 +1260,7 @@ export default function BluetoothPositioning({
       )}
 
       {tab === "calibration" && (
-        <section className="panel bt-calibration-placeholder">
-          <div className="bt-placeholder-icon" aria-hidden="true">
-            ⊕
-          </div>
-          <div>
-            <div className="kicker">BT-04</div>
-            <h2>Anchor calibration</h2>
-            <p>
-              Floor-map placement, x/y/z coordinates, mounting height,
-              orientation, geometry validation and calibration revisions are
-              intentionally implemented in the next iteration. BT-03 does not
-              fabricate anchor coordinates.
-            </p>
-          </div>
-        </section>
+        <BluetoothCalibration scenes={scenes} isAdmin={isAdmin} />
       )}
     </>
   );

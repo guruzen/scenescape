@@ -2212,3 +2212,265 @@
     flex-direction: column;
   }
 }
+
+
+/* Bluetooth scene anchor calibration (BT-04). */
+.bt-cal-workspace {
+  display: grid;
+  gap: 14px;
+}
+.bt-cal-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: end;
+  padding: 16px;
+}
+.bt-cal-toolbar h2,
+.bt-cal-toolbar p {
+  margin: 0;
+}
+.bt-cal-toolbar p {
+  margin-top: 5px;
+  color: rgb(var(--muted));
+  font-size: 10px;
+}
+.bt-cal-toolbar-fields {
+  display: flex;
+  gap: 9px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+.bt-cal-toolbar-fields label,
+.bt-cal-coordinate-grid label {
+  display: grid;
+  gap: 5px;
+  color: rgb(var(--muted));
+  font-size: 10px;
+  font-weight: 700;
+}
+.bt-cal-toolbar-fields select {
+  min-width: 180px;
+}
+.bt-cal-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(310px, 0.65fr);
+  gap: 14px;
+  align-items: start;
+}
+.bt-cal-map-panel,
+.bt-cal-editor {
+  min-width: 0;
+  overflow: hidden;
+}
+.bt-cal-map-wrap {
+  position: relative;
+  margin: 0 16px 16px;
+  min-height: 420px;
+  border: 1px solid rgb(var(--line));
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgb(var(--soft));
+}
+.bt-cal-map {
+  display: block;
+  width: 100%;
+  min-height: 420px;
+  max-height: 640px;
+  cursor: crosshair;
+  background: rgb(var(--bg));
+}
+.bt-cal-grid-bg {
+  fill: rgb(var(--soft));
+}
+.bt-cal-anchor-marker {
+  cursor: pointer;
+}
+.bt-cal-anchor-marker circle {
+  fill: color-mix(in srgb, rgb(var(--accent)) 72%, rgb(var(--panel)));
+  stroke: rgb(var(--text));
+  stroke-width: 3;
+}
+.bt-cal-anchor-marker text {
+  fill: rgb(var(--text));
+  font-size: 18px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: rgb(var(--bg));
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+.bt-cal-anchor-marker.selected circle {
+  fill: rgb(var(--warning));
+  stroke-width: 5;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, rgb(var(--warning)) 65%, transparent));
+}
+.bt-cal-anchor-marker:focus-visible {
+  outline: none;
+}
+.bt-cal-anchor-marker:focus-visible circle {
+  stroke: rgb(var(--warning));
+  stroke-width: 6;
+}
+.bt-cal-map-note {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: grid;
+  gap: 2px;
+  max-width: calc(100% - 20px);
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, rgb(var(--line)) 75%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, rgb(var(--panel)) 90%, transparent);
+  backdrop-filter: blur(12px);
+  font-size: 9px;
+  pointer-events: none;
+}
+.bt-cal-map-note span {
+  color: rgb(var(--muted));
+}
+.bt-cal-coordinate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 16px 14px;
+}
+.bt-cal-coordinate-grid input,
+.bt-cal-coordinate-grid select {
+  width: 100%;
+}
+.bt-cal-coordinate-readout,
+.bt-cal-parent-projection {
+  display: grid;
+  gap: 4px;
+  margin: 0 16px 12px;
+  padding: 11px 12px;
+  border: 1px solid rgb(var(--line));
+  border-radius: 8px;
+  background: rgb(var(--soft));
+}
+.bt-cal-coordinate-readout span,
+.bt-cal-coordinate-readout small,
+.bt-cal-parent-projection span,
+.bt-cal-parent-projection small {
+  color: rgb(var(--muted));
+  font-size: 9px;
+}
+.bt-cal-coordinate-readout b,
+.bt-cal-parent-projection b {
+  font-variant-numeric: tabular-nums;
+}
+.bt-cal-bottom-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 14px;
+}
+.bt-cal-geometry-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+.bt-cal-geometry-metrics > div {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid rgb(var(--line));
+  border-radius: 8px;
+  background: rgb(var(--soft));
+}
+.bt-cal-geometry-metrics span {
+  color: rgb(var(--muted));
+  font-size: 9px;
+}
+.bt-cal-geometry-metrics b {
+  font-size: 15px;
+}
+.bt-geometry-state {
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.bt-geometry-state.ready {
+  color: rgb(var(--success));
+  background: color-mix(in srgb, rgb(var(--success)) 12%, transparent);
+}
+.bt-geometry-state.warning {
+  color: rgb(var(--warning));
+  background: color-mix(in srgb, rgb(var(--warning)) 12%, transparent);
+}
+.bt-cal-warning-list {
+  display: grid;
+  gap: 7px;
+  padding: 0 16px 16px;
+}
+.bt-cal-warning,
+.bt-cal-good {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid rgb(var(--line));
+  border-radius: 8px;
+  font-size: 9px;
+}
+.bt-cal-warning b {
+  text-transform: uppercase;
+}
+.bt-cal-warning.error {
+  border-color: color-mix(in srgb, rgb(var(--danger)) 55%, rgb(var(--line)));
+}
+.bt-cal-warning.warning {
+  border-color: color-mix(in srgb, rgb(var(--warning)) 55%, rgb(var(--line)));
+}
+.bt-cal-warning span,
+.bt-cal-good {
+  color: rgb(var(--muted));
+}
+.bt-cal-good {
+  color: rgb(var(--success));
+}
+.bt-cal-history-list {
+  padding: 0 16px 16px;
+}
+.bt-cal-history-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid rgb(var(--line));
+}
+.bt-cal-history-row b,
+.bt-cal-history-row span,
+.bt-cal-history-row small {
+  display: block;
+}
+.bt-cal-history-row span,
+.bt-cal-history-row small {
+  margin-top: 3px;
+  color: rgb(var(--muted));
+  font-size: 9px;
+}
+@media (max-width: 1100px) {
+  .bt-cal-main-grid,
+  .bt-cal-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+  .bt-cal-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+@media (max-width: 700px) {
+  .bt-cal-coordinate-grid,
+  .bt-cal-geometry-metrics {
+    grid-template-columns: 1fr;
+  }
+  .bt-cal-map-wrap,
+  .bt-cal-map {
+    min-height: 330px;
+  }
+}

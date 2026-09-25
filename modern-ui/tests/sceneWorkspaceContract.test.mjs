@@ -615,3 +615,26 @@ test("BT-03 contract: Bluetooth management UI is explicit, accessible and qualit
   assert.match(client, /\/api\/v2\/bluetooth\/assignments/);
   assert.match(client, /\/api\/v2\/bluetooth\/diagnostics/);
 });
+
+
+test("BT-04 contract: calibration stores scene-local metres with reversible revisions", () => {
+  const ui = readFileSync(
+    new URL("../src/native/BluetoothCalibration.tsx", import.meta.url),
+    "utf8",
+  );
+  const client = readFileSync(
+    new URL("../src/native/bluetoothApi.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(ui, /Bluetooth anchor calibration map/);
+  assert.match(ui, /scene-local metres/i);
+  assert.match(ui, /Y axis\s+is inverted from image pixels/i);
+  assert.match(ui, /Save new draft/);
+  assert.match(ui, /Publish draft/);
+  assert.match(ui, /Restore/);
+  assert.match(ui, /Geometry quality/);
+  assert.match(ui, /Parent projection/);
+  assert.match(client, /\/api\/v2\/bluetooth\/calibrations\/geometry/);
+  assert.match(client, /\/publish\?revision=/);
+  assert.match(client, /\/restore\?revision=/);
+});

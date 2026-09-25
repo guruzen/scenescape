@@ -63,6 +63,64 @@ export type BluetoothAssignment = {
   revision: number;
 };
 
+export type BluetoothCalibration = {
+  uid: string;
+  anchor_uid: string;
+  scene_id: string;
+  calibration_revision: number;
+  state: "draft" | "active" | "retired";
+  position: { x_m: number; y_m: number; z_m: number };
+  orientation: { yaw_deg: number; pitch_deg: number; roll_deg: number };
+  z_source: "measured" | "default" | "surveyed";
+  details: Record<string, unknown>;
+  coordinate_frame: string;
+  parent_projection?: {
+    parent_scene_id: string;
+    position: { x_m: number; y_m: number; z_m: number };
+    transform: {
+      translation: number[];
+      rotation: number[];
+      scale: number[];
+    };
+  } | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  revision: number;
+};
+
+export type BluetoothGeometryWarning = {
+  code: string;
+  severity: "error" | "warning";
+  anchor_uids: string[];
+  message: string;
+  distance_m?: number;
+  spread_ratio?: number;
+};
+
+export type BluetoothGeometry = {
+  scene_id: string;
+  anchor_count: number;
+  basis: string;
+  max_span_m: number;
+  spread_ratio: number;
+  warnings: BluetoothGeometryWarning[];
+  ready_for_2d: boolean;
+};
+
+export type CalibrationPayload = {
+  anchor_uid: string;
+  scene_id: string;
+  x_m: number;
+  y_m: number;
+  z_m: number;
+  yaw_deg: number;
+  pitch_deg: number;
+  roll_deg: number;
+  z_source: "measured" | "default" | "surveyed";
+  details?: Record<string, unknown>;
+};
+
 export type BluetoothDiagnostics = {
   anchors: {
     total: number;
@@ -260,6 +318,53 @@ export const bluetoothApi = {
       return apiFetch<BluetoothAssignment>(
         `/api/v2/bluetooth/assignments/${encodeURIComponent(uid)}/close?revision=${revision}`,
         { method: "POST", body: JSON.stringify({}) },
+      );
+    },
+  },
+  calibrations: {
+    list(filters: {
+      sceneId?: string;
+      anchorId?: string;
+      state?: string;
+      offset?: number;
+      limit?: number;
+    } = {}) {
+      return apiFetch<BluetoothPage<BluetoothCalibration>>(
+        `/api/v2/bluetooth/calibrations${query({
+          scene_id: filters.sceneId,
+          anchor_id: filters.anchorId,
+          state: filters.state,
+          offset: filters.offset ?? 0,
+          limit: filters.limit ?? 500,
+        })}`,
+      );
+    },
+    history(anchorId: string) {
+      return apiFetch<{ items: BluetoothCalibration[]; total: number }>(
+        `/api/v2/bluetooth/anchors/${encodeURIComponent(anchorId)}/calibrations`,
+      );
+    },
+    geometry(sceneId: string) {
+      return apiFetch<BluetoothGeometry>(
+        `/api/v2/bluetooth/calibrations/geometry?scene_id=${encodeURIComponent(sceneId)}`,
+      );
+    },
+    create(payload: CalibrationPayload) {
+      return apiFetch<BluetoothCalibration>("/api/v2/bluetooth/calibrations", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    },
+    publish(uid: string, revision: number) {
+      return apiFetch<BluetoothCalibration>(
+        `/api/v2/bluetooth/calibrations/${encodeURIComponent(uid)}/publish?revision=${revision}`,
+        { method: "POST" },
+      );
+    },
+    restore(uid: string, revision: number) {
+      return apiFetch<BluetoothCalibration>(
+        `/api/v2/bluetooth/calibrations/${encodeURIComponent(uid)}/restore?revision=${revision}`,
+        { method: "POST" },
       );
     },
   },
