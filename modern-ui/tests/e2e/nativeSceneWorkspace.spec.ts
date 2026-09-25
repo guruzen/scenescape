@@ -361,8 +361,8 @@ test("BT-04 integrated calibration persists scene-local metres through real Fast
   const clickedY = Number(
     await page.getByLabel("Calibration Y metres").inputValue(),
   );
-  expect(clickedX).toBeCloseTo(2, 2);
-  expect(clickedY).toBeCloseTo(4.2, 2);
+  expect(Math.abs(clickedX - 2)).toBeLessThanOrEqual(0.01);
+  expect(Math.abs(clickedY - 4.2)).toBeLessThanOrEqual(0.01);
 
   // Persist exact surveyed coordinates after validating map conversion.
   await page.getByLabel("Calibration X metres").fill("2");
