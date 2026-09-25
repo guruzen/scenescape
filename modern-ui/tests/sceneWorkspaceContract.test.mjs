@@ -608,8 +608,13 @@ test("BT-03 contract: Bluetooth management UI is explicit, accessible and qualit
   assert.match(ui, /Battery/);
   assert.match(ui, /Unknown/);
   assert.match(ui, /Assignment history/);
-  assert.match(ui, /BT-04/);
-  assert.match(ui, /does not\s+fabricate anchor coordinates/i);
+  assert.match(ui, /<BluetoothCalibration/);
+  const calibrationUi = readFileSync(
+    new URL("../src/native/BluetoothCalibration.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(calibrationUi, /scene-local metres/i);
+  assert.match(calibrationUi, /No renderable floor image is available/i);
   assert.match(client, /\/api\/v2\/bluetooth\/anchors/);
   assert.match(client, /\/api\/v2\/bluetooth\/tags/);
   assert.match(client, /\/api\/v2\/bluetooth\/assignments/);
