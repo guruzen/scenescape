@@ -252,6 +252,14 @@ class CalibrationInput(BluetoothModel):
       raise ValueError("calibration coordinates and angles must be finite")
     return number
 
+  @model_validator(mode="after")
+  def coordinates_are_site_bounded(self):
+    if abs(self.x_m) > 1_000_000 or abs(self.y_m) > 1_000_000:
+      raise ValueError("scene-local x/y coordinates exceed the supported site bound")
+    if self.z_m < -1_000 or self.z_m > 10_000:
+      raise ValueError("scene-local z coordinate exceeds the supported site bound")
+    return self
+
 
 def _as_utc(value: datetime) -> datetime:
   if value.tzinfo is None:
@@ -626,6 +634,8 @@ def create_calibration(db, payload: dict[str, Any], actor: str) -> BluetoothCali
   data = CalibrationInput.model_validate(payload)
   anchor = _require_anchor(db, data.anchor_uid)
   _require_scene(db, data.scene_id)
+  if anchor.state == DeviceState.RETIRED.value:
+    raise BluetoothConflict("anchor_retired", "Retired anchors cannot receive new calibration revisions")
   if anchor.scene_id not in (None, data.scene_id):
     raise BluetoothConflict(
         "anchor_scene_conflict",
@@ -655,7 +665,7 @@ def create_calibration(db, payload: dict[str, Any], actor: str) -> BluetoothCali
       pitch_deg=data.pitch_deg,
       roll_deg=data.roll_deg,
       z_source=data.z_source,
-      details=data.details,
+      details={**data.details, "coordinate_frame": "scene_local_m"},
       created_by=actor,
       revision=1,
   )
@@ -792,5 +802,8 @@ def calibration_to_dict(row: BluetoothCalibration) -> dict[str, Any]:
       },
       "z_source": row.z_source,
       "details": dict(row.details or {}),
+      "created_by": row.created_by,
+      "created_at": row.created_at,
+      "updated_at": row.updated_at,
       "revision": row.revision,
   }

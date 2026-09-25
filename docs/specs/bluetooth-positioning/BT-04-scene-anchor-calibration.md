@@ -1,6 +1,6 @@
 # BT-04 — Scene Anchor Calibration
 
-**Status:** PLANNED  
+**Status:** IN_PROGRESS  
 **Dependencies:** BT-02, BT-03  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -78,7 +78,7 @@ Reactivate previous calibration or disable anchors.
 
 - Implementation commit: _not yet recorded_
 - Evidence: _not yet recorded_
-- Known deviations: _none at planning baseline_
+- Known deviations: BT-04 computes immediate-parent projection for local child scenes as provenance, while authoritative stored coordinates remain in the selected scene local metre frame. Advanced GDOP/bias modelling remains BT-11.
 
 ## Continuation prompt
 
