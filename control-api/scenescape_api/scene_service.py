@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 
+from .bluetooth_domain import cascade_scene_bluetooth
 from .contracts import normalize_resource
 from .hierarchy import cascade_scene_links
 from .markers import cascade_scene_markers
@@ -92,6 +93,7 @@ def delete_scene(db, uid: str):
   media = [str((row.payload or {}).get(field) or '') for field in ('map', 'thumbnail', 'polycam_data')]
   cascade_scene_links(db, uid)
   cascade_scene_markers(db, uid)
+  cascade_scene_bluetooth(db, uid)
   _cascade_scene_resources(db, uid)
   result = delete_resource(db, 'scene', uid)
   return result, [value for value in media if value]

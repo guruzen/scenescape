@@ -1,6 +1,6 @@
 # BT-00 — Architecture and Specification Baseline
 
-**Status:** COMPLETE (planning baseline)  
+**Status:** COMPLETE  
 **Dependencies:** None  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -52,9 +52,9 @@ Establish the durable product definition, architecture, contracts, iteration bou
 
 ## Acceptance criteria
 
-- [ ] All 22 planning files committed.
-- [ ] Every BT item has tests/evidence/acceptance/rollback and resume prompt.
-- [ ] A future session can act from BT ID.
+- [x] All 22 planning files committed.
+- [x] Every BT item has tests/evidence/acceptance/rollback and resume prompt.
+- [x] A future session can act from BT ID.
 
 ## Out of scope
 
@@ -67,8 +67,8 @@ Revert this documentation commit.
 
 ## Implementation record
 
-- Implementation commit: _not yet recorded_
-- Evidence: _not yet recorded_
+- Implementation commit: `de56275646e1b2fad7461aeb4bd20d4609a61c6d`
+- Evidence: `.github/evidence/bluetooth-positioning/BT-00-specification-baseline.md`
 - Known deviations: _none at planning baseline_
 
 ## Continuation prompt

@@ -8,7 +8,22 @@ import uvicorn
 
 from sqlalchemy import delete, text
 
-from .database import Base, Event, Heartbeat, Incident, Observation, Resource, get_engine, sessions
+from .database import (
+    Base,
+    BluetoothAnchor,
+    BluetoothAssignment,
+    BluetoothCalibration,
+    BluetoothProvider,
+    BluetoothTag,
+    Event,
+    Heartbeat,
+    Incident,
+    Observation,
+    Resource,
+    get_engine,
+    sessions,
+)
+from .bluetooth_schema import upgrade_bt01
 from .ingest import persist
 from .migrate_legacy import migrate as migrate_snapshot
 
@@ -16,6 +31,7 @@ from .migrate_legacy import migrate as migrate_snapshot
 def migrate():
   engine = get_engine()
   Base.metadata.create_all(engine)
+  upgrade_bt01(engine)
   # create_all() does not retrofit constraints on an existing native database.
   # Refuse to add the uniqueness guard if an earlier build already created
   # duplicate logical resources; silently deleting either row would lose data.
@@ -49,7 +65,18 @@ def reset(path=None):
     raise SystemExit("reset requires SCENESCAPE_ALLOW_RESET=1")
   Base.metadata.create_all(get_engine())
   with sessions()() as db:
-    for model in (Incident, Event, Observation, Heartbeat, Resource):
+    for model in (
+        BluetoothAssignment,
+        BluetoothCalibration,
+        BluetoothTag,
+        BluetoothAnchor,
+        BluetoothProvider,
+        Incident,
+        Event,
+        Observation,
+        Heartbeat,
+        Resource,
+    ):
       db.execute(delete(model))
     db.commit()
   if path:

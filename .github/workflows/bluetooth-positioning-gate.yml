@@ -1,0 +1,58 @@
+---
+# SPDX-License-Identifier: Apache-2.0
+name: "[Bluetooth] Positioning Gate"
+run-name: "[Bluetooth] Positioning Gate"
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - feature/react-keycloak-modern-ui
+    paths:
+      - "control-api/scenescape_api/bluetooth_*.py"
+      - "control-api/scenescape_api/database.py"
+      - "control-api/scenescape_api/cli.py"
+      - "control-api/scenescape_api/scene_service.py"
+      - "control-api/tests/test_bluetooth_*.py"
+      - "docs/specs/bluetooth-positioning/**"
+      - ".github/evidence/bluetooth-positioning/**"
+      - ".github/workflows/bluetooth-positioning-gate.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bluetooth-positioning-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bt-domain:
+    name: "Bluetooth domain and native regression"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Create Python environment
+        run: |
+          python3 -m venv .venv-bt
+          . .venv-bt/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r control-api/requirements.txt -r control-api/requirements-test.txt
+
+      - name: Compile Bluetooth control-plane modules
+        env:
+          PYTHONPATH: control-api
+        run: |
+          . .venv-bt/bin/activate
+          python -m compileall -q control-api/scenescape_api
+
+      - name: Run BT-01 domain tests and native concurrency regressions
+        env:
+          PYTHONPATH: control-api
+        run: |
+          . .venv-bt/bin/activate
+          pytest -q             control-api/tests/test_bluetooth_domain.py             control-api/tests/test_native_api.py::test_native_updates_require_revision_and_reject_stale_writes             control-api/tests/test_native_api.py::test_resource_kind_uid_unique_index_survives_migrate             control-api/tests/test_native_api.py::test_native_delete_requires_current_revision

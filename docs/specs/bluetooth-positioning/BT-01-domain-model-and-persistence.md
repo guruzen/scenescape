@@ -1,6 +1,6 @@
 # BT-01 — Domain Model and Persistence
 
-**Status:** PLANNED  
+**Status:** IN_PROGRESS  
 **Dependencies:** BT-00  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -77,7 +77,7 @@ Downgrade migration or disable feature resources.
 
 - Implementation commit: _not yet recorded_
 - Evidence: _not yet recorded_
-- Known deviations: _none at planning baseline_
+- Known deviations: Dedicated relational tables are used instead of generic JSON resources because BT-01 requires portable uniqueness/indexing, assignment history, calibration revisions, and optimistic concurrency across SQLite/PostgreSQL.
 
 ## Continuation prompt
 
