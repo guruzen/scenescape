@@ -32,8 +32,10 @@ jobs:
 
       - name: Apply repository Prettier formatting
         run: |
+          # A second pass handles formatter output that becomes stable only
+          # after the first repository-wide rewrite.
           make prettier-write
-          git checkout -- .github/workflows
+          make prettier-write
 
       - name: Verify Prettier
         run: make prettier-check
@@ -43,11 +45,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git reset .github/workflows
           git diff --cached --check
           if git diff --cached --quiet; then
             echo "No formatting changes required."
             exit 0
           fi
-          git commit -m "Format Liquid Glass theme changes"
+          git commit -m "Format BT-03 Bluetooth management changes"
           git push origin HEAD:feature/react-keycloak-modern-ui
