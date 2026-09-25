@@ -1,6 +1,6 @@
 # BT-03 — Bluetooth Management UI
 
-**Status:** PLANNED  
+**Status:** IN_PROGRESS  
 **Dependencies:** BT-02  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -80,7 +80,7 @@ Remove/disable navigation; backend remains.
 
 - Implementation commit: _not yet recorded_
 - Evidence: _not yet recorded_
-- Known deviations: _none at planning baseline_
+- Known deviations: The BT-03 tag workspace remains administrator-only because BT-02 intentionally has no static tag-to-scene binding. Battery and last-seen values are displayed read-only and remain `Unknown` until provider telemetry is implemented in BT-10.
 
 ## Continuation prompt
 

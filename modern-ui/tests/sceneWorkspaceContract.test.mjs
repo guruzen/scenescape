@@ -587,3 +587,32 @@ test("regression: live scene normalization rejects non-array object payloads wit
 
   assert.deepEqual(normalizeLiveSceneState(null), { objects: [], stale: true });
 });
+
+
+test("BT-03 contract: Bluetooth management UI is explicit, accessible and quality-honest", () => {
+  const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+  const ui = readFileSync(
+    new URL("../src/native/BluetoothPositioning.tsx", import.meta.url),
+    "utf8",
+  );
+  const client = readFileSync(
+    new URL("../src/native/bluetoothApi.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(app, /Bluetooth positioning/);
+  assert.match(app, /<BluetoothPositioning/);
+  assert.match(ui, /role="tablist"/);
+  assert.match(ui, /Anchors/);
+  assert.match(ui, /Tags/);
+  assert.match(ui, /Diagnostics/);
+  assert.match(ui, /Calibration/);
+  assert.match(ui, /Battery/);
+  assert.match(ui, /Unknown/);
+  assert.match(ui, /Assignment history/);
+  assert.match(ui, /BT-04/);
+  assert.match(ui, /does not\s+fabricate anchor coordinates/i);
+  assert.match(client, /\/api\/v2\/bluetooth\/anchors/);
+  assert.match(client, /\/api\/v2\/bluetooth\/tags/);
+  assert.match(client, /\/api\/v2\/bluetooth\/assignments/);
+  assert.match(client, /\/api\/v2\/bluetooth\/diagnostics/);
+});

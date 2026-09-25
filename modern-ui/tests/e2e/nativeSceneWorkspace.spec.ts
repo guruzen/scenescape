@@ -264,3 +264,47 @@ test("UX-98 integrated Configure keeps native editors and inventory routes reach
   await expect(page.getByPlaceholder("Search sensors")).toBeVisible();
   await capture(page, testInfo, "native-ux98-inventories.png");
 });
+
+
+test("BT-03 integrated Bluetooth control-plane CRUD uses the real FastAPI API", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/tests/harness.html#/bluetooth");
+  await expect(
+    page.getByRole("heading", { name: "Bluetooth positioning" }),
+  ).toBeVisible({ timeout: 20_000 });
+
+  await page.getByRole("button", { name: "New anchor" }).click();
+  await page.getByLabel("Serial number").fill("ANCHOR-INTEGRATED-01");
+  const sceneSelect = page.getByLabel("Scene");
+  await expect(sceneSelect.locator("option")).toHaveCount(2);
+  await sceneSelect.selectOption({ index: 1 });
+  await page.getByRole("button", { name: "Commission anchor" }).click();
+  await expect(
+    page.getByText("ANCHOR-INTEGRATED-01", { exact: true }).first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Activate" }).click();
+  await expect(page.getByText("active", { exact: true }).first()).toBeVisible();
+
+  await page.getByRole("tab", { name: "Tags" }).click();
+  await page.getByRole("button", { name: "New tag" }).click();
+  await page.getByLabel("Serial number").fill("TAG-INTEGRATED-01");
+  await page.getByRole("button", { name: "Commission tag" }).click();
+  await expect(
+    page.getByText("TAG-INTEGRATED-01", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(page.getByText("Unknown", { exact: true }).first()).toBeVisible();
+
+  await page.getByLabel("Assignment entity type").selectOption("asset");
+  await page.getByLabel("Assignment entity ID").fill("forklift-integrated-27");
+  await page.getByLabel("Display name").fill("Integrated Forklift 27");
+  await page.getByRole("button", { name: "Assign tag" }).click();
+  await expect(
+    page.getByText("Integrated Forklift 27", { exact: true }).first(),
+  ).toBeVisible();
+
+  await page.getByRole("tab", { name: "Diagnostics" }).click();
+  await expect(page.getByText("Anchors visible", { exact: true })).toBeVisible();
+  await expect(page.getByText("Tags visible", { exact: true })).toBeVisible();
+  await capture(page, testInfo, "bt03-integrated-control-plane.png");
+});

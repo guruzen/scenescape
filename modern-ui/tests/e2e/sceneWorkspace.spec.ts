@@ -172,6 +172,9 @@ const overview = {
 };
 
 async function mockNativeApi(page: Page) {
+  let btAnchors: any[] = [];
+  let btTags: any[] = [];
+  let btAssignments: any[] = [];
   await page.route("**/media/floor.png", async (route) => {
     await route.fulfill({
       status: 200,
@@ -188,6 +191,82 @@ async function mockNativeApi(page: Page) {
         status,
         contentType: "application/json",
         body: JSON.stringify(value),
+      });
+
+    if (path === "/api/v2/bluetooth/anchors" && request.method() === "GET") {
+      const serial = (url.searchParams.get("serial") || "").toLowerCase();
+      const items = btAnchors.filter((row) =>
+        String(row.serial_number).toLowerCase().includes(serial),
+      );
+      return json({ items, total: items.length, offset: 0, limit: 100 });
+    }
+    if (path === "/api/v2/bluetooth/anchors" && request.method() === "POST") {
+      const body = request.postDataJSON();
+      const row = { uid: `anchor-${btAnchors.length + 1}`, state: "commissioned", revision: 1, ...body };
+      btAnchors.push(row);
+      return json(row);
+    }
+    if (/^\/api\/v2\/bluetooth\/anchors\/[^/]+\/(activate|deactivate|maintenance|retire)$/.test(path)) {
+      const [, , , , , id, action] = path.split("/");
+      const row = btAnchors.find((item) => item.uid === id);
+      if (!row) return json({ detail: { code: "anchor_not_found", message: "Bluetooth anchor not found" } }, 404);
+      row.state = action === "deactivate" ? "disabled" : action === "retire" ? "retired" : action;
+      row.revision += 1;
+      return json(row);
+    }
+    if (path === "/api/v2/bluetooth/tags" && request.method() === "GET") {
+      const serial = (url.searchParams.get("serial") || "").toLowerCase();
+      const items = btTags.filter((row) =>
+        String(row.serial_number).toLowerCase().includes(serial),
+      );
+      return json({ items, total: items.length, offset: 0, limit: 100 });
+    }
+    if (path === "/api/v2/bluetooth/tags" && request.method() === "POST") {
+      const body = request.postDataJSON();
+      const row = {
+        uid: `tag-${btTags.length + 1}`,
+        state: "commissioned",
+        revision: 1,
+        battery: { percent: null, status: "unknown", source: null, observed_at: null },
+        last_seen_at: null,
+        ...body,
+      };
+      btTags.push(row);
+      return json(row);
+    }
+    if (path === "/api/v2/bluetooth/assignments" && request.method() === "GET")
+      return json({ items: btAssignments, total: btAssignments.length, offset: 0, limit: 200 });
+    if (path === "/api/v2/bluetooth/assignments" && request.method() === "POST") {
+      const body = request.postDataJSON();
+      const row = {
+        uid: `assignment-${btAssignments.length + 1}`,
+        revision: 1,
+        valid_from: "2026-09-25T14:30:00Z",
+        valid_to: null,
+        created_by: "ux-test",
+        closed_by: null,
+        ...body,
+      };
+      btAssignments.push(row);
+      return json(row);
+    }
+    if (path === "/api/v2/bluetooth/diagnostics")
+      return json({
+        anchors: {
+          total: btAnchors.length,
+          by_state: btAnchors.reduce((acc: Record<string, number>, row) => {
+            acc[row.state] = (acc[row.state] || 0) + 1;
+            return acc;
+          }, {}),
+          unassigned_scene: btAnchors.filter((row) => !row.scene_id).length,
+        },
+        tags: {
+          visible: true,
+          total: btTags.length,
+          by_state: {},
+          battery: { unknown: btTags.length },
+        },
+        scope: { all_scenes: true, scenes: ["*"] },
       });
 
     if (path === "/api/v2/scenes/scene-a/live/stream") {
@@ -619,4 +698,48 @@ test("UX-80–85 Accessibility smoke: keyboard navigation, controls, focus and s
   await expect(status).toHaveAttribute("aria-live", "polite");
 
   await screenshot(page, testInfo, "ux80-85-accessibility.png");
+});
+
+
+test("BT-03 Bluetooth management smoke: navigation, anchor, tag, assignment and honest telemetry", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/tests/e2e/index.html#/bluetooth");
+  await expect(
+    page.getByRole("heading", { name: "Bluetooth positioning" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "New anchor" }).click();
+  await page.getByLabel("Serial number").fill("ANCHOR-UX-01");
+  await page.getByLabel("Scene").selectOption("scene-a");
+  await page.getByRole("button", { name: "Commission anchor" }).click();
+  await expect(page.getByText("ANCHOR-UX-01", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Anchor commissioned.", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Activate" }).click();
+  await expect(page.getByText("active", { exact: true }).first()).toBeVisible();
+
+  await page.getByRole("tab", { name: "Tags" }).click();
+  await page.getByRole("button", { name: "New tag" }).click();
+  await page.getByLabel("Serial number").fill("TAG-UX-01");
+  await page.getByRole("button", { name: "Commission tag" }).click();
+  await expect(page.getByText("TAG-UX-01", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Unknown", { exact: true }).first()).toBeVisible();
+
+  await page.getByLabel("Assignment entity ID").fill("forklift-27");
+  await page.getByLabel("Display name").fill("Forklift 27");
+  await page.getByRole("button", { name: "Assign tag" }).click();
+  await expect(page.getByText("Forklift 27", { exact: true }).first()).toBeVisible();
+
+  await page.getByRole("tab", { name: "Diagnostics" }).click();
+  await expect(page.getByText("Anchors visible", { exact: true })).toBeVisible();
+  await expect(page.getByText("Tags visible", { exact: true })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Calibration" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Anchor calibration" }),
+  ).toBeVisible();
+  await expect(page.getByText("BT-04", { exact: true })).toBeVisible();
+
+  await screenshot(page, testInfo, "bt03-bluetooth-management.png");
 });

@@ -63,6 +63,7 @@ def tick():
     time.sleep(1)
 threading.Thread(target=tick, daemon=True).start()
 import io
+import jwt
 import scenescape_api.app as app_module
 
 def synthetic_snapshot(_camera_id):
@@ -75,6 +76,20 @@ def synthetic_snapshot(_camera_id):
   return output.getvalue()
 
 app_module.fetch_camera_snapshot = synthetic_snapshot
+
+@app_module.app.get("/api/test/browser-token")
+def browser_test_token():
+  now = int(time.time())
+  return {"token": jwt.encode({
+      "sub": "browser-fixture",
+      "name": "Synthetic test operator",
+      "roles": ["scenescape-admin"],
+      "scenes": ["*"],
+      "iat": now,
+      "exp": now + 3600,
+      "aud": "scenescape-api"
+  }, os.environ["API_SIGNING_KEY"], algorithm="HS256")}
+
 app = app_module.app
 import uvicorn
 uvicorn.run(app, host="127.0.0.1", port=8765, access_log=False)

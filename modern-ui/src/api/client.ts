@@ -1,5 +1,31 @@
 import { runtimeConfig } from "../config";
 
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+const apiError = (body: unknown, status: number) => {
+  if (body && typeof body === "object" && "detail" in body) {
+    const detail = (body as { detail: unknown }).detail;
+    if (typeof detail === "string") return new ApiError(detail, status);
+    if (detail && typeof detail === "object") {
+      const value = detail as { message?: unknown; code?: unknown };
+      const message = String(value.message || `SceneScape API returned ${status}`);
+      const code = value.code ? String(value.code) : undefined;
+      return new ApiError(code ? `${message} [${code}]` : message, status, code);
+    }
+  }
+  return new ApiError(`SceneScape API returned ${status}`, status);
+};
+
 export type TokenSupplier = () => Promise<string | undefined>;
 let tokenSupplier: TokenSupplier = async () => undefined;
 
@@ -35,12 +61,7 @@ export async function apiFetch<T>(
       : ct.includes("application/json")
         ? await response.json().catch(() => null)
         : await response.text().catch(() => "");
-  if (!response.ok)
-    throw new Error(
-      typeof body === "object" && body && "detail" in body
-        ? String((body as { detail: unknown }).detail)
-        : `SceneScape API returned ${response.status}`,
-    );
+  if (!response.ok) throw apiError(body, response.status);
   return body as T;
 }
 

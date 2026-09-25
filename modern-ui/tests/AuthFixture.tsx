@@ -2,13 +2,7 @@
 import { setTokenSupplier } from "../src/api/client";
 let token: Promise<string> | undefined;
 setTokenSupplier(() => {
-  token ??= fetch("/api/v1/auth", {
-    method: "POST",
-    body: new URLSearchParams({
-      username: "browser-fixture",
-      password: "fixture-only",
-    }),
-  }).then(async (response) => {
+  token ??= fetch("/api/test/browser-token").then(async (response) => {
     if (!response.ok)
       throw new Error("The isolated browser-test API was not started");
     return (await response.json()).token as string;

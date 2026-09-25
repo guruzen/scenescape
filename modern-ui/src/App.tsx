@@ -12,6 +12,7 @@ import AssetInventory from "./native/AssetInventory";
 import HierarchyEditor from "./native/HierarchyEditor";
 import SecurityAdmin from "./native/SecurityAdmin";
 import ModelLibrary from "./native/ModelLibrary";
+import BluetoothPositioning from "./native/BluetoothPositioning";
 import SceneStatusHeader from "./ux/SceneStatusHeader";
 import SceneInspector from "./ux/SceneInspector";
 import SceneTelemetryHud from "./ux/SceneTelemetryHud";
@@ -77,6 +78,7 @@ const configuration = [
   ["scenes", "Sites, floors & scenes"],
   ["cameras", "Cameras"],
   ["sensors", "Sensors"],
+  ["bluetooth", "Bluetooth positioning"],
   ["zones", "Zones & tripwires"],
   ["assets", "Object library"],
   ["models", "Model library"],
@@ -2665,6 +2667,8 @@ function App() {
     page = <CameraInventory isAdmin={auth.isAdmin} />;
   else if (path === "sensors")
     page = <SensorInventory isAdmin={auth.isAdmin} />;
+  else if (path === "bluetooth")
+    page = <BluetoothPositioning scenes={scenes} isAdmin={auth.isAdmin} />;
   else if (path === "zones") page = <Zones goTo={go} />;
   else if (path === "assets") page = <AssetInventory isAdmin={auth.isAdmin} />;
   else if (path === "models") page = <ModelLibrary isAdmin={auth.isAdmin} />;

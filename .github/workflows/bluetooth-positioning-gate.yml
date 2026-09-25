@@ -16,6 +16,16 @@ on: # yamllint disable-line rule:truthy
       - "control-api/scenescape_api/cli.py"
       - "control-api/scenescape_api/scene_service.py"
       - "control-api/tests/test_bluetooth_*.py"
+      - "control-api/tests/browser_server.py"
+      - "modern-ui/src/App.tsx"
+      - "modern-ui/src/api/client.ts"
+      - "modern-ui/src/native/BluetoothPositioning.tsx"
+      - "modern-ui/src/native/bluetoothApi.ts"
+      - "modern-ui/src/native/native.css"
+      - "modern-ui/tests/AuthFixture.tsx"
+      - "modern-ui/tests/sceneWorkspaceContract.test.mjs"
+      - "modern-ui/tests/e2e/sceneWorkspace.spec.ts"
+      - "modern-ui/tests/e2e/nativeSceneWorkspace.spec.ts"
       - "docs/specs/bluetooth-positioning/**"
       - ".github/evidence/bluetooth-positioning/**"
       - ".github/workflows/bluetooth-positioning-gate.yml"
@@ -64,3 +74,41 @@ jobs:
             control-api/tests/test_native_api.py::test_native_updates_require_revision_and_reject_stale_writes \
             control-api/tests/test_native_api.py::test_resource_kind_uid_unique_index_survives_migrate \
             control-api/tests/test_native_api.py::test_native_delete_requires_current_revision
+
+
+  bt-ui:
+    name: "Bluetooth management UI contract and build"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 22
+        shell: bash
+        run: |
+          export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+          if [ -s "$NVM_DIR/nvm.sh" ]; then
+            # shellcheck source=/dev/null
+            . "$NVM_DIR/nvm.sh"
+            nvm install 22
+            nvm use 22
+          fi
+          node --version
+          npm --version
+
+      - name: Install Modern UI dependencies
+        working-directory: modern-ui
+        run: npm install --no-audit --no-fund
+
+      - name: Run Bluetooth/Scene Workspace UI contracts
+        working-directory: modern-ui
+        run: npm run test:ux
+
+      - name: Typecheck and production build
+        working-directory: modern-ui
+        run: |
+          npm run typecheck
+          npm run build
