@@ -5,6 +5,7 @@ from sqlalchemy import inspect, select
 from .database import (
     BluetoothAnchor,
     BluetoothAssignment,
+    BluetoothAudit,
     BluetoothCalibration,
     BluetoothProvider,
     BluetoothTag,
@@ -53,3 +54,12 @@ def downgrade_bt01(engine, *, allow_data_loss: bool = False) -> None:
 
   for table in reversed(BT01_TABLES):
     table.drop(bind=engine, checkfirst=True)
+
+
+BT02_TABLES = (BluetoothAudit.__table__,)
+
+
+def upgrade_bt02(engine) -> None:
+  """Create BT-02 audit persistence without changing BT-01 device data."""
+  for table in BT02_TABLES:
+    table.create(bind=engine, checkfirst=True)

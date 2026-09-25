@@ -1,6 +1,6 @@
 # BT-02 — Control Plane API
 
-**Status:** PLANNED  
+**Status:** IN_PROGRESS  
 **Dependencies:** BT-01  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -80,7 +80,7 @@ Disable routes/feature; preserve resources.
 
 - Implementation commit: _not yet recorded_
 - Evidence: _not yet recorded_
-- Known deviations: _none at planning baseline_
+- Known deviations: Tags are intentionally not assigned a permanent scene in BT-02. Until live positioning supplies a trustworthy scene association, full tag inventory and assignment history are administrator-only; scene-scoped non-admin users receive filtered anchor inventory/diagnostics only.
 
 ## Continuation prompt
 

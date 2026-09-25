@@ -257,6 +257,23 @@ class BluetoothCalibration(Base):
   updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class BluetoothAudit(Base):
+  __tablename__ = "native_bluetooth_audit"
+  __table_args__ = (
+      Index("ix_native_bluetooth_audit_resource", "resource_type", "resource_uid"),
+      Index("ix_native_bluetooth_audit_scene_time", "scene_id", "observed_at"),
+  )
+
+  id: Mapped[int] = mapped_column(Integer, primary_key=True)
+  actor: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+  action: Mapped[str] = mapped_column(String(64), nullable=False)
+  resource_type: Mapped[str] = mapped_column(String(64), nullable=False)
+  resource_uid: Mapped[str] = mapped_column(String(96), nullable=False)
+  scene_id: Mapped[str | None] = mapped_column(String(96), nullable=True)
+  details: Mapped[dict] = mapped_column(JSON, default=dict)
+  observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
 def get_engine():
   global _engine, _Session
   url = database_url()

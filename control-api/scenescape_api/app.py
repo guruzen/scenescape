@@ -17,6 +17,7 @@ from sqlalchemy import func, or_, select
 
 from .auth import Principal, current_principal, issue_token, service_principal, verify_service
 from .asset_service import cleanup_replaced_asset_media, create_asset, delete_asset, update_asset
+from .bluetooth_api import router as bluetooth_router
 from .calibration_service import camera_calibration as proxy_camera_calibration, scene_registration as proxy_scene_registration, service_status as proxy_calibration_status
 from .camera_io import CameraSnapshotError, fetch_camera_calibration, fetch_camera_snapshot, request_camera_frame, request_camera_video, update_camera_runtime
 from .camera_service import update_camera_resource
@@ -45,6 +46,7 @@ from .sensor_service import update_sensor_resource
 from .resources import ALIASES, delete_resource, get_resource, list_resources, to_dict, upsert
 
 app = FastAPI(title="SceneScape Native Control API", version="0.2")
+app.include_router(bluetooth_router)
 
 
 def db_dep():

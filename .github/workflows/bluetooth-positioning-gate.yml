@@ -10,6 +10,8 @@ on: # yamllint disable-line rule:truthy
     paths:
       - "control-api/scenescape_api/bluetooth_*.py"
       - "control-api/scenescape_api/database.py"
+      - "control-api/scenescape_api/auth.py"
+      - "control-api/scenescape_api/app.py"
       - "control-api/scenescape_api/cli.py"
       - "control-api/scenescape_api/scene_service.py"
       - "control-api/tests/test_bluetooth_*.py"
@@ -50,9 +52,14 @@ jobs:
           . .venv-bt/bin/activate
           python -m compileall -q control-api/scenescape_api
 
-      - name: Run BT-01 domain tests and native concurrency regressions
+      - name: Run Bluetooth positioning tests and native concurrency regressions
         env:
           PYTHONPATH: control-api
         run: |
           . .venv-bt/bin/activate
-          pytest -q             control-api/tests/test_bluetooth_domain.py             control-api/tests/test_native_api.py::test_native_updates_require_revision_and_reject_stale_writes             control-api/tests/test_native_api.py::test_resource_kind_uid_unique_index_survives_migrate             control-api/tests/test_native_api.py::test_native_delete_requires_current_revision
+          pytest -q \
+            control-api/tests/test_bluetooth_domain.py \
+            control-api/tests/test_bluetooth_api.py \
+            control-api/tests/test_native_api.py::test_native_updates_require_revision_and_reject_stale_writes \
+            control-api/tests/test_native_api.py::test_resource_kind_uid_unique_index_survives_migrate \
+            control-api/tests/test_native_api.py::test_native_delete_requires_current_revision

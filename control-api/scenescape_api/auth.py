@@ -6,7 +6,7 @@ import jwt
 from jwt import PyJWKClient
 @dataclass(frozen=True)
 class Principal:
-  subject:str; display_name:str; roles:frozenset[str]; scene_scopes:frozenset[str]; expires_at:int
+  subject:str; display_name:str; roles:frozenset[str]; scene_scopes:frozenset[str]; expires_at:int; token_type:str=""
   @property
   def is_admin(self): return "scenescape-admin" in self.roles
 def _key(): return os.getenv("API_SIGNING_KEY","development-only-key-change-me-123456")
@@ -28,7 +28,7 @@ def _principal(data):
     scenes=[scenes]
   elif not isinstance(scenes, (list, tuple, set)):
     scenes=[]
-  return Principal(str(data.get("sub")),str(data.get("name") or data.get("preferred_username") or data.get("sub")),frozenset(roles),frozenset(map(str,scenes)),int(data.get("exp",0)))
+  return Principal(str(data.get("sub")),str(data.get("name") or data.get("preferred_username") or data.get("sub")),frozenset(roles),frozenset(map(str,scenes)),int(data.get("exp",0)),str(data.get("typ") or ""))
 def current_principal(authorization:str|None=Header(default=None)):
   if not authorization or not authorization.startswith("Bearer "): raise HTTPException(401,"Bearer token required")
   token=authorization.split(" ",1)[1]
@@ -55,3 +55,11 @@ def service_principal(authorization:str|None=Header(default=None)):
   except Exception as exc:
     raise HTTPException(401,f"Invalid service token: {exc}") from exc
   return _principal(data)
+
+
+def browser_principal(authorization:str|None=Header(default=None)):
+  """Authenticate an interactive/OIDC principal and reject service tokens."""
+  principal=current_principal(authorization)
+  if principal.token_type=="service":
+    raise HTTPException(403,"Service tokens cannot access the interactive management plane")
+  return principal
