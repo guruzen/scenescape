@@ -1,6 +1,6 @@
 # BT-01 — Domain Model and Persistence
 
-**Status:** IN_PROGRESS  
+**Status:** COMPLETE  
 **Dependencies:** BT-00  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -46,23 +46,23 @@ Introduce stable anchor/tag/provider/assignment/calibration resources and migrat
 
 ## Required tests
 
-- [ ] Migration up/down empty+populated DB.
-- [ ] CRUD/invariant tests.
-- [ ] Revision conflict.
-- [ ] Assignment overlap/close.
-- [ ] Scene deletion/cascade policy.
+- [x] Migration up/down empty+populated DB.
+- [x] CRUD/invariant tests.
+- [x] Revision conflict.
+- [x] Assignment overlap/close.
+- [x] Scene deletion/cascade policy.
 
 ## Evidence required
 
-- [ ] Migration/test output.
-- [ ] Serialized fixtures.
+- [x] Migration/test output.
+- [x] Serialized fixtures.
 
 ## Acceptance criteria
 
-- [ ] No existing data deleted.
-- [ ] Round-trip correct.
-- [ ] Migrations reversible.
-- [ ] Invariants enforced below route layer.
+- [x] No existing data deleted.
+- [x] Round-trip correct.
+- [x] Migrations reversible.
+- [x] Invariants enforced below route layer.
 
 ## Out of scope
 
@@ -75,8 +75,8 @@ Downgrade migration or disable feature resources.
 
 ## Implementation record
 
-- Implementation commit: _not yet recorded_
-- Evidence: _not yet recorded_
+- Implementation commits: `a5ea92a16cec170487f61e5eca9c28fd27db1791`, `23b03b99e9d8e19438190f937279bdedd28d8f3b`
+- Evidence: `.github/evidence/bluetooth-positioning/BT-01-domain-model-and-persistence.md`
 - Known deviations: Dedicated relational tables are used instead of generic JSON resources because BT-01 requires portable uniqueness/indexing, assignment history, calibration revisions, and optimistic concurrency across SQLite/PostgreSQL.
 
 ## Continuation prompt

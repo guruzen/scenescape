@@ -5,7 +5,7 @@ This directory is the execution evidence ledger for `docs/specs/bluetooth-positi
 | Iteration | Status      | Evidence                                                        |
 | --------- | ----------- | --------------------------------------------------------------- |
 | BT-00     | COMPLETE    | [BT-00 specification baseline](BT-00-specification-baseline.md) |
-| BT-01     | IN PROGRESS | CI evidence pending                                             |
+| BT-01     | COMPLETE    | [BT-01 domain/persistence](BT-01-domain-model-and-persistence.md) |
 | BT-02     | PLANNED     | —                                                               |
 | BT-03     | PLANNED     | —                                                               |
 | BT-04     | PLANNED     | —                                                               |
