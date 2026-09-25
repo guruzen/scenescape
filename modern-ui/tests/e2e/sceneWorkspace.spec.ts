@@ -210,7 +210,14 @@ async function mockNativeApi(page: Page) {
       const [, , , , , id, action] = path.split("/");
       const row = btAnchors.find((item) => item.uid === id);
       if (!row) return json({ detail: { code: "anchor_not_found", message: "Bluetooth anchor not found" } }, 404);
-      row.state = action === "deactivate" ? "disabled" : action === "retire" ? "retired" : action;
+      row.state =
+        action === "activate"
+          ? "active"
+          : action === "deactivate"
+            ? "disabled"
+            : action === "retire"
+              ? "retired"
+              : "maintenance";
       row.revision += 1;
       return json(row);
     }
