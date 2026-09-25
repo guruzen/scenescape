@@ -8,11 +8,14 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 
 from .auth import Principal, browser_principal
+from .bluetooth_calibration import calibration_public, geometry_report
 from .bluetooth_control import delete_anchor, delete_tag, transition_anchor, transition_tag
 from .bluetooth_domain import (
     AnchorInput,
     AnchorPatch,
     AssignmentInput,
+    CalibrationInput,
+    CalibrationState,
     BluetoothConflict,
     BluetoothDomainError,
     BluetoothNotFound,
@@ -20,11 +23,13 @@ from .bluetooth_domain import (
     DeviceState,
     TagInput,
     TagPatch,
+    activate_calibration,
     anchor_to_dict,
     assignment_to_dict,
     close_assignment,
     create_anchor,
     create_assignment,
+    create_calibration,
     create_tag,
     tag_to_dict,
     update_anchor,
@@ -34,6 +39,7 @@ from .database import (
     BluetoothAnchor,
     BluetoothAssignment,
     BluetoothAudit,
+    BluetoothCalibration,
     BluetoothTag,
     sessions,
     utcnow,
@@ -524,6 +530,238 @@ def end_assignment(
   )
   db.commit()
   return assignment_to_dict(row)
+
+
+@router.get("/calibrations", summary="List Bluetooth anchor calibration revisions")
+def list_calibrations(
+    scene_id: str | None = Query(default=None, max_length=96),
+    anchor_id: str | None = Query(default=None, max_length=96),
+    state: CalibrationState | None = None,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  statement = select(BluetoothCalibration)
+  if not (p.is_admin or "*" in p.scene_scopes):
+    if scene_id is not None:
+      _scene_allowed(p, scene_id)
+    scopes = list(p.scene_scopes)
+    if not scopes:
+      statement = statement.where(BluetoothCalibration.uid == "__no_authorized_scene__")
+    else:
+      statement = statement.where(BluetoothCalibration.scene_id.in_(scopes))
+  if scene_id:
+    statement = statement.where(BluetoothCalibration.scene_id == scene_id)
+  if anchor_id:
+    statement = statement.where(BluetoothCalibration.anchor_uid == anchor_id)
+  if state is not None:
+    statement = statement.where(BluetoothCalibration.state == state.value)
+  statement = statement.order_by(
+      BluetoothCalibration.anchor_uid,
+      BluetoothCalibration.calibration_revision.desc(),
+  )
+  total = int(
+      db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0
+  )
+  rows = db.scalars(statement.offset(offset).limit(limit)).all()
+  return {
+      "items": [calibration_public(db, row) for row in rows],
+      "total": total,
+      "offset": offset,
+      "limit": limit,
+  }
+
+
+@router.get(
+    "/anchors/{anchor_id}/calibrations",
+    summary="Get calibration history for one anchor",
+)
+def anchor_calibration_history(
+    anchor_id: str,
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  anchor = db.get(BluetoothAnchor, anchor_id)
+  if anchor is None:
+    raise HTTPException(
+        404,
+        detail={"code": "anchor_not_found", "message": "Bluetooth anchor not found"},
+    )
+  _scene_allowed(p, anchor.scene_id)
+  rows = db.scalars(
+      select(BluetoothCalibration)
+      .where(BluetoothCalibration.anchor_uid == anchor_id)
+      .order_by(BluetoothCalibration.calibration_revision.desc())
+  ).all()
+  return {
+      "items": [calibration_public(db, row) for row in rows],
+      "total": len(rows),
+  }
+
+
+@router.get("/calibrations/geometry", summary="Evaluate Bluetooth anchor geometry")
+def calibration_geometry(
+    scene_id: str = Query(..., min_length=1, max_length=96),
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  _scene_allowed(p, scene_id)
+  rows = db.scalars(
+      select(BluetoothCalibration).where(BluetoothCalibration.scene_id == scene_id)
+  ).all()
+  return {"scene_id": scene_id, **geometry_report(rows)}
+
+
+@router.post("/calibrations", summary="Create a draft Bluetooth anchor calibration")
+def add_calibration(
+    body: Annotated[
+        CalibrationInput,
+        Body(
+            openapi_examples={
+                "floor-map-placement": {
+                    "summary": "Draft a scene-local anchor placement",
+                    "value": {
+                        "anchor_uid": "anchor-a1",
+                        "scene_id": "scene-123",
+                        "x_m": 2.2,
+                        "y_m": 3.1,
+                        "z_m": 3.2,
+                        "yaw_deg": 0,
+                        "pitch_deg": 0,
+                        "roll_deg": 0,
+                        "z_source": "surveyed",
+                    },
+                }
+            }
+        ),
+    ],
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  _admin(p)
+  row = _domain_call(
+      create_calibration,
+      db,
+      body.model_dump(mode="python"),
+      p.subject,
+  )
+  _audit(
+      db,
+      p,
+      "draft:create",
+      "calibration",
+      row.uid,
+      scene_id=row.scene_id,
+      details={
+          "anchor_uid": row.anchor_uid,
+          "calibration_revision": row.calibration_revision,
+      },
+  )
+  db.commit()
+  return calibration_public(db, row)
+
+
+@router.post(
+    "/calibrations/{calibration_id}/publish",
+    summary="Publish a draft Bluetooth calibration",
+)
+def publish_calibration(
+    calibration_id: str,
+    revision: int = Query(..., ge=1),
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  _admin(p)
+  current = db.get(BluetoothCalibration, calibration_id)
+  if current is None:
+    raise HTTPException(
+        404,
+        detail={
+            "code": "calibration_not_found",
+            "message": "Bluetooth calibration not found",
+        },
+    )
+  if current.state != CalibrationState.DRAFT.value:
+    raise HTTPException(
+        409,
+        detail={
+            "code": "calibration_not_draft",
+            "message": "Only draft calibration revisions can be published",
+        },
+    )
+  row = _domain_call(
+      activate_calibration,
+      db,
+      calibration_id,
+      p.subject,
+      revision,
+  )
+  _audit(
+      db,
+      p,
+      "publish",
+      "calibration",
+      row.uid,
+      scene_id=row.scene_id,
+      details={
+          "anchor_uid": row.anchor_uid,
+          "calibration_revision": row.calibration_revision,
+      },
+  )
+  db.commit()
+  return calibration_public(db, row)
+
+
+@router.post(
+    "/calibrations/{calibration_id}/restore",
+    summary="Restore a retired Bluetooth calibration",
+)
+def restore_calibration(
+    calibration_id: str,
+    revision: int = Query(..., ge=1),
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  _admin(p)
+  current = db.get(BluetoothCalibration, calibration_id)
+  if current is None:
+    raise HTTPException(
+        404,
+        detail={
+            "code": "calibration_not_found",
+            "message": "Bluetooth calibration not found",
+        },
+    )
+  if current.state != CalibrationState.RETIRED.value:
+    raise HTTPException(
+        409,
+        detail={
+            "code": "calibration_not_retired",
+            "message": "Only retired calibration revisions can be restored",
+        },
+    )
+  row = _domain_call(
+      activate_calibration,
+      db,
+      calibration_id,
+      p.subject,
+      revision,
+  )
+  _audit(
+      db,
+      p,
+      "restore",
+      "calibration",
+      row.uid,
+      scene_id=row.scene_id,
+      details={
+          "anchor_uid": row.anchor_uid,
+          "calibration_revision": row.calibration_revision,
+      },
+  )
+  db.commit()
+  return calibration_public(db, row)
 
 
 @router.get("/diagnostics", summary="Read Bluetooth control-plane diagnostics")

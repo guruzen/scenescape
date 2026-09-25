@@ -310,3 +310,49 @@ def test_bt01_second_calibration_revision_retires_previous_active(db):
   db.commit()
   assert db.get(BluetoothCalibration, first.uid).state == "retired"
   assert db.get(BluetoothCalibration, second.uid).state == "active"
+
+
+def test_bt04_four_anchor_calibrations_reload_identically(db):
+  add_scene(db, "bt04-reload")
+  expected = {}
+  for index, point in enumerate(
+      ((1.25, 1.5, 3.0), (8.75, 1.5, 3.1), (8.75, 5.5, 3.2), (1.25, 5.5, 3.3)),
+      start=1,
+  ):
+    anchor = create_anchor(
+        db,
+        {
+            "uid": f"bt04-anchor-{index}",
+            "serial_number": f"BT04-ANCHOR-{index}",
+            "scene_id": "bt04-reload",
+        },
+        "admin",
+    )
+    calibration = create_calibration(
+        db,
+        {
+            "uid": f"bt04-cal-{index}",
+            "anchor_uid": anchor.uid,
+            "scene_id": "bt04-reload",
+            "x_m": point[0],
+            "y_m": point[1],
+            "z_m": point[2],
+            "z_source": "surveyed",
+        },
+        "installer",
+    )
+    activate_calibration(db, calibration.uid, "installer", 1)
+    expected[anchor.uid] = point
+  db.commit()
+  db.expire_all()
+
+  rows = db.scalars(
+      select(BluetoothCalibration)
+      .where(
+          BluetoothCalibration.scene_id == "bt04-reload",
+          BluetoothCalibration.state == "active",
+      )
+      .order_by(BluetoothCalibration.anchor_uid)
+  ).all()
+  actual = {row.anchor_uid: (row.x_m, row.y_m, row.z_m) for row in rows}
+  assert actual == expected

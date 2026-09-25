@@ -341,3 +341,190 @@ def test_bt02_openapi_documents_routes_and_examples(api):
   anchor_post = paths["/api/v2/bluetooth/anchors"]["post"]
   examples = anchor_post["requestBody"]["content"]["application/json"]["examples"]
   assert "channel-sounding-anchor" in examples
+
+
+def test_bt04_calibration_api_draft_publish_geometry_restore_and_scope(api):
+  client, database = api
+  _scene(client, "bt04-scene", "BT04 Scene")
+  positions = [(1, 1, 3), (9, 1, 3), (9, 6, 3), (1, 6, 3)]
+  drafts = []
+  for index, (x_m, y_m, z_m) in enumerate(positions, start=1):
+    anchor = client.post(
+        "/api/v2/bluetooth/anchors",
+        headers=_headers(),
+        json={
+            "uid": f"bt04-api-anchor-{index}",
+            "serial_number": f"BT04-API-{index}",
+            "scene_id": "bt04-scene",
+        },
+    )
+    assert anchor.status_code == 200, anchor.text
+    draft = client.post(
+        "/api/v2/bluetooth/calibrations",
+        headers=_headers(),
+        json={
+            "uid": f"bt04-api-cal-{index}",
+            "anchor_uid": anchor.json()["uid"],
+            "scene_id": "bt04-scene",
+            "x_m": x_m,
+            "y_m": y_m,
+            "z_m": z_m,
+            "z_source": "surveyed",
+        },
+    )
+    assert draft.status_code == 200, draft.text
+    assert draft.json()["state"] == "draft"
+    assert draft.json()["coordinate_frame"] == "scene_local_m"
+    drafts.append(draft.json())
+    published = client.post(
+        f"/api/v2/bluetooth/calibrations/{draft.json()['uid']}/publish?revision=1",
+        headers=_headers(),
+    )
+    assert published.status_code == 200, published.text
+    assert published.json()["state"] == "active"
+
+  first_load = client.get(
+      "/api/v2/bluetooth/calibrations?scene_id=bt04-scene&state=active",
+      headers=_headers(),
+  )
+  second_load = client.get(
+      "/api/v2/bluetooth/calibrations?scene_id=bt04-scene&state=active",
+      headers=_headers(),
+  )
+  assert first_load.status_code == 200
+  assert second_load.status_code == 200
+  assert first_load.json()["items"] == second_load.json()["items"]
+  assert len(first_load.json()["items"]) == 4
+
+  geometry = client.get(
+      "/api/v2/bluetooth/calibrations/geometry?scene_id=bt04-scene",
+      headers=_headers(),
+  )
+  assert geometry.status_code == 200
+  assert geometry.json()["anchor_count"] == 4
+  assert geometry.json()["ready_for_2d"] is True
+  assert geometry.json()["warnings"] == []
+
+  viewer = _headers(
+      subject="viewer",
+      roles=["scenescape-viewer"],
+      scenes=["bt04-scene"],
+  )
+  assert client.get(
+      "/api/v2/bluetooth/calibrations?scene_id=bt04-scene",
+      headers=viewer,
+  ).status_code == 200
+  denied = client.get(
+      "/api/v2/bluetooth/calibrations/geometry?scene_id=bt04-scene",
+      headers=_headers(
+          subject="other",
+          roles=["scenescape-viewer"],
+          scenes=["somewhere-else"],
+      ),
+  )
+  assert denied.status_code == 403
+
+  first = drafts[0]
+  second_draft = client.post(
+      "/api/v2/bluetooth/calibrations",
+      headers=_headers(),
+      json={
+          "uid": "bt04-api-cal-revision-2",
+          "anchor_uid": first["anchor_uid"],
+          "scene_id": "bt04-scene",
+          "x_m": 2.5,
+          "y_m": 2.0,
+          "z_m": 3.2,
+          "z_source": "measured",
+      },
+  )
+  assert second_draft.status_code == 200
+  second_publish = client.post(
+      f"/api/v2/bluetooth/calibrations/{second_draft.json()['uid']}/publish?revision=1",
+      headers=_headers(),
+  )
+  assert second_publish.status_code == 200
+  history = client.get(
+      f"/api/v2/bluetooth/anchors/{first['anchor_uid']}/calibrations",
+      headers=_headers(),
+  )
+  assert history.status_code == 200
+  old = next(
+      item for item in history.json()["items"] if item["uid"] == first["uid"]
+  )
+  assert old["state"] == "retired"
+
+  restored = client.post(
+      f"/api/v2/bluetooth/calibrations/{old['uid']}/restore?revision={old['revision']}",
+      headers=_headers(),
+  )
+  assert restored.status_code == 200, restored.text
+  assert restored.json()["state"] == "active"
+  assert restored.json()["position"] == {
+      "x_m": 1.0,
+      "y_m": 1.0,
+      "z_m": 3.0,
+  }
+
+  with database.sessions()() as db:
+    from scenescape_api.database import BluetoothAudit
+
+    actions = [
+        row.action
+        for row in db.scalars(
+            select(BluetoothAudit)
+            .where(BluetoothAudit.resource_type == "calibration")
+            .order_by(BluetoothAudit.id)
+        ).all()
+    ]
+  assert "draft:create" in actions
+  assert "publish" in actions
+  assert "restore" in actions
+
+
+def test_bt04_calibration_api_rejects_out_of_bounds_and_wrong_lifecycle(api):
+  client, _ = api
+  _scene(client, "bt04-validation")
+  anchor = client.post(
+      "/api/v2/bluetooth/anchors",
+      headers=_headers(),
+      json={
+          "uid": "bt04-validation-anchor",
+          "serial_number": "BT04-VALIDATION",
+          "scene_id": "bt04-validation",
+      },
+  )
+  assert anchor.status_code == 200
+
+  too_large = client.post(
+      "/api/v2/bluetooth/calibrations",
+      headers=_headers(),
+      json={
+          "anchor_uid": "bt04-validation-anchor",
+          "scene_id": "bt04-validation",
+          "x_m": 1000001,
+          "y_m": 0,
+          "z_m": 3,
+      },
+  )
+  assert too_large.status_code == 422
+
+  draft = client.post(
+      "/api/v2/bluetooth/calibrations",
+      headers=_headers(),
+      json={
+          "uid": "bt04-validation-cal",
+          "anchor_uid": "bt04-validation-anchor",
+          "scene_id": "bt04-validation",
+          "x_m": 2,
+          "y_m": 2,
+          "z_m": 3,
+      },
+  )
+  assert draft.status_code == 200
+  wrong_restore = client.post(
+      "/api/v2/bluetooth/calibrations/bt04-validation-cal/restore?revision=1",
+      headers=_headers(),
+  )
+  assert wrong_restore.status_code == 409
+  assert wrong_restore.json()["detail"]["code"] == "calibration_not_retired"
