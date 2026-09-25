@@ -429,9 +429,7 @@ async function mockNativeApi(page: Page) {
       row.state = "active";
       row.revision += 1;
       row.updated_at =
-        action === "restore"
-          ? "2026-09-25T14:42:00Z"
-          : "2026-09-25T14:41:00Z";
+        action === "restore" ? "2026-09-25T14:42:00Z" : "2026-09-25T14:41:00Z";
       return json(row);
     }
     if (path === "/api/v2/bluetooth/diagnostics")
@@ -964,7 +962,6 @@ test("BT-03 Bluetooth management smoke: navigation, anchor, tag, assignment and 
   await screenshot(page, testInfo, "bt03-bluetooth-management.png");
 });
 
-
 test("BT-04 anchor calibration smoke: map pixels become metres and revisions are reversible", async ({
   page,
 }, testInfo) => {
@@ -1000,29 +997,33 @@ test("BT-04 anchor calibration smoke: map pixels become metres and revisions are
 
   await page.getByRole("button", { name: "Save new draft" }).click();
   await expect(page.getByText(/Draft revision 1 saved/)).toBeVisible();
-  await expect(page.getByText("insufficient anchors", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("insufficient anchors", { exact: true }),
+  ).toBeVisible();
 
   page.once("dialog", (dialog) => void dialog.accept());
-  await page
-    .getByRole("button", { name: "Publish draft r1" })
-    .click();
-  await expect(page.getByText(/Calibration revision 1 is now active/)).toBeVisible();
+  await page.getByRole("button", { name: "Publish draft r1" }).click();
+  await expect(
+    page.getByText(/Calibration revision 1 is now active/),
+  ).toBeVisible();
 
   await page.getByLabel("Calibration X metres").fill("2.5");
   await page.getByRole("button", { name: "Save new draft" }).click();
   await expect(page.getByText(/Draft revision 2 saved/)).toBeVisible();
   page.once("dialog", (dialog) => void dialog.accept());
-  await page
-    .getByRole("button", { name: "Publish draft r2" })
-    .click();
-  await expect(page.getByText(/Calibration revision 2 is now active/)).toBeVisible();
+  await page.getByRole("button", { name: "Publish draft r2" }).click();
+  await expect(
+    page.getByText(/Calibration revision 2 is now active/),
+  ).toBeVisible();
 
   const revisionOne = page.locator(".bt-cal-history-row").filter({
     hasText: "r1 · retired",
   });
   page.once("dialog", (dialog) => void dialog.accept());
   await revisionOne.getByRole("button", { name: "Restore" }).click();
-  await expect(page.getByText(/Calibration revision 1 restored as active/)).toBeVisible();
+  await expect(
+    page.getByText(/Calibration revision 1 restored as active/),
+  ).toBeVisible();
   await expect(page.getByLabel("Calibration X metres")).toHaveValue("2");
   await expect(page.getByLabel("Calibration Y metres")).toHaveValue("3");
 

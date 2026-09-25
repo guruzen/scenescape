@@ -314,7 +314,6 @@ test("BT-03 integrated Bluetooth control-plane CRUD uses the real FastAPI API", 
   await capture(page, testInfo, "bt03-integrated-control-plane.png");
 });
 
-
 test("BT-04 integrated calibration persists scene-local metres through real FastAPI", async ({
   page,
 }, testInfo) => {
@@ -365,7 +364,9 @@ test("BT-04 integrated calibration persists scene-local metres through real Fast
 
   page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "Publish draft r1" }).click();
-  await expect(page.getByText(/Calibration revision 1 is now active/)).toBeVisible();
+  await expect(
+    page.getByText(/Calibration revision 1 is now active/),
+  ).toBeVisible();
 
   const apiHistory = await page.request.get(
     "/api/v2/bluetooth/anchors/bt04-integrated-anchor-1/calibrations",
