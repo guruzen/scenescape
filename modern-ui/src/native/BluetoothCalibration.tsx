@@ -657,9 +657,19 @@ export default function BluetoothCalibration({
                 {workingCalibration.parent_projection.parent_scene_id}
               </span>
               <b>
-                ({displayNumber(workingCalibration.parent_projection.position.x_m)},{" "}
-                {displayNumber(workingCalibration.parent_projection.position.y_m)},{" "}
-                {displayNumber(workingCalibration.parent_projection.position.z_m)}) m
+                (
+                {displayNumber(
+                  workingCalibration.parent_projection.position.x_m,
+                )}
+                ,{" "}
+                {displayNumber(
+                  workingCalibration.parent_projection.position.y_m,
+                )}
+                ,{" "}
+                {displayNumber(
+                  workingCalibration.parent_projection.position.z_m,
+                )}
+                ) m
               </b>
               <small>
                 Informational only; stored calibration remains scene-local.
