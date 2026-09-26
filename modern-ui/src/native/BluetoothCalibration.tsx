@@ -548,6 +548,30 @@ export default function BluetoothCalibration({
     }
   };
 
+  const createBiasDrafts = async () => {
+    if (!isAdmin || !sceneId) return;
+    if (
+      !window.confirm(
+        "Create draft calibration revisions with the current robust survey bias estimates? Existing active revisions remain active until explicitly published.",
+      )
+    )
+      return;
+    setBusy(true);
+    setMessage("");
+    setError("");
+    try {
+      const result = await bluetoothApi.surveys.createBiasRevisions(sceneId, 3);
+      setMessage(
+        `${result.created.length} bias-corrected calibration draft(s) created. Review them before publishing.`,
+      );
+      await load();
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="bt-cal-workspace">
       <section className="panel bt-cal-toolbar">
@@ -626,6 +650,36 @@ export default function BluetoothCalibration({
                 active r{active.calibration_revision}
               </span>
             )}
+          </div>
+          <div className="bt-cal-overlay-controls" aria-label="Bluetooth calibration diagnostic overlays">
+            <label>
+              <input
+                type="checkbox"
+                checked={showGeometryCoverage}
+                onChange={(event) => setShowGeometryCoverage(event.target.checked)}
+              />
+              Theoretical GDOP
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={showObservedRf}
+                onChange={(event) => setShowObservedRf(event.target.checked)}
+              />
+              Observed RF surveys
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={showSurveyLinks}
+                onChange={(event) => setShowSurveyLinks(event.target.checked)}
+              />
+              Survey-anchor links
+            </label>
+            <span>
+              Geometry model: {coverage?.theoretical_geometry.model || "not loaded"} ·
+              observed source: {coverage?.observed_rf.source || "not loaded"}
+            </span>
           </div>
           <CalibrationMap
             scene={scene}
@@ -861,6 +915,66 @@ export default function BluetoothCalibration({
                 layout.
               </div>
             )}
+          </div>
+          <div className="bt-cal-survey-diagnostics">
+            <div className="bt-cal-survey-heading">
+              <div>
+                <h3>Survey bias & coverage</h3>
+                <p>
+                  Observed RF bias is estimated independently from theoretical
+                  geometry. Draft corrections never publish automatically.
+                </p>
+              </div>
+              {isAdmin && (
+                <button
+                  className="btn"
+                  disabled={busy || !Object.values(bias).some((item) => item.accepted_count >= 3)}
+                  onClick={() => void createBiasDrafts()}
+                >
+                  Create bias-corrected drafts
+                </button>
+              )}
+            </div>
+            <div className="bt-cal-bias-list">
+              {Object.values(bias)
+                .sort((a, b) => a.anchor_id.localeCompare(b.anchor_id))
+                .map((item) => (
+                  <div key={item.anchor_id} className="bt-cal-bias-row">
+                    <b>{item.anchor_id}</b>
+                    <span>{item.status.replaceAll("_", " ")}</span>
+                    <span>
+                      Bias{" "}
+                      {item.bias_m === null || item.bias_m === undefined
+                        ? "—"
+                        : `${Number(item.bias_m).toFixed(3)} m`}
+                    </span>
+                    <span>
+                      σ{" "}
+                      {item.stddev_m === null || item.stddev_m === undefined
+                        ? "—"
+                        : `${Number(item.stddev_m).toFixed(3)} m`}
+                    </span>
+                    <span>
+                      {item.accepted_count}/{item.sample_count} accepted
+                      {item.rejected_count
+                        ? ` · ${item.rejected_count} rejected`
+                        : ""}
+                    </span>
+                  </div>
+                ))}
+              {!Object.keys(bias).length && (
+                <div className="table-empty">No survey samples are available.</div>
+              )}
+            </div>
+            <div className="bt-cal-coverage-summary">
+              <span>
+                Theoretical cells{" "}
+                <b>{coverage?.theoretical_geometry.cells.length ?? 0}</b>
+              </span>
+              <span>
+                Observed survey points <b>{coverage?.observed_rf.points.length ?? 0}</b>
+              </span>
+            </div>
           </div>
         </section>
 
