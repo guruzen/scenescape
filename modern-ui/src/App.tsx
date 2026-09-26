@@ -164,6 +164,9 @@ function Map2D({
   heatmapOpacity = 0.65,
   showLabels = true,
   visualizeRois = true,
+  showBluetoothAnchors = true,
+  showBluetoothUncertainty = true,
+  showBluetoothAnchorLinks = false,
   trails = {},
 }: {
   bundle: Bundle;
@@ -179,6 +182,9 @@ function Map2D({
   heatmapOpacity?: number;
   showLabels?: boolean;
   visualizeRois?: boolean;
+  showBluetoothAnchors?: boolean;
+  showBluetoothUncertainty?: boolean;
+  showBluetoothAnchorLinks?: boolean;
   trails?: Record<string, number[][]>;
 }) {
   const scene = bundle.scene;
@@ -586,25 +592,51 @@ function Map2D({
               </g>
             );
           })}
-        {(bundle.bluetooth_anchors || []).map((anchor: Row, i: number) => {
-          if (!Array.isArray(anchor.translation)) return null;
-          const [x, y] = xy(anchor.translation);
-          return (
-            <g
-              key={`bt-anchor-${String(anchor.id ?? i)}`}
-              className="bluetooth-anchor"
-              aria-label={`Bluetooth anchor ${String(anchor.serial_number || anchor.id || i)}`}
-            >
-              <circle cx={x} cy={y} r="9" className="bluetooth-anchor-ring" />
-              <circle cx={x} cy={y} r="3" className="bluetooth-anchor-core" />
-              {showLabels && (
-                <text x={x + 12} y={y + 4} className="bluetooth-anchor-label">
-                  {String(anchor.serial_number || anchor.id || "BT anchor")}
-                </text>
-              )}
-            </g>
-          );
-        })}
+        {showBluetoothAnchorLinks &&
+          (live.objects || []).flatMap((object: Row, objectIndex: number) => {
+            if (String(object.source || "") !== "bluetooth") return [];
+            const anchorIds = Array.isArray(object.bluetooth?.anchor_ids)
+              ? object.bluetooth.anchor_ids.map(String)
+              : [];
+            const start = xy(object.translation || [0, 0]);
+            return anchorIds.flatMap((anchorId: string) => {
+              const anchor = (bundle.bluetooth_anchors || []).find(
+                (row: Row) => String(row.id || "") === anchorId,
+              );
+              if (!anchor || !Array.isArray(anchor.translation)) return [];
+              const end = xy(anchor.translation);
+              return [
+                <line
+                  key={`bt-link-${String(object.id ?? objectIndex)}-${anchorId}`}
+                  x1={start[0]}
+                  y1={start[1]}
+                  x2={end[0]}
+                  y2={end[1]}
+                  className="bluetooth-anchor-link"
+                />,
+              ];
+            });
+          })}
+        {showBluetoothAnchors &&
+          (bundle.bluetooth_anchors || []).map((anchor: Row, i: number) => {
+            if (!Array.isArray(anchor.translation)) return null;
+            const [x, y] = xy(anchor.translation);
+            return (
+              <g
+                key={`bt-anchor-${String(anchor.id ?? i)}`}
+                className="bluetooth-anchor"
+                aria-label={`Bluetooth anchor ${String(anchor.serial_number || anchor.id || i)}`}
+              >
+                <circle cx={x} cy={y} r="9" className="bluetooth-anchor-ring" />
+                <circle cx={x} cy={y} r="3" className="bluetooth-anchor-core" />
+                {showLabels && (
+                  <text x={x + 12} y={y + 4} className="bluetooth-anchor-label">
+                    {String(anchor.serial_number || anchor.id || "BT anchor")}
+                  </text>
+                )}
+              </g>
+            );
+          })}
         {showTrails &&
           Object.entries(trails).map(([key, trail]) => {
             const value = trail.map((point) => xy(point).join(",")).join(" ");
@@ -706,7 +738,9 @@ function Map2D({
                 })
               }
             >
-              {source === "bluetooth" && Number(object.tracking_radius) > 0 && (
+              {showBluetoothUncertainty &&
+                source === "bluetooth" &&
+                Number(object.tracking_radius) > 0 && (
                 <circle
                   cx={x}
                   cy={y}
@@ -1097,6 +1131,10 @@ function SceneWorkspace({
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [heatmapOpacity, setHeatmapOpacity] = useState(0.65);
   const [showVelocity, setShowVelocity] = useState(false);
+  const [showBluetoothTags, setShowBluetoothTags] = useState(true);
+  const [showBluetoothAnchors, setShowBluetoothAnchors] = useState(true);
+  const [showBluetoothUncertainty, setShowBluetoothUncertainty] = useState(true);
+  const [showBluetoothAnchorLinks, setShowBluetoothAnchorLinks] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
   const [visualizeRois, setVisualizeRois] = useState(true);
   const [showFloor, setShowFloor] = useState(
@@ -1214,7 +1252,12 @@ function SceneWorkspace({
       </>
     );
   const map3DPath = String(bundle.scene.map || bundle.scene.thumbnail || "");
-  const availability = summarizeLiveObjectAvailability(live.objects || []);
+  const visibleLiveObjects = (live.objects || []).filter(
+    (object: Row) =>
+      showBluetoothTags || String(object.source || "") !== "bluetooth",
+  );
+  const visibleLive = { ...live, objects: visibleLiveObjects };
+  const availability = summarizeLiveObjectAvailability(visibleLiveObjects);
   const chooseSelection = (
     kind: SceneSelectionKind,
     row: Row,
@@ -1378,6 +1421,51 @@ function SceneWorkspace({
                 <span className="scene-layer-range-note">Range: Current</span>
               </div>
             )}
+          </fieldset>
+          <fieldset className="scene-control-group">
+            <legend>Bluetooth</legend>
+            <div className="scene-control-grid">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={showBluetoothTags}
+                  onChange={(e) => setShowBluetoothTags(e.target.checked)}
+                />
+                <span>
+                  Tags<small>positioned Bluetooth objects</small>
+                </span>
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={showBluetoothAnchors}
+                  onChange={(e) => setShowBluetoothAnchors(e.target.checked)}
+                />
+                <span>
+                  Anchors<small>calibrated fixed locators</small>
+                </span>
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={showBluetoothUncertainty}
+                  onChange={(e) => setShowBluetoothUncertainty(e.target.checked)}
+                />
+                <span>
+                  Uncertainty<small>horizontal confidence radius</small>
+                </span>
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={showBluetoothAnchorLinks}
+                  onChange={(e) => setShowBluetoothAnchorLinks(e.target.checked)}
+                />
+                <span>
+                  Anchor links<small>anchors used by the current fix</small>
+                </span>
+              </label>
+            </div>
           </fieldset>
           <fieldset className="scene-control-group">
             <legend>Diagnostics</legend>
@@ -1584,7 +1672,7 @@ function SceneWorkspace({
             {tab === "Live 2D" && (
               <Map2D
                 bundle={bundle}
-                live={liveView ? live : { objects: [], stale: true }}
+                live={liveView ? visibleLive : { objects: [], stale: true }}
                 onSelect={setSelection}
                 onClearSelection={() => setSelection(null)}
                 selected={selection}
@@ -1595,6 +1683,9 @@ function SceneWorkspace({
                 heatmapOpacity={heatmapOpacity}
                 showLabels={showLabels}
                 visualizeRois={visualizeRois}
+                showBluetoothAnchors={showBluetoothAnchors}
+                showBluetoothUncertainty={showBluetoothUncertainty}
+                showBluetoothAnchorLinks={showBluetoothAnchorLinks}
                 trails={trails}
               />
             )}
@@ -1602,7 +1693,7 @@ function SceneWorkspace({
               <>
                 <ThreeScene
                   mapPath={map3DPath}
-                  objects={liveView ? live.objects || [] : []}
+                  objects={liveView ? visibleLiveObjects : []}
                   onSelectObject={(objectId) => {
                     const rows = live.objects || [];
                     const index = rows.findIndex(
@@ -1637,6 +1728,9 @@ function SceneWorkspace({
                   childTripwires={bundle.child_tripwires || []}
                   childSensors={bundle.child_sensors || []}
                   bluetoothAnchors={bundle.bluetooth_anchors || []}
+                  showBluetoothAnchors={showBluetoothAnchors}
+                  showBluetoothUncertainty={showBluetoothUncertainty}
+                  showBluetoothAnchorLinks={showBluetoothAnchorLinks}
                 />
               </>
             )}
@@ -1651,7 +1745,7 @@ function SceneWorkspace({
           </div>
           <SceneInspector
             selection={selection}
-            liveObjects={live.objects || []}
+            liveObjects={visibleLiveObjects}
             collapsed={Boolean(selection) && inspectorCollapsed}
             onToggleCollapse={() => setInspectorCollapsed((value) => !value)}
             onClear={() => {
