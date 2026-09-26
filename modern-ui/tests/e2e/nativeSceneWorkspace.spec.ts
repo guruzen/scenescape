@@ -400,3 +400,121 @@ test("BT-04 integrated calibration persists scene-local metres through real Fast
   await expect(page.getByLabel("Calibration Y metres")).toHaveValue("4.2");
   await capture(page, testInfo, "bt04-integrated-calibration.png");
 });
+
+
+test("BT-11 integrated survey diagnostics render observed RF and theoretical GDOP", async ({
+  page,
+}, testInfo) => {
+  const tokenResponse = await page.request.get("/api/test/browser-token");
+  const token = (await tokenResponse.json()).token;
+  const headers = { Authorization: `Bearer ${token}` };
+  const scenesResponse = await page.request.get("/api/v2/scenes", { headers });
+  const scenes = await scenesResponse.json();
+  const sceneId = String(scenes[0].uid || scenes[0].id);
+
+  const anchorPositions = [
+    { id: "bt11-a1", x: 0, y: 0, z: 3, bias: 0.25 },
+    { id: "bt11-a2", x: 10, y: 0, z: 3, bias: -0.15 },
+    { id: "bt11-a3", x: 10, y: 8, z: 3, bias: 0.2 },
+    { id: "bt11-a4", x: 0, y: 8, z: 3, bias: -0.1 },
+  ];
+
+  for (const anchor of anchorPositions) {
+    const created = await page.request.post("/api/v2/bluetooth/anchors", {
+      headers,
+      data: {
+        uid: anchor.id,
+        serial_number: anchor.id.toUpperCase(),
+        scene_id: sceneId,
+        capabilities: ["channel_sounding"],
+      },
+    });
+    expect(created.ok()).toBeTruthy();
+
+    const calibration = await page.request.post(
+      "/api/v2/bluetooth/calibrations",
+      {
+        headers,
+        data: {
+          uid: `cal-${anchor.id}`,
+          anchor_uid: anchor.id,
+          scene_id: sceneId,
+          x_m: anchor.x,
+          y_m: anchor.y,
+          z_m: anchor.z,
+          yaw_deg: 0,
+          pitch_deg: 0,
+          roll_deg: 0,
+          z_source: "surveyed",
+          details: {},
+        },
+      },
+    );
+    expect(calibration.ok()).toBeTruthy();
+    const calibrationBody = await calibration.json();
+    const published = await page.request.post(
+      `/api/v2/bluetooth/calibrations/${encodeURIComponent(calibrationBody.uid)}/publish?revision=${calibrationBody.revision}`,
+      { headers },
+    );
+    expect(published.ok()).toBeTruthy();
+  }
+
+  const surveyPoint = { x: 4, y: 3, z: 1 };
+  const pointResponse = await page.request.post(
+    "/api/v2/bluetooth/surveys/points",
+    {
+      headers,
+      data: {
+        uid: "bt11-survey-p1",
+        scene_id: sceneId,
+        name: "Survey P1",
+        x_m: surveyPoint.x,
+        y_m: surveyPoint.y,
+        z_m: surveyPoint.z,
+      },
+    },
+  );
+  expect(pointResponse.ok()).toBeTruthy();
+
+  for (const anchor of anchorPositions) {
+    const geometric = Math.hypot(
+      anchor.x - surveyPoint.x,
+      anchor.y - surveyPoint.y,
+      anchor.z - surveyPoint.z,
+    );
+    for (const noise of [-0.01, 0, 0.01]) {
+      const sample = await page.request.post(
+        "/api/v2/bluetooth/surveys/points/bt11-survey-p1/samples",
+        {
+          headers,
+          data: {
+            anchor_uid: anchor.id,
+            distance_m: geometric + anchor.bias + noise,
+            distance_stddev_m: 0.04,
+            quality: 0.98,
+          },
+        },
+      );
+      expect(sample.ok()).toBeTruthy();
+    }
+  }
+
+  await page.goto("/tests/harness.html#/bluetooth");
+  await page.getByRole("tab", { name: "Calibration" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Anchor calibration" }),
+  ).toBeVisible({ timeout: 20_000 });
+
+  await expect(page.locator(".bt-cal-survey-point")).toHaveCount(1);
+  await expect(page.getByText("Survey bias & coverage")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Create bias-corrected drafts" }),
+  ).toBeEnabled();
+
+  await page.getByRole("checkbox", { name: "Theoretical GDOP" }).check();
+  await expect(page.locator(".bt-cal-gdop-cell").first()).toBeVisible();
+  await page.getByRole("checkbox", { name: "Survey-anchor links" }).check();
+  await expect(page.locator(".bt-cal-survey-link").first()).toBeVisible();
+
+  await capture(page, testInfo, "bt11-survey-coverage.png");
+});
