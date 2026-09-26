@@ -456,6 +456,55 @@ class BluetoothDeviceTelemetry(Base):
   details: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class BluetoothSurveyPoint(Base):
+  __tablename__ = "native_bluetooth_survey_points"
+  __table_args__ = (
+      Index("ix_native_bluetooth_survey_points_scene_state", "scene_id", "state"),
+  )
+
+  uid: Mapped[str] = mapped_column(String(96), primary_key=True)
+  scene_id: Mapped[str] = mapped_column(String(96), nullable=False, index=True)
+  name: Mapped[str] = mapped_column(String(160), nullable=False)
+  x_m: Mapped[float] = mapped_column(Float, nullable=False)
+  y_m: Mapped[float] = mapped_column(Float, nullable=False)
+  z_m: Mapped[float] = mapped_column(Float, nullable=False)
+  state: Mapped[str] = mapped_column(String(32), default="open", index=True)
+  created_by: Mapped[str] = mapped_column(String(160), nullable=False)
+  created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+  updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BluetoothSurveySample(Base):
+  __tablename__ = "native_bluetooth_survey_samples"
+  __table_args__ = (
+      Index(
+          "ix_native_bluetooth_survey_samples_point_anchor_time",
+          "survey_point_uid",
+          "anchor_uid",
+          "observed_at",
+      ),
+  )
+
+  id: Mapped[int] = mapped_column(Integer, primary_key=True)
+  survey_point_uid: Mapped[str] = mapped_column(
+      String(96),
+      ForeignKey("native_bluetooth_survey_points.uid"),
+      nullable=False,
+      index=True,
+  )
+  anchor_uid: Mapped[str] = mapped_column(
+      String(96),
+      ForeignKey("native_bluetooth_anchors.uid"),
+      nullable=False,
+      index=True,
+  )
+  distance_m: Mapped[float] = mapped_column(Float, nullable=False)
+  distance_stddev_m: Mapped[float] = mapped_column(Float, nullable=False)
+  quality: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+  observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+  details: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 def get_engine():
   global _engine, _Session
   url = database_url()
