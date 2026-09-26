@@ -30,6 +30,7 @@ export default function ThreeScene({
   childRegions = [],
   childTripwires = [],
   childSensors = [],
+  bluetoothAnchors = [],
   mediaOverrideUrl,
   previewAsset,
   showTrackedObjects = true,
@@ -61,6 +62,7 @@ export default function ThreeScene({
   childRegions?: Row[];
   childTripwires?: Row[];
   childSensors?: Row[];
+  bluetoothAnchors?: Row[];
   mediaOverrideUrl?: string;
   previewAsset?: Row;
   showTrackedObjects?: boolean;
@@ -524,7 +526,11 @@ export default function ThreeScene({
       } else {
         const color = asset?.mark_color
           ? new THREE.Color(String(asset.mark_color))
-          : new THREE.Color(0x4ed1ce);
+          : item.source === "bluetooth"
+            ? new THREE.Color(0x5b8cff)
+            : item.source === "fusion"
+              ? new THREE.Color(0xc97cff)
+              : new THREE.Color(0x4ed1ce);
         const geometry = new THREE.BoxGeometry(1, 1, 1);
         const material = new THREE.MeshStandardMaterial({
           color,
@@ -623,8 +629,35 @@ export default function ThreeScene({
           group.add(arrow);
         }
       }
+      if (
+        item.source === "bluetooth" &&
+        Number(item.tracking_radius || 0) > 0
+      ) {
+        const uncertainty = new THREE.Mesh(
+          new THREE.RingGeometry(
+            Math.max(0.05, Number(item.tracking_radius) * 0.92),
+            Math.max(0.08, Number(item.tracking_radius)),
+            40,
+          ),
+          new THREE.MeshBasicMaterial({
+            color:
+              item.bluetooth?.state === "good"
+                ? 0x4ed1ce
+                : item.bluetooth?.state === "degraded"
+                  ? 0xffb454
+                  : 0xff6b6b,
+            transparent: true,
+            opacity: 0.7,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+          }),
+        );
+        uncertainty.userData.generatedGeometry = true;
+        uncertainty.position.set(root.position.x, root.position.y, 0.03);
+        group.add(uncertainty);
+      }
       if (showHeatmap) {
-        const radius = Math.max(0.45, Number(asset?.tracking_radius || 0.6));
+        const radius = Math.max(0.45, Number(item.tracking_radius || asset?.tracking_radius || 0.6));
         const heat = new THREE.Mesh(
           new THREE.CircleGeometry(radius, 28),
           new THREE.MeshBasicMaterial({
@@ -1081,6 +1114,7 @@ export default function ThreeScene({
           emissiveIntensity: 0.3,
         }),
       );
+      marker.userData.generatedGeometry = true;
       marker.position.set(
         Number(point[0] || 0),
         Number(point[1] || 0),
@@ -1088,7 +1122,27 @@ export default function ThreeScene({
       );
       group.add(marker);
     }
-  }, [pickedPoints]);
+    for (const anchor of bluetoothAnchors || []) {
+      if (!Array.isArray(anchor.translation)) continue;
+      const position = anchor.translation;
+      const marker = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.16, 0),
+        new THREE.MeshStandardMaterial({
+          color: 0x5b8cff,
+          emissive: 0x173c7a,
+          emissiveIntensity: 0.35,
+        }),
+      );
+      marker.userData.generatedGeometry = true;
+      marker.userData.bluetoothAnchorId = String(anchor.id || "");
+      marker.position.set(
+        Number(position[0] || 0),
+        Number(position[1] || 0),
+        Number(position[2] || 0),
+      );
+      group.add(marker);
+    }
+  }, [pickedPoints, bluetoothAnchors]);
 
   const commandView = (command: string) =>
     host.current?.dispatchEvent(
