@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 
@@ -14,6 +16,7 @@ from .bluetooth_telemetry import DeviceTelemetryEnvelope, ingest_device_telemetr
 from .bluetooth_survey import add_survey_sample, close_survey_point, coverage_diagnostics, create_bias_calibration_revisions, create_survey_point, estimate_anchor_biases
 from .bluetooth_pipeline import runtime_diagnostics as pipeline_runtime_diagnostics
 from .bluetooth_operations import bluetooth_health_summary
+from .bluetooth_retention import BluetoothRetentionPolicy
 from .bluetooth_ingest import (
     MeasurementRejected,
     RangeEnvelope,
@@ -73,6 +76,18 @@ def db_dep():
     yield db
   finally:
     db.close()
+
+
+def _feature_enabled(name: str, default: str = "1") -> bool:
+  return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _require_feature(name: str, message: str) -> None:
+  if not _feature_enabled(name):
+    raise HTTPException(
+        503,
+        detail={"code": "feature_disabled", "message": message},
+    )
 
 
 def _admin(p: Principal) -> None:
@@ -787,6 +802,10 @@ def add_measurement(
     p: Principal = Depends(service_principal),
     db=Depends(db_dep),
 ):
+  _require_feature(
+      "BLUETOOTH_POSITIONING_ENABLED",
+      "Bluetooth positioning ingress is disabled",
+  )
   if body.payload.provider_id != p.subject:
     raise HTTPException(
         403,
@@ -817,6 +836,10 @@ def add_device_telemetry(
     p: Principal = Depends(service_principal),
     db=Depends(db_dep),
 ):
+  _require_feature(
+      "BLUETOOTH_TELEMETRY_ENABLED",
+      "Bluetooth device telemetry ingress is disabled",
+  )
   if body.provider_id != p.subject:
     raise HTTPException(
         403,
@@ -1013,6 +1036,63 @@ def get_bt_survey_coverage(
     )
   except ValueError as exc:
     raise HTTPException(422, detail={"code": "invalid_coverage_request", "message": str(exc)}) from exc
+
+
+@router.get(
+    "/metrics",
+    response_class=PlainTextResponse,
+    summary="Read aggregate Bluetooth Prometheus metrics",
+)
+def bluetooth_metrics(
+    p: Principal = Depends(service_principal),
+    db=Depends(db_dep),
+):
+  del p
+  ingress = ingress_metrics.snapshot()
+  runtime = pipeline_runtime_diagnostics()
+  pipeline = runtime.get("pipeline") or {}
+  tracker = runtime.get("tracker") or {}
+  spatial = runtime.get("spatial") or {}
+  raw_count = int(db.scalar(select(func.count()).select_from(BluetoothMeasurement)) or 0)
+  retention = BluetoothRetentionPolicy.from_env()
+
+  values: dict[str, float | int] = {
+      "scenescape_bluetooth_enabled": int(
+          _feature_enabled("BLUETOOTH_POSITIONING_ENABLED")
+      ),
+      "scenescape_bluetooth_ingress_accepted_total": int(ingress.get("accepted") or 0),
+      "scenescape_bluetooth_ingress_rejected_total": int(ingress.get("rejected") or 0),
+      "scenescape_bluetooth_ingress_queue_drops_total": int(
+          ingress.get("solver_queue_drops") or 0
+      ),
+      "scenescape_bluetooth_ingress_lag_seconds_max": float(
+          (ingress.get("ingest_lag_s") or {}).get("max") or 0.0
+      ),
+      "scenescape_bluetooth_solver_queue_depth": int(runtime.get("queue_depth") or 0),
+      "scenescape_bluetooth_active_tracks": int(tracker.get("active_tracks") or 0),
+      "scenescape_bluetooth_raw_measurements": raw_count,
+      "scenescape_bluetooth_raw_retention_seconds": retention.raw_measurement_s,
+      "scenescape_bluetooth_tracked_retention_seconds": retention.tracked_position_s,
+  }
+  for key, value in pipeline.items():
+    if isinstance(value, (int, float)):
+      values[f"scenescape_bluetooth_pipeline_{key}"] = value
+  for key, value in (tracker.get("metrics") or {}).items():
+    if isinstance(value, (int, float)):
+      values[f"scenescape_bluetooth_tracker_{key}"] = value
+  for key, value in (spatial.get("metrics") or {}).items():
+    if isinstance(value, (int, float)):
+      values[f"scenescape_bluetooth_spatial_{key}"] = value
+
+  body = "\n".join(
+      f"{name} {float(value) if isinstance(value, float) else int(value)}"
+      for name, value in sorted(values.items())
+  ) + "\n"
+  return PlainTextResponse(
+      body,
+      media_type="text/plain; version=0.0.4; charset=utf-8",
+      headers={"Cache-Control": "no-store"},
+  )
 
 
 @router.get("/health", summary="Read Bluetooth operational health")
