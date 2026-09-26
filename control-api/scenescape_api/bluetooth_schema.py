@@ -9,6 +9,7 @@ from .database import (
     BluetoothCalibration,
     BluetoothMeasurement,
     BluetoothProvider,
+    BluetoothRawPosition,
     BluetoothTag,
 )
 
@@ -72,4 +73,13 @@ BT06_TABLES = (BluetoothMeasurement.__table__,)
 def upgrade_bt06(engine) -> None:
   """Create bounded raw Bluetooth measurement persistence for BT-06."""
   for table in BT06_TABLES:
+    table.create(bind=engine, checkfirst=True)
+
+
+BT07_TABLES = (BluetoothRawPosition.__table__,)
+
+
+def upgrade_bt07(engine) -> None:
+  """Create persisted raw Bluetooth positioning solves for BT-07."""
+  for table in BT07_TABLES:
     table.create(bind=engine, checkfirst=True)
