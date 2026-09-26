@@ -6,9 +6,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import os
 from typing import Any
 
 from sqlalchemy import select
+
+from .bluetooth_fusion import EntityFusionProvider, FusionConfig
 
 from .database import (
     BluetoothAnchor,
@@ -158,6 +161,27 @@ def scene_bluetooth_objects(
   return objects
 
 
+
+_fusion_provider = EntityFusionProvider(
+    FusionConfig(
+        max_distance_m=max(0.1, float(os.getenv("BLUETOOTH_FUSION_MAX_DISTANCE_M", "1.5"))),
+        max_time_delta_s=max(0.05, float(os.getenv("BLUETOOTH_FUSION_MAX_TIME_DELTA_S", "0.75"))),
+        minimum_confidence=min(max(float(os.getenv("BLUETOOTH_FUSION_MIN_CONFIDENCE", "0.72")), 0.0), 1.0),
+        ambiguity_margin=min(max(float(os.getenv("BLUETOOTH_FUSION_AMBIGUITY_MARGIN", "0.12")), 0.0), 1.0),
+        retain_confidence=min(max(float(os.getenv("BLUETOOTH_FUSION_RETAIN_CONFIDENCE", "0.58")), 0.0), 1.0),
+        split_distance_m=max(0.1, float(os.getenv("BLUETOOTH_FUSION_SPLIT_DISTANCE_M", "2.5"))),
+    )
+)
+
+
+def _fusion_enabled() -> bool:
+  return os.getenv("BLUETOOTH_FUSION_ENABLED", "").strip().lower() in {
+      "1",
+      "true",
+      "yes",
+      "on",
+  }
+
 def merge_live_payload(
     payload: dict[str, Any],
     bluetooth_objects: list[dict[str, Any]],
@@ -174,11 +198,27 @@ def merge_live_payload(
     # source data separately rather than silently replacing it.
     vision_objects = []
     result["vision_objects_unparsed"] = original
-  result["objects"] = [*vision_objects, *bluetooth_objects]
+  result["vision_objects"] = vision_objects
   result["bluetooth"] = {
       "objects": bluetooth_objects,
       "count": len(bluetooth_objects),
   }
+  if _fusion_enabled() and vision_objects and bluetooth_objects:
+    fused = _fusion_provider.fuse(vision_objects, bluetooth_objects)
+    result["objects"] = fused["objects"]
+    result["fusion"] = {
+        "enabled": True,
+        "fused": fused["fused"],
+        "count": len(fused["fused"]),
+        "metrics": fused["metrics"],
+    }
+  else:
+    result["objects"] = [*vision_objects, *bluetooth_objects]
+    result["fusion"] = {
+        "enabled": False,
+        "fused": [],
+        "count": 0,
+    }
   return result
 
 
