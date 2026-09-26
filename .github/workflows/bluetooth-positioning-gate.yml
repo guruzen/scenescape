@@ -71,8 +71,7 @@ jobs:
         run: |
           . .venv-bt/bin/activate
           pytest -q \
-            control-api/tests/test_bluetooth_domain.py \
-            control-api/tests/test_bluetooth_api.py \
+            control-api/tests/test_bluetooth_*.py \
             control-api/tests/test_native_api.py::test_native_updates_require_revision_and_reject_stale_writes \
             control-api/tests/test_native_api.py::test_resource_kind_uid_unique_index_survives_migrate \
             control-api/tests/test_native_api.py::test_native_delete_requires_current_revision
