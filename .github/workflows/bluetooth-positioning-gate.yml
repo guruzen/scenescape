@@ -76,6 +76,18 @@ jobs:
             control-api/tests/test_native_api.py::test_resource_kind_uid_unique_index_survives_migrate \
             control-api/tests/test_native_api.py::test_native_delete_requires_current_revision
 
+      - name: Run BT-16 deterministic load benchmark
+        env:
+          PYTHONPATH: control-api
+        run: |
+          . .venv-bt/bin/activate
+          python -m scenescape_api.bluetooth_benchmark \
+            --tags 20 \
+            --anchors 4 \
+            --hz 5 \
+            --duration 5 \
+            --noise-stddev-m 0.05
+
   bt-ui:
     name: "Bluetooth management UI contract and build"
     runs-on: ubuntu-latest
