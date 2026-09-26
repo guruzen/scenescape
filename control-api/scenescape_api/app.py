@@ -1462,6 +1462,8 @@ def _incident_event_context(db, incident: Incident) -> dict:
       "objects": payload.get("objects") if isinstance(payload.get("objects"), list) else [],
       "entered": entered,
       "exited": exited,
+      "source": str(payload.get("source") or "vision"),
+      "bluetooth": payload.get("bluetooth") if isinstance(payload.get("bluetooth"), dict) else None,
       "title": title,
   }
 
@@ -1497,6 +1499,10 @@ def incidents(
     rule_id: str = Query(default=""),
     event_type: str = Query(default=""),
     object_type: str = Query(default=""),
+    source: str = Query(default=""),
+    tag_id: str = Query(default=""),
+    assignment_id: str = Query(default=""),
+    positioning_state: str = Query(default=""),
     status: str = Query(default=""),
     q: str = Query(default=""),
     from_time: str = Query(default="", alias="from"),
@@ -1521,6 +1527,27 @@ def incidents(
     records = [row for row in records if row["event_type"] == event_type]
   if object_type:
     records = [row for row in records if object_type in row["object_types"]]
+  if source:
+    records = [row for row in records if row.get("source") == source]
+  if tag_id:
+    records = [
+        row for row in records
+        if isinstance(row.get("bluetooth"), dict)
+        and str(row["bluetooth"].get("tag_id") or "") == tag_id
+    ]
+  if assignment_id:
+    records = [
+        row for row in records
+        if isinstance(row.get("bluetooth"), dict)
+        and str(row["bluetooth"].get("assignment_id") or "") == assignment_id
+    ]
+  if positioning_state:
+    records = [
+        row for row in records
+        if isinstance(row.get("bluetooth"), dict)
+        and isinstance(row["bluetooth"].get("quality"), dict)
+        and str(row["bluetooth"]["quality"].get("state") or "") == positioning_state
+    ]
   if status:
     records = [row for row in records if row["status"] == status]
   if start:
@@ -1534,6 +1561,9 @@ def incidents(
         if needle in " ".join([
             str(row["title"]), str(row["scene_name"]), str(row["scene_id"]),
             str(row["rule_name"]), str(row["rule_id"]), str(row["event_type"]),
+            str(row.get("source") or ""),
+            str((row.get("bluetooth") or {}).get("tag_id") or "") if isinstance(row.get("bluetooth"), dict) else "",
+            str((row.get("bluetooth") or {}).get("assignment_id") or "") if isinstance(row.get("bluetooth"), dict) else "",
             " ".join(row["object_types"]), " ".join(row["object_ids"]),
         ]).casefold()
     ]
