@@ -68,10 +68,25 @@ def _calibration_map(
         continue
       x_m, y_m, z_m = item.x_m, item.y_m, item.z_m
     if anchor_id and all(_finite(value) for value in (x_m, y_m, z_m)):
+      details = item.get("details", {}) if isinstance(item, dict) else (item.details or {})
+      bias_m = details.get("range_bias_m", 0.0)
+      range_stddev_m = details.get("range_stddev_m", 0.0)
+      try:
+        bias_m = float(bias_m)
+        range_stddev_m = float(range_stddev_m)
+      except (TypeError, ValueError):
+        bias_m = 0.0
+        range_stddev_m = 0.0
+      if not math.isfinite(bias_m):
+        bias_m = 0.0
+      if not math.isfinite(range_stddev_m) or range_stddev_m < 0.0:
+        range_stddev_m = 0.0
       result[anchor_id] = {
           "x_m": float(x_m),
           "y_m": float(y_m),
           "z_m": float(z_m),
+          "range_bias_m": bias_m,
+          "range_stddev_m": range_stddev_m,
       }
   return result
 
@@ -94,7 +109,15 @@ def _measurement_dict(item: BluetoothMeasurement | dict[str, Any]) -> dict[str, 
 
 
 def _effective_sigma(row: dict[str, Any], config: SolverConfig) -> float:
-  base = max(float(row.get("distance_stddev_m") or config.sigma_floor_m), config.sigma_floor_m)
+  measurement_sigma = max(
+      float(row.get("distance_stddev_m") or config.sigma_floor_m),
+      config.sigma_floor_m,
+  )
+  calibration_sigma = max(float(row.get("_calibration_stddev_m") or 0.0), 0.0)
+  base = max(
+      math.sqrt(measurement_sigma**2 + calibration_sigma**2),
+      config.sigma_floor_m,
+  )
   quality = min(max(float(row.get("quality") or 0.01), 0.01), 1.0)
   nlos = min(max(float(row.get("nlos_probability") or 0.0), 0.0), 1.0)
   return base * (1.0 + 2.5 * nlos) / math.sqrt(quality)
@@ -319,7 +342,12 @@ def solve_ranges(
       continue
     if float(row["distance_m"]) < 0.0 or float(row["distance_stddev_m"]) <= 0.0:
       continue
-    valid_rows.append({**row, "anchor_id": anchor_id})
+    valid_rows.append({
+        **row,
+        "anchor_id": anchor_id,
+        "_range_bias_m": calibration[anchor_id].get("range_bias_m", 0.0),
+        "_calibration_stddev_m": calibration[anchor_id].get("range_stddev_m", 0.0),
+    })
 
   timestamps = [
       _utc(row["source_timestamp"])
@@ -374,7 +402,21 @@ def solve_ranges(
         dimension=f"{dimension}d",
     )
 
-  distances = np.array([float(row["distance_m"]) for row in valid_rows], dtype=float)
+  distances = np.array(
+      [
+          float(row["distance_m"]) - float(row.get("_range_bias_m") or 0.0)
+          for row in valid_rows
+      ],
+      dtype=float,
+  )
+  if np.any(~np.isfinite(distances)) or np.any(distances < 0.0):
+    return unavailable_result(
+        reason="invalid_bias_corrected_range",
+        source_timestamp=source_timestamp,
+        anchors_visible=len(valid_rows),
+        method=method,
+        dimension=f"{dimension}d",
+    )
   sigmas = np.array([_effective_sigma(row, config) for row in valid_rows], dtype=float)
   initial = _initial_guess(anchor_xyz, dimension, config.fixed_z_m)
   try:
