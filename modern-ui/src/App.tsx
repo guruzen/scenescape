@@ -741,13 +741,13 @@ function Map2D({
               {showBluetoothUncertainty &&
                 source === "bluetooth" &&
                 Number(object.tracking_radius) > 0 && (
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={uncertaintyRadius}
-                  className={`bluetooth-uncertainty bluetooth-uncertainty-${bluetoothState || "unknown"}`}
-                />
-              )}
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r={uncertaintyRadius}
+                    className={`bluetooth-uncertainty bluetooth-uncertainty-${bluetoothState || "unknown"}`}
+                  />
+                )}
               {showHeatmap && (
                 <circle
                   cx={x}
@@ -1133,8 +1133,10 @@ function SceneWorkspace({
   const [showVelocity, setShowVelocity] = useState(false);
   const [showBluetoothTags, setShowBluetoothTags] = useState(true);
   const [showBluetoothAnchors, setShowBluetoothAnchors] = useState(true);
-  const [showBluetoothUncertainty, setShowBluetoothUncertainty] = useState(true);
-  const [showBluetoothAnchorLinks, setShowBluetoothAnchorLinks] = useState(false);
+  const [showBluetoothUncertainty, setShowBluetoothUncertainty] =
+    useState(true);
+  const [showBluetoothAnchorLinks, setShowBluetoothAnchorLinks] =
+    useState(false);
   const [showLabels, setShowLabels] = useState(true);
   const [visualizeRois, setVisualizeRois] = useState(true);
   const [showFloor, setShowFloor] = useState(
@@ -1449,7 +1451,9 @@ function SceneWorkspace({
                 <input
                   type="checkbox"
                   checked={showBluetoothUncertainty}
-                  onChange={(e) => setShowBluetoothUncertainty(e.target.checked)}
+                  onChange={(e) =>
+                    setShowBluetoothUncertainty(e.target.checked)
+                  }
                 />
                 <span>
                   Uncertainty<small>horizontal confidence radius</small>
@@ -1459,7 +1463,9 @@ function SceneWorkspace({
                 <input
                   type="checkbox"
                   checked={showBluetoothAnchorLinks}
-                  onChange={(e) => setShowBluetoothAnchorLinks(e.target.checked)}
+                  onChange={(e) =>
+                    setShowBluetoothAnchorLinks(e.target.checked)
+                  }
                 />
                 <span>
                   Anchor links<small>anchors used by the current fix</small>

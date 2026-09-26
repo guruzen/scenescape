@@ -1164,26 +1164,27 @@ export default function ThreeScene({
       );
       group.add(marker);
     }
-    if (showBluetoothAnchors) for (const anchor of bluetoothAnchors || []) {
-      if (!Array.isArray(anchor.translation)) continue;
-      const position = anchor.translation;
-      const marker = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.16, 0),
-        new THREE.MeshStandardMaterial({
-          color: 0x5b8cff,
-          emissive: 0x173c7a,
-          emissiveIntensity: 0.35,
-        }),
-      );
-      marker.userData.generatedGeometry = true;
-      marker.userData.bluetoothAnchorId = String(anchor.id || "");
-      marker.position.set(
-        Number(position[0] || 0),
-        Number(position[1] || 0),
-        Number(position[2] || 0),
-      );
-      group.add(marker);
-    }
+    if (showBluetoothAnchors)
+      for (const anchor of bluetoothAnchors || []) {
+        if (!Array.isArray(anchor.translation)) continue;
+        const position = anchor.translation;
+        const marker = new THREE.Mesh(
+          new THREE.OctahedronGeometry(0.16, 0),
+          new THREE.MeshStandardMaterial({
+            color: 0x5b8cff,
+            emissive: 0x173c7a,
+            emissiveIntensity: 0.35,
+          }),
+        );
+        marker.userData.generatedGeometry = true;
+        marker.userData.bluetoothAnchorId = String(anchor.id || "");
+        marker.position.set(
+          Number(position[0] || 0),
+          Number(position[1] || 0),
+          Number(position[2] || 0),
+        );
+        group.add(marker);
+      }
   }, [pickedPoints, bluetoothAnchors, showBluetoothAnchors]);
 
   const commandView = (command: string) =>

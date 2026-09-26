@@ -2476,7 +2476,6 @@
   }
 }
 
-
 /* Bluetooth live positioning diagnostics (BT-09). */
 .bluetooth-anchor-link {
   stroke: color-mix(in srgb, rgb(var(--accent)) 58%, transparent);
@@ -2491,7 +2490,6 @@
     opacity 120ms ease,
     stroke-width 120ms ease;
 }
-
 
 /* Advanced Bluetooth calibration and coverage (BT-11). */
 .bt-cal-overlay-controls {

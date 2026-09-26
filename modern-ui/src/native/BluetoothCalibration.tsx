@@ -33,9 +33,15 @@ const displayNumber = (value: number) =>
 
 const coverageBounds = (rows: BluetoothCalibration[]) => {
   const active = rows.filter((row) => row.state === "active");
-  const values = active.length ? active : rows.filter((row) => row.state !== "retired");
-  const xs = values.map((row) => Number(row.position.x_m)).filter(Number.isFinite);
-  const ys = values.map((row) => Number(row.position.y_m)).filter(Number.isFinite);
+  const values = active.length
+    ? active
+    : rows.filter((row) => row.state !== "retired");
+  const xs = values
+    .map((row) => Number(row.position.x_m))
+    .filter(Number.isFinite);
+  const ys = values
+    .map((row) => Number(row.position.y_m))
+    .filter(Number.isFinite);
   if (!xs.length || !ys.length) {
     return { minX: 0, maxX: 10, minY: 0, maxY: 10, step: 1 };
   }
@@ -651,12 +657,17 @@ export default function BluetoothCalibration({
               </span>
             )}
           </div>
-          <div className="bt-cal-overlay-controls" aria-label="Bluetooth calibration diagnostic overlays">
+          <div
+            className="bt-cal-overlay-controls"
+            aria-label="Bluetooth calibration diagnostic overlays"
+          >
             <label>
               <input
                 type="checkbox"
                 checked={showGeometryCoverage}
-                onChange={(event) => setShowGeometryCoverage(event.target.checked)}
+                onChange={(event) =>
+                  setShowGeometryCoverage(event.target.checked)
+                }
               />
               Theoretical GDOP
             </label>
@@ -677,8 +688,9 @@ export default function BluetoothCalibration({
               Survey-anchor links
             </label>
             <span>
-              Geometry model: {coverage?.theoretical_geometry.model || "not loaded"} ·
-              observed source: {coverage?.observed_rf.source || "not loaded"}
+              Geometry model:{" "}
+              {coverage?.theoretical_geometry.model || "not loaded"} · observed
+              source: {coverage?.observed_rf.source || "not loaded"}
             </span>
           </div>
           <CalibrationMap
@@ -928,7 +940,12 @@ export default function BluetoothCalibration({
               {isAdmin && (
                 <button
                   className="btn"
-                  disabled={busy || !Object.values(bias).some((item) => item.accepted_count >= 3)}
+                  disabled={
+                    busy ||
+                    !Object.values(bias).some(
+                      (item) => item.accepted_count >= 3,
+                    )
+                  }
                   onClick={() => void createBiasDrafts()}
                 >
                   Create bias-corrected drafts
@@ -963,7 +980,9 @@ export default function BluetoothCalibration({
                   </div>
                 ))}
               {!Object.keys(bias).length && (
-                <div className="table-empty">No survey samples are available.</div>
+                <div className="table-empty">
+                  No survey samples are available.
+                </div>
               )}
             </div>
             <div className="bt-cal-coverage-summary">
@@ -972,7 +991,8 @@ export default function BluetoothCalibration({
                 <b>{coverage?.theoretical_geometry.cells.length ?? 0}</b>
               </span>
               <span>
-                Observed survey points <b>{coverage?.observed_rf.points.length ?? 0}</b>
+                Observed survey points{" "}
+                <b>{coverage?.observed_rf.points.length ?? 0}</b>
               </span>
             </div>
           </div>

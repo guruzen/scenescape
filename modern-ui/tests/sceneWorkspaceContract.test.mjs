@@ -321,7 +321,8 @@ test("BT-09 contract: Bluetooth inspector exposes provenance quality freshness a
     "good",
   );
   assert.equal(
-    model.fields.find((field) => field.label === "Horizontal uncertainty").value,
+    model.fields.find((field) => field.label === "Horizontal uncertainty")
+      .value,
     "0.24 m",
   );
   assert.match(

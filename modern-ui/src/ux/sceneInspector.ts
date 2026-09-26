@@ -72,9 +72,7 @@ export function buildInspectorModel(
       ? row.visibility.join(", ") || "None"
       : "Unknown";
     const bluetooth =
-      row.bluetooth && typeof row.bluetooth === "object"
-        ? row.bluetooth
-        : null;
+      row.bluetooth && typeof row.bluetooth === "object" ? row.bluetooth : null;
     const method = String(bluetooth?.method || "").toLowerCase();
     const sourceLabel =
       method === "channel_sounding"
