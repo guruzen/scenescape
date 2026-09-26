@@ -1,4 +1,7 @@
 {{- $name := include "native.name" . -}}
+{{- if and (gt (int .Values.worker.replicas) 1) (not .Values.mqtt.sharedSubscriptionGroup) }}
+{{- fail "mqtt.sharedSubscriptionGroup is required when worker.replicas > 1" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata: {name: "{{ $name }}-worker"}
