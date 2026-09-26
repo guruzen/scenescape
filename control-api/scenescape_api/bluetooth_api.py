@@ -12,6 +12,7 @@ from .bluetooth_calibration import calibration_public, geometry_report
 from .bluetooth_control import delete_anchor, delete_tag, transition_anchor, transition_tag
 from .bluetooth_telemetry import DeviceTelemetryEnvelope, ingest_device_telemetry, latest_device_telemetry, telemetry_public
 from .bluetooth_survey import add_survey_sample, close_survey_point, coverage_diagnostics, create_bias_calibration_revisions, create_survey_point, estimate_anchor_biases
+from .bluetooth_pipeline import runtime_diagnostics as pipeline_runtime_diagnostics
 from .bluetooth_ingest import (
     MeasurementRejected,
     RangeEnvelope,
@@ -1061,6 +1062,7 @@ def diagnostics(p: Principal = Depends(browser_principal), db=Depends(db_dep)):
         "oldest_source_timestamp": oldest,
         "newest_source_timestamp": newest,
         "process_metrics": ingress_metrics.snapshot(),
+        "pipeline": pipeline_runtime_diagnostics(),
     }
   else:
     value["ingress"] = {"visible": False}
