@@ -32,6 +32,7 @@ from .database import (
 )
 from .bluetooth_schema import upgrade_bt01, upgrade_bt02, upgrade_bt06, upgrade_bt07, upgrade_bt08, upgrade_bt10, upgrade_bt11
 from .ingest import persist
+from .bluetooth_pipeline import drain_solver_queue
 from .migrate_legacy import migrate as migrate_snapshot
 
 
@@ -153,7 +154,15 @@ def worker():
   def on_message(c, user_data, msg):
     try:
       with sessions()() as db:
-        persist(db, msg.topic, msg.payload)
+        persisted = persist(db, msg.topic, msg.payload)
+        if str(msg.topic).startswith("scenescape/data/bluetooth/range/"):
+          drain_solver_queue(
+              db,
+              maximum=max(
+                  1,
+                  int(os.getenv("BLUETOOTH_SOLVER_DRAIN_PER_MESSAGE", "100")),
+              ),
+          )
         db.commit()
     except Exception as exc:
       set_heartbeat("degraded", reason="ingest_error", error=type(exc).__name__, topic=str(msg.topic)[:240])
