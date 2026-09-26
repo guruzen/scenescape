@@ -357,6 +357,77 @@ test("BT-09 contract: Scene Workspace exposes Bluetooth live-layer controls", ()
   assert.match(threeSource, /showBluetoothAnchorLinks/);
 });
 
+test("BT-15 contract: fused object inspector explains both sources and confidence", () => {
+  const model = buildInspectorModel({
+    kind: "object",
+    id: "fused:tag-a",
+    value: {
+      id: "fused:tag-a",
+      source: "fusion",
+      category: "person",
+      translation: [5, 5, 1],
+      velocity: [0.2, 0, 0],
+      fusion: {
+        confidence: 0.91,
+        bluetooth_tag_id: "tag-a",
+        vision_object_id: "vision-7",
+        source_ids: {
+          bluetooth: "bt:tag-a",
+          vision: "vision-7",
+        },
+        identity_source: "explicit_bluetooth_assignment",
+      },
+      source_objects: {
+        vision: {
+          id: "vision-7",
+          category: "person",
+        },
+        bluetooth: {
+          id: "bt:tag-a",
+          bluetooth: {
+            method: "channel_sounding",
+            state: "good",
+            horizontal_uncertainty_m: 0.22,
+            anchors_used: 4,
+            anchor_ids: ["a1", "a2", "a3", "a4"],
+            last_measured_at: "2026-09-26T10:00:00Z",
+            battery: {
+              percent: 77,
+              status: "normal",
+              source: "gatt_battery_service",
+            },
+          },
+        },
+      },
+    },
+  });
+  assert.equal(model.kind, "Vision + Bluetooth fused object");
+  assert.equal(
+    model.fields.find((field) => field.label === "Source").value,
+    "Vision + Bluetooth fusion",
+  );
+  assert.equal(
+    model.fields.find((field) => field.label === "Fusion confidence").value,
+    "91%",
+  );
+  assert.equal(
+    model.fields.find((field) => field.label === "Vision source").value,
+    "vision-7",
+  );
+  assert.equal(
+    model.fields.find((field) => field.label === "Bluetooth source").value,
+    "bt:tag-a",
+  );
+  assert.equal(
+    model.fields.find((field) => field.label === "Identity source").value,
+    "explicit_bluetooth_assignment",
+  );
+  assert.equal(
+    model.fields.find((field) => field.label === "Horizontal uncertainty").value,
+    "0.22 m",
+  );
+});
+
 test("unit: inspector preserves Unknown for unavailable optional data", () => {
   const camera = buildInspectorModel({
     kind: "camera",
