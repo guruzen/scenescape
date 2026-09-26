@@ -10,7 +10,7 @@ import csv
 import io
 import math
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Mapping
 
 import numpy as np
