@@ -12,6 +12,8 @@ from .database import (
     BluetoothProvider,
     BluetoothRawPosition,
     BluetoothTag,
+    BluetoothSurveyPoint,
+    BluetoothSurveySample,
     BluetoothTrackedPosition,
 )
 
@@ -102,4 +104,16 @@ BT10_TABLES = (BluetoothDeviceTelemetry.__table__,)
 def upgrade_bt10(engine) -> None:
   """Create provenance-bearing Bluetooth device telemetry storage for BT-10."""
   for table in BT10_TABLES:
+    table.create(bind=engine, checkfirst=True)
+
+
+BT11_TABLES = (
+    BluetoothSurveyPoint.__table__,
+    BluetoothSurveySample.__table__,
+)
+
+
+def upgrade_bt11(engine) -> None:
+  """Create advanced calibration survey persistence for BT-11."""
+  for table in BT11_TABLES:
     table.create(bind=engine, checkfirst=True)
