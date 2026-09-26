@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timezone
 
+from .bluetooth_ingest import ingest_mqtt_message
 from .database import Event, Incident, Observation
 
 
@@ -34,6 +35,8 @@ def scene_id_from_topic(topic: str) -> str:
 
 
 def persist(db, topic: str, raw: bytes):
+  if str(topic).startswith("scenescape/data/bluetooth/range/"):
+    return ingest_mqtt_message(db, topic, raw)
   if isinstance(raw, (bytes, bytearray)) and len(raw) > 8 * 1024 * 1024:
     raise ValueError("MQTT payload exceeds 8 MiB ingest limit")
   payload = json.loads(raw.decode() if isinstance(raw, (bytes, bytearray)) else raw)
