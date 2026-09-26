@@ -112,7 +112,9 @@ export function buildInspectorModel(
           },
           {
             label: "Vision source",
-            value: unknown(fusion?.source_ids?.vision ?? fusion?.vision_object_id),
+            value: unknown(
+              fusion?.source_ids?.vision ?? fusion?.vision_object_id,
+            ),
           },
           {
             label: "Bluetooth source",

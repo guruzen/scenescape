@@ -423,7 +423,8 @@ test("BT-15 contract: fused object inspector explains both sources and confidenc
     "explicit_bluetooth_assignment",
   );
   assert.equal(
-    model.fields.find((field) => field.label === "Horizontal uncertainty").value,
+    model.fields.find((field) => field.label === "Horizontal uncertainty")
+      .value,
     "0.22 m",
   );
 });
