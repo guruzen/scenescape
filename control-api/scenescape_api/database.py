@@ -274,6 +274,64 @@ class BluetoothAudit(Base):
   observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
+class BluetoothMeasurement(Base):
+  __tablename__ = "native_bluetooth_measurements"
+  __table_args__ = (
+      UniqueConstraint(
+          "provider_id",
+          "session_id",
+          "sequence",
+          name="uq_native_bluetooth_measurements_provider_session_sequence",
+      ),
+      Index(
+          "ix_native_bluetooth_measurements_scene_tag_time",
+          "scene_id",
+          "tag_uid",
+          "source_timestamp",
+      ),
+      Index(
+          "ix_native_bluetooth_measurements_anchor_tag_time",
+          "anchor_uid",
+          "tag_uid",
+          "source_timestamp",
+      ),
+  )
+
+  id: Mapped[int] = mapped_column(Integer, primary_key=True)
+  scene_id: Mapped[str] = mapped_column(String(96), nullable=False, index=True)
+  anchor_uid: Mapped[str] = mapped_column(
+      String(96),
+      ForeignKey("native_bluetooth_anchors.uid"),
+      nullable=False,
+      index=True,
+  )
+  tag_uid: Mapped[str] = mapped_column(
+      String(96),
+      ForeignKey("native_bluetooth_tags.uid"),
+      nullable=False,
+      index=True,
+  )
+  provider_id: Mapped[str] = mapped_column(
+      String(96),
+      ForeignKey("native_bluetooth_providers.uid"),
+      nullable=False,
+      index=True,
+  )
+  session_id: Mapped[str] = mapped_column(String(96), nullable=False)
+  sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+  source_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+  ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+  method: Mapped[str] = mapped_column(String(32), nullable=False)
+  distance_m: Mapped[float] = mapped_column(Float, nullable=False)
+  distance_stddev_m: Mapped[float] = mapped_column(Float, nullable=False)
+  rssi_dbm: Mapped[float | None] = mapped_column(Float, nullable=True)
+  azimuth_deg: Mapped[float | None] = mapped_column(Float, nullable=True)
+  elevation_deg: Mapped[float | None] = mapped_column(Float, nullable=True)
+  nlos_probability: Mapped[float] = mapped_column(Float, nullable=False)
+  quality: Mapped[float] = mapped_column(Float, nullable=False)
+  provider_details: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 def get_engine():
   global _engine, _Session
   url = database_url()
