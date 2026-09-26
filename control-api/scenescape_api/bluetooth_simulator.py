@@ -270,10 +270,6 @@ def _range_envelope(
       "scene_id": scenario.scene_id,
       "anchor_id": anchor.anchor_id,
       "tag_id": tag.tag_id,
-      "topic": (
-          f"scenescape/data/bluetooth/range/{scenario.scene_id}/"
-          f"{anchor.anchor_id}/{tag.tag_id}"
-      ),
       "payload": payload,
   }
 
