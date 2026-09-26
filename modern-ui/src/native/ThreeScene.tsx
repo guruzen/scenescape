@@ -657,7 +657,10 @@ export default function ThreeScene({
         group.add(uncertainty);
       }
       if (showHeatmap) {
-        const radius = Math.max(0.45, Number(item.tracking_radius || asset?.tracking_radius || 0.6));
+        const radius = Math.max(
+          0.45,
+          Number(item.tracking_radius || asset?.tracking_radius || 0.6),
+        );
         const heat = new THREE.Mesh(
           new THREE.CircleGeometry(radius, 28),
           new THREE.MeshBasicMaterial({
