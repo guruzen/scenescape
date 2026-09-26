@@ -200,7 +200,7 @@ def test_bt10_ingest_projects_latest_tag_snapshot_with_provenance(api):
     assert tag.battery_percent == 19
     assert tag.battery_status == "low"
     assert tag.battery_source == "bluetooth_standard_services"
-    assert tag.battery_observed_at == now
+    assert tag.battery_observed_at.replace(tzinfo=timezone.utc) == now
     assert tag.firmware_revision == "1.4.0"
     public = telemetry_public(row, now=now)
   assert public["battery"]["status"] == "low"
