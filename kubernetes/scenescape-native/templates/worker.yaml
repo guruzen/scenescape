@@ -3,8 +3,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata: {name: "{{ $name }}-worker"}
 spec:
-  replicas: 1
-  strategy: {type: Recreate}
+  replicas: {{ .Values.worker.replicas }}
+  strategy: {type: RollingUpdate}
   selector:
     matchLabels: {app: "{{ $name }}-worker"}
   template:
@@ -12,6 +12,15 @@ spec:
       labels: {app: "{{ $name }}-worker"}
     spec:
       securityContext: {fsGroup: 1000}
+      terminationGracePeriodSeconds: 30
+      {{- if gt (int .Values.worker.replicas) 1 }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {app: "{{ $name }}-worker"}
+      {{- end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{ toYaml . | nindent 8 }}
       {{- end }}
@@ -34,11 +43,23 @@ spec:
             - {name: MQTT_HOST, value: {{ required "mqtt.host is required" .Values.mqtt.host | quote }}}
             - {name: MQTT_PORT, value: {{ .Values.mqtt.port | quote }}}
             - {name: MQTT_CLIENT_ID, value: {{ .Values.mqtt.clientId | quote }}}
+            - name: MQTT_CLIENT_ID_SUFFIX
+              valueFrom:
+                fieldRef: {fieldPath: metadata.name}
+            - {name: MQTT_SHARED_SUBSCRIPTION_GROUP, value: {{ .Values.mqtt.sharedSubscriptionGroup | quote }}}
             - {name: MQTT_CA_FILE, value: /run/secrets/mqtt/ca.crt}
             - {name: MQTT_AUTH_FILE, value: /run/secrets/auth/browser.auth}
             - {name: HISTORY_SAMPLE_SECONDS, value: {{ .Values.history.sampleSeconds | quote }}}
             - {name: HISTORY_RETENTION_DAYS, value: {{ .Values.history.observationDays | quote }}}
             - {name: EVENT_RETENTION_DAYS, value: {{ .Values.history.eventDays | quote }}}
+            - {name: BLUETOOTH_POSITIONING_ENABLED, value: {{ .Values.bluetooth.enabled | quote }}}
+            - {name: BLUETOOTH_TELEMETRY_ENABLED, value: {{ .Values.bluetooth.telemetryEnabled | quote }}}
+            - {name: BLUETOOTH_SPATIAL_EVENTS_ENABLED, value: {{ .Values.bluetooth.spatialEventsEnabled | quote }}}
+            - {name: BLUETOOTH_FUSION_ENABLED, value: {{ .Values.bluetooth.fusionEnabled | quote }}}
+            - {name: BLUETOOTH_SOLVER_QUEUE_CAPACITY, value: {{ .Values.bluetooth.solverQueueCapacity | quote }}}
+            - {name: BLUETOOTH_SOLVER_DRAIN_PER_MESSAGE, value: {{ .Values.bluetooth.solverDrainPerMessage | quote }}}
+            - {name: BLUETOOTH_REPLAY_WINDOW_S, value: {{ .Values.bluetooth.replayWindowSeconds | quote }}}
+            - {name: BLUETOOTH_MAX_RANGE_M, value: {{ .Values.bluetooth.maxRangeM | quote }}}
             {{- if .Values.autocalibration.url }}
             - {name: AUTOCALIBRATION_URL, value: {{ .Values.autocalibration.url | quote }}}
             - {name: UPSTREAM_CA_FILE, value: /run/secrets/autocalibration/ca.crt}
@@ -50,6 +71,21 @@ spec:
             {{- if .Values.autocalibration.url }}
             - {name: autocalibration-ca, mountPath: /run/secrets/autocalibration, readOnly: true}
             {{- end }}
+          readinessProbe:
+            exec:
+              command: [python, -m, scenescape_api.cli, worker-ready]
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: [python, -m, scenescape_api.cli, worker-health]
+            periodSeconds: 20
+            failureThreshold: 6
+          startupProbe:
+            exec:
+              command: [python, -m, scenescape_api.cli, worker-health]
+            periodSeconds: 5
+            failureThreshold: 30
           resources: {{ toYaml .Values.worker.resources | nindent 12 }}
           securityContext:
             {{- include "native.security" . | nindent 12 }}
