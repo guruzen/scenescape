@@ -401,7 +401,6 @@ test("BT-04 integrated calibration persists scene-local metres through real Fast
   await capture(page, testInfo, "bt04-integrated-calibration.png");
 });
 
-
 test("BT-11 integrated survey diagnostics render observed RF and theoretical GDOP", async ({
   page,
 }, testInfo) => {
