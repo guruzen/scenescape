@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from .auth import Principal, browser_principal, service_principal
 from .bluetooth_calibration import calibration_public, geometry_report
 from .bluetooth_control import delete_anchor, delete_tag, transition_anchor, transition_tag
+from .bluetooth_telemetry import DeviceTelemetryEnvelope, ingest_device_telemetry, latest_device_telemetry, telemetry_public
 from .bluetooth_ingest import (
     MeasurementRejected,
     RangeEnvelope,
@@ -800,6 +801,68 @@ def add_measurement(
     ) from exc
   db.commit()
   return {"accepted": True, "measurement": measurement_to_dict(row)}
+
+
+@router.post(
+    "/telemetry",
+    status_code=202,
+    summary="Ingest normalized Bluetooth device telemetry",
+)
+def add_device_telemetry(
+    body: DeviceTelemetryEnvelope,
+    p: Principal = Depends(service_principal),
+    db=Depends(db_dep),
+):
+  if body.provider_id != p.subject:
+    raise HTTPException(
+        403,
+        detail={
+            "code": "provider_scope_denied",
+            "message": "Service identity may ingest only its matching Bluetooth provider ID",
+        },
+    )
+  try:
+    row = ingest_device_telemetry(db, body)
+  except ValueError as exc:
+    raise HTTPException(
+        422,
+        detail={"code": "invalid_device_telemetry", "message": str(exc)},
+    ) from exc
+  db.commit()
+  return {"accepted": True, "telemetry": telemetry_public(row)}
+
+
+@router.get("/tags/{tag_id}/telemetry", summary="Read latest Bluetooth tag telemetry")
+def get_tag_telemetry(
+    tag_id: str,
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  _admin(p)
+  if db.get(BluetoothTag, tag_id) is None:
+    raise HTTPException(
+        404,
+        detail={"code": "tag_not_found", "message": "Bluetooth tag not found"},
+    )
+  row = latest_device_telemetry(db, "tag", tag_id)
+  return {"device_type": "tag", "device_id": tag_id, "telemetry": telemetry_public(row) if row else None}
+
+
+@router.get("/anchors/{anchor_id}/telemetry", summary="Read latest Bluetooth anchor telemetry")
+def get_anchor_telemetry(
+    anchor_id: str,
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  anchor = db.get(BluetoothAnchor, anchor_id)
+  if anchor is None:
+    raise HTTPException(
+        404,
+        detail={"code": "anchor_not_found", "message": "Bluetooth anchor not found"},
+    )
+  _scene_allowed(p, anchor.scene_id)
+  row = latest_device_telemetry(db, "anchor", anchor_id)
+  return {"device_type": "anchor", "device_id": anchor_id, "telemetry": telemetry_public(row) if row else None}
 
 
 @router.get("/diagnostics", summary="Read Bluetooth control-plane diagnostics")
