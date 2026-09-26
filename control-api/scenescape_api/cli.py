@@ -18,6 +18,7 @@ from .database import (
     BluetoothProvider,
     BluetoothRawPosition,
     BluetoothTag,
+    BluetoothTrackedPosition,
     Event,
     Heartbeat,
     Incident,
@@ -26,7 +27,7 @@ from .database import (
     get_engine,
     sessions,
 )
-from .bluetooth_schema import upgrade_bt01, upgrade_bt02, upgrade_bt06, upgrade_bt07
+from .bluetooth_schema import upgrade_bt01, upgrade_bt02, upgrade_bt06, upgrade_bt07, upgrade_bt08
 from .ingest import persist
 from .migrate_legacy import migrate as migrate_snapshot
 
@@ -38,6 +39,7 @@ def migrate():
   upgrade_bt02(engine)
   upgrade_bt06(engine)
   upgrade_bt07(engine)
+  upgrade_bt08(engine)
   # create_all() does not retrofit constraints on an existing native database.
   # Refuse to add the uniqueness guard if an earlier build already created
   # duplicate logical resources; silently deleting either row would lose data.
@@ -73,6 +75,7 @@ def reset(path=None):
   with sessions()() as db:
     for model in (
         BluetoothAudit,
+        BluetoothTrackedPosition,
         BluetoothRawPosition,
         BluetoothMeasurement,
         BluetoothAssignment,
