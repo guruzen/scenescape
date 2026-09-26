@@ -64,6 +64,7 @@ type Bundle = {
   child_regions?: Row[];
   child_tripwires?: Row[];
   child_sensors?: Row[];
+  bluetooth_anchors?: Row[];
 };
 
 const operations = [
@@ -585,6 +586,25 @@ function Map2D({
               </g>
             );
           })}
+        {(bundle.bluetooth_anchors || []).map((anchor: Row, i: number) => {
+          if (!Array.isArray(anchor.translation)) return null;
+          const [x, y] = xy(anchor.translation);
+          return (
+            <g
+              key={`bt-anchor-${String(anchor.id ?? i)}`}
+              className="bluetooth-anchor"
+              aria-label={`Bluetooth anchor ${String(anchor.serial_number || anchor.id || i)}`}
+            >
+              <circle cx={x} cy={y} r="9" className="bluetooth-anchor-ring" />
+              <circle cx={x} cy={y} r="3" className="bluetooth-anchor-core" />
+              {showLabels && (
+                <text x={x + 12} y={y + 4} className="bluetooth-anchor-label">
+                  {String(anchor.serial_number || anchor.id || "BT anchor")}
+                </text>
+              )}
+            </g>
+          );
+        })}
         {showTrails &&
           Object.entries(trails).map(([key, trail]) => {
             const value = trail.map((point) => xy(point).join(",")).join(" ");
@@ -619,9 +639,17 @@ function Map2D({
               : null;
           const arrow = velocityArrow2D(object.velocity, scale);
           const velocityEnd = arrow ? [x + arrow.dx, y + arrow.dy] : null;
+          const source = String(object.source || "vision");
+          const bluetoothState = String(object.bluetooth?.state || "");
+          const bluetoothScore = Number(object.bluetooth?.score);
           const telemetry = showTelemetry
             ? [
                 object.id != null ? `#${object.id}` : "",
+                `source ${source}`,
+                bluetoothState ? `BT ${bluetoothState}` : "",
+                Number.isFinite(bluetoothScore)
+                  ? `q ${bluetoothScore.toFixed(2)}`
+                  : "",
                 velocity
                   ? `v ${velocity.map((v) => v.toFixed(2)).join(",")}`
                   : "",
@@ -630,6 +658,10 @@ function Map2D({
                   : "",
               ].filter(Boolean)
             : [];
+          const uncertaintyRadius = Math.max(
+            8,
+            Math.min(140, Number(object.tracking_radius || 0) * scale),
+          );
           const heatRadius = Math.max(
             14,
             Math.min(90, Number(object.tracking_radius || 0.6) * scale),
@@ -647,12 +679,17 @@ function Map2D({
                 selected?.kind === "object" &&
                 selected.id === String(object.id ?? i)
               }
-              className={
+              className={[
+                "selectable-entity",
+                source === "bluetooth" ? "source-bluetooth" : "",
+                source === "fusion" ? "source-fusion" : "",
                 selected?.kind === "object" &&
                 selected.id === String(object.id ?? i)
-                  ? "selectable-entity selected-entity"
-                  : "selectable-entity"
-              }
+                  ? "selected-entity"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
               onClick={(event) => {
                 event.stopPropagation();
                 onSelect?.({
@@ -669,6 +706,14 @@ function Map2D({
                 })
               }
             >
+              {source === "bluetooth" && Number(object.tracking_radius) > 0 && (
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={uncertaintyRadius}
+                  className={`bluetooth-uncertainty bluetooth-uncertainty-${bluetoothState || "unknown"}`}
+                />
+              )}
               {showHeatmap && (
                 <circle
                   cx={x}
