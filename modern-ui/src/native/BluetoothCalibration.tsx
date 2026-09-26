@@ -7,7 +7,9 @@ import {
   bluetoothApi,
   type BluetoothAnchor,
   type BluetoothCalibration,
+  type BluetoothCoverage,
   type BluetoothGeometry,
+  type BluetoothSurveyBias,
   type CalibrationPayload,
 } from "./bluetoothApi";
 
@@ -28,6 +30,28 @@ const imagePath = (scene: Row | undefined) => {
 const roundCoordinate = (value: number) => Math.round(value * 1000) / 1000;
 const displayNumber = (value: number) =>
   Number.isFinite(value) ? value.toFixed(2) : "—";
+
+const coverageBounds = (rows: BluetoothCalibration[]) => {
+  const active = rows.filter((row) => row.state === "active");
+  const values = active.length ? active : rows.filter((row) => row.state !== "retired");
+  const xs = values.map((row) => Number(row.position.x_m)).filter(Number.isFinite);
+  const ys = values.map((row) => Number(row.position.y_m)).filter(Number.isFinite);
+  if (!xs.length || !ys.length) {
+    return { minX: 0, maxX: 10, minY: 0, maxY: 10, step: 1 };
+  }
+  const minX = Math.min(...xs) - 1;
+  const maxX = Math.max(...xs) + 1;
+  const minY = Math.min(...ys) - 1;
+  const maxY = Math.max(...ys) + 1;
+  const span = Math.max(maxX - minX, maxY - minY, 1);
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    step: Math.max(0.5, Math.min(2, span / 12)),
+  };
+};
 
 const draftFromCalibration = (
   row: BluetoothCalibration | undefined,
@@ -52,6 +76,10 @@ function CalibrationMap({
   draft,
   hasPlacement,
   editable,
+  coverage,
+  showGeometryCoverage,
+  showObservedRf,
+  showSurveyLinks,
   onPlace,
   onSelectAnchor,
 }: {
@@ -62,6 +90,10 @@ function CalibrationMap({
   draft: CalibrationPayload;
   hasPlacement: boolean;
   editable: boolean;
+  coverage: BluetoothCoverage | null;
+  showGeometryCoverage: boolean;
+  showObservedRf: boolean;
+  showSurveyLinks: boolean;
   onPlace: (xM: number, yM: number) => void;
   onSelectAnchor: (uid: string) => void;
 }) {
@@ -165,6 +197,61 @@ function CalibrationMap({
         {!url && (
           <rect width={size[0]} height={size[1]} className="bt-cal-grid-bg" />
         )}
+        {showGeometryCoverage &&
+          coverage?.theoretical_geometry.cells.map((cell, index) => {
+            const [cx, cy] = toPixel(cell.x_m, cell.y_m);
+            return (
+              <circle
+                key={`gdop-${index}`}
+                cx={cx}
+                cy={cy}
+                r={Math.max(5, scale * 0.18)}
+                className={`bt-cal-gdop-cell ${cell.geometry_state}`}
+                aria-label={`Geometry ${cell.geometry_state}, GDOP ${cell.gdop ?? "unavailable"}`}
+              />
+            );
+          })}
+        {showSurveyLinks &&
+          coverage?.observed_rf.points.flatMap((point) => {
+            const [sx, sy] = toPixel(
+              Number(point.position[0] || 0),
+              Number(point.position[1] || 0),
+            );
+            return anchors.flatMap((anchor) => {
+              const row = latest.get(anchor.uid);
+              if (!row) return [];
+              const [ax, ay] = toPixel(row.position.x_m, row.position.y_m);
+              return [
+                <line
+                  key={`survey-link-${point.survey_point_uid}-${anchor.uid}`}
+                  x1={sx}
+                  y1={sy}
+                  x2={ax}
+                  y2={ay}
+                  className="bt-cal-survey-link"
+                />,
+              ];
+            });
+          })}
+        {showObservedRf &&
+          coverage?.observed_rf.points.map((point) => {
+            const [cx, cy] = toPixel(
+              Number(point.position[0] || 0),
+              Number(point.position[1] || 0),
+            );
+            return (
+              <g
+                key={point.survey_point_uid}
+                className="bt-cal-survey-point"
+                aria-label={`Observed RF survey ${point.name}, ${point.sample_count} samples`}
+              >
+                <rect x={cx - 7} y={cy - 7} width="14" height="14" rx="3" />
+                <text x={cx + 11} y={cy - 9}>
+                  {point.name}
+                </text>
+              </g>
+            );
+          })}
         {anchors.map((anchor) => {
           const row = latest.get(anchor.uid);
           if (!row || anchor.uid === selectedAnchorId) return null;
@@ -238,6 +325,11 @@ export default function BluetoothCalibration({
   const [anchors, setAnchors] = useState<BluetoothAnchor[]>([]);
   const [calibrations, setCalibrations] = useState<BluetoothCalibration[]>([]);
   const [geometry, setGeometry] = useState<BluetoothGeometry | null>(null);
+  const [coverage, setCoverage] = useState<BluetoothCoverage | null>(null);
+  const [bias, setBias] = useState<Record<string, BluetoothSurveyBias>>({});
+  const [showGeometryCoverage, setShowGeometryCoverage] = useState(false);
+  const [showObservedRf, setShowObservedRf] = useState(true);
+  const [showSurveyLinks, setShowSurveyLinks] = useState(false);
   const [selectedAnchorId, setSelectedAnchorId] = useState("");
   const [draft, setDraft] = useState<CalibrationPayload>(
     draftFromCalibration(undefined),
@@ -294,6 +386,8 @@ export default function BluetoothCalibration({
       setAnchors([]);
       setCalibrations([]);
       setGeometry(null);
+      setCoverage(null);
+      setBias({});
       return;
     }
     setLoading(true);
@@ -307,6 +401,13 @@ export default function BluetoothCalibration({
       setAnchors(anchorPage.items);
       setCalibrations(calibrationPage.items);
       setGeometry(geometryValue);
+      const bounds = coverageBounds(calibrationPage.items);
+      const [biasValue, coverageValue] = await Promise.all([
+        bluetoothApi.surveys.bias(sceneId),
+        bluetoothApi.surveys.coverage(sceneId, bounds),
+      ]);
+      setBias(biasValue.anchors);
+      setCoverage(coverageValue);
       const nextAnchor =
         anchorPage.items.find((row) => row.uid === selectedAnchorId)?.uid ||
         anchorPage.items[0]?.uid ||
@@ -534,6 +635,10 @@ export default function BluetoothCalibration({
             draft={draft}
             hasPlacement={hasPlacement}
             editable={isAdmin}
+            coverage={coverage}
+            showGeometryCoverage={showGeometryCoverage}
+            showObservedRf={showObservedRf}
+            showSurveyLinks={showSurveyLinks}
             onPlace={(xM, yM) => {
               setDraft((current) => ({
                 ...current,
