@@ -119,6 +119,7 @@ def bluetooth_object(
           "calibration_revision": provenance.get("calibration_revision"),
           "identity_revision": provenance.get("identity_revision"),
           "last_measured_at": provenance.get("last_measured_at"),
+          "anchor_ids": list(provenance.get("accepted_anchor_ids") or []),
           "assignment": (
               {
                   "entity_type": assignment.entity_type,
