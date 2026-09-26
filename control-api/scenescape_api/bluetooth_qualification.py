@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import bisect
 import csv
 import io
 import math
@@ -68,41 +69,65 @@ def align_truth_and_positions(
     positions: Iterable[Mapping[str, Any]],
     config: QualificationConfig | None = None,
 ) -> list[dict[str, Any]]:
+  """Align truth and fixes one-to-one within the configured time tolerance.
+
+  A fix may qualify at most one truth sample. Candidate pairs are matched by
+  smallest timestamp delta first, which preserves exact timestamp matches and
+  prevents a missing fix from borrowing an adjacent sample that belongs to a
+  neighboring truth point.
+  """
   config = config or QualificationConfig()
   truth_rows = sorted(
       [dict(row) for row in truth],
-      key=lambda row: _utc(row["source_timestamp"]),
+      key=lambda row: (str(row.get("tag_id") or ""), _utc(row["source_timestamp"])),
   )
   position_rows = sorted(
       [dict(row) for row in positions],
-      key=lambda row: _utc(row["source_timestamp"]),
+      key=lambda row: (str(row.get("tag_id") or ""), _utc(row["source_timestamp"])),
   )
-  by_tag: dict[str, list[dict[str, Any]]] = {}
-  for row in position_rows:
-    by_tag.setdefault(str(row.get("tag_id") or ""), []).append(row)
-
   tolerance_s = config.alignment_tolerance_ms / 1000.0
-  aligned: list[dict[str, Any]] = []
-  for truth_row in truth_rows:
+
+  position_by_tag: dict[str, list[tuple[datetime, int, dict[str, Any]]]] = {}
+  for index, row in enumerate(position_rows):
+    tag_id = str(row.get("tag_id") or "")
+    position_by_tag.setdefault(tag_id, []).append(
+        (_utc(row["source_timestamp"]), index, row)
+    )
+
+  candidates: list[tuple[float, datetime, datetime, int, int]] = []
+  truth_meta: list[tuple[str, datetime]] = []
+  for truth_index, truth_row in enumerate(truth_rows):
     tag_id = str(truth_row.get("tag_id") or "")
     truth_time = _utc(truth_row["source_timestamp"])
-    candidates = by_tag.get(tag_id, [])
-    nearest = None
-    nearest_delta = math.inf
-    for position_row in candidates:
-      delta = abs((_utc(position_row["source_timestamp"]) - truth_time).total_seconds())
-      if delta < nearest_delta:
-        nearest = position_row
-        nearest_delta = delta
-      if _utc(position_row["source_timestamp"]) > truth_time and delta > nearest_delta:
-        break
+    truth_meta.append((tag_id, truth_time))
+    tagged = position_by_tag.get(tag_id, [])
+    times = [item[0] for item in tagged]
+    left = bisect.bisect_left(times, truth_time - timedelta(seconds=tolerance_s))
+    right = bisect.bisect_right(times, truth_time + timedelta(seconds=tolerance_s))
+    for position_time, position_index, _row in tagged[left:right]:
+      delta = abs((position_time - truth_time).total_seconds())
+      candidates.append(
+          (delta, truth_time, position_time, truth_index, position_index)
+      )
+
+  candidates.sort(key=lambda item: (item[0], item[1], item[2], item[3], item[4]))
+  matched_truth: dict[int, tuple[int, float]] = {}
+  used_positions: set[int] = set()
+  for delta, _truth_time, _position_time, truth_index, position_index in candidates:
+    if truth_index in matched_truth or position_index in used_positions:
+      continue
+    matched_truth[truth_index] = (position_index, delta)
+    used_positions.add(position_index)
+
+  aligned: list[dict[str, Any]] = []
+  for truth_index, truth_row in enumerate(truth_rows):
+    match = matched_truth.get(truth_index)
+    position_row = position_rows[match[0]] if match is not None else None
     aligned.append({
-        "tag_id": tag_id,
+        "tag_id": str(truth_row.get("tag_id") or ""),
         "truth": truth_row,
-        "position": nearest if nearest_delta <= tolerance_s else None,
-        "alignment_error_ms": (
-            nearest_delta * 1000.0 if nearest is not None and nearest_delta <= tolerance_s else None
-        ),
+        "position": position_row,
+        "alignment_error_ms": match[1] * 1000.0 if match is not None else None,
     })
   return aligned
 
