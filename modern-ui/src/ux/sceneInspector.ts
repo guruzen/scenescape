@@ -71,14 +71,70 @@ export function buildInspectorModel(
     const visibility = Array.isArray(row.visibility)
       ? row.visibility.join(", ") || "None"
       : "Unknown";
+    const bluetooth =
+      row.bluetooth && typeof row.bluetooth === "object"
+        ? row.bluetooth
+        : null;
+    const method = String(bluetooth?.method || "").toLowerCase();
+    const sourceLabel =
+      method === "channel_sounding"
+        ? "Bluetooth · Channel Sounding"
+        : method === "aoa"
+          ? "Bluetooth · AoA"
+          : method === "rssi"
+            ? "Bluetooth · RSSI"
+            : bluetooth
+              ? "Bluetooth"
+              : unknown(row.source ?? "vision");
+    const uncertainty = Number(bluetooth?.horizontal_uncertainty_m);
+    const batteryPercent = Number(bluetooth?.battery?.percent);
+    const batteryStatus = String(bluetooth?.battery?.status || "unknown");
+    const anchorIds = Array.isArray(bluetooth?.anchor_ids)
+      ? bluetooth.anchor_ids.map(String).filter(Boolean)
+      : [];
+    const bluetoothFields: InspectorField[] = bluetooth
+      ? [
+          { label: "Source", value: sourceLabel },
+          { label: "Position state", value: unknown(bluetooth.state) },
+          {
+            label: "Horizontal uncertainty",
+            value: Number.isFinite(uncertainty)
+              ? `${uncertainty.toFixed(2)} m`
+              : "Unknown",
+          },
+          {
+            label: "Anchors used",
+            value: anchorIds.length
+              ? `${unknown(bluetooth.anchors_used)} · ${anchorIds.join(", ")}`
+              : unknown(bluetooth.anchors_used),
+          },
+          {
+            label: "Freshness",
+            value: bluetooth.predicted
+              ? `Predicted · last measured ${unknown(bluetooth.last_measured_at)}`
+              : `Measured · ${unknown(bluetooth.last_measured_at ?? row.timestamp)}`,
+          },
+          {
+            label: "Battery",
+            value: Number.isFinite(batteryPercent)
+              ? `${Math.round(batteryPercent)}% · ${batteryStatus}`
+              : `Unknown · ${batteryStatus}`,
+          },
+          {
+            label: "Battery source",
+            value: unknown(bluetooth?.battery?.source),
+          },
+        ]
+      : [];
     return {
       title: `Object ${unknown(row.id ?? selection.id)}`,
-      kind: "Tracked object",
+      kind: bluetooth ? "Bluetooth tracked object" : "Tracked object",
       fields: [
         { label: "Category", value: unknown(row.category ?? row.type) },
         { label: "Position", value: vector(row.translation) },
         { label: "Velocity", value: vector(row.velocity) },
         { label: "Speed", value: speed === "Unknown" ? speed : `${speed} m/s` },
+        ...bluetoothFields,
         { label: "Regions", value: regions },
         { label: "Dwell", value: dwell },
         { label: "Visible cameras", value: visibility },
