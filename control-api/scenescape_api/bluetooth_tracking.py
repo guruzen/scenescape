@@ -50,6 +50,7 @@ class TrackState:
   last_quality: dict[str, Any]
   last_solver: dict[str, Any]
   last_method: str
+  last_anchor_ids: list[str]
 
 
 def _transition(dt_s: float) -> np.ndarray:
@@ -95,6 +96,24 @@ def _measurement_covariance(raw: dict[str, Any], config: TrackerConfig) -> np.nd
   return np.diag(
       [horizontal_std**2, horizontal_std**2, vertical_std**2]
   ).astype(float)
+
+
+def _accepted_anchor_ids(raw: dict[str, Any]) -> list[str]:
+  result: list[str] = []
+  seen: set[str] = set()
+  values = raw.get("accepted_anchors")
+  if not isinstance(values, list):
+    return result
+  for value in values:
+    anchor_id = (
+        str(value.get("anchor_id") or "").strip()
+        if isinstance(value, dict)
+        else str(value or "").strip()
+    )
+    if anchor_id and anchor_id not in seen:
+      seen.add(anchor_id)
+      result.append(anchor_id)
+  return result
 
 
 def _position_from_raw(raw: dict[str, Any]) -> np.ndarray | None:
@@ -201,6 +220,7 @@ class BluetoothTracker:
         last_quality=quality,
         last_solver=dict(raw.get("solver") or {}),
         last_method=str(quality.get("method") or "unknown"),
+        last_anchor_ids=_accepted_anchor_ids(raw),
     )
     self._remember((scene_id, tag_id), track)
     self.metrics["created"] += 1
@@ -409,6 +429,7 @@ class BluetoothTracker:
     track.last_quality = dict(raw.get("quality") or {})
     track.last_solver = dict(raw.get("solver") or {})
     track.last_method = str(track.last_quality.get("method") or "unknown")
+    track.last_anchor_ids = _accepted_anchor_ids(raw)
     self._remember(key, track)
     output_state = "good" if measured_state == "good" else "degraded"
     return self._render(
@@ -505,6 +526,7 @@ class BluetoothTracker:
             "calibration_revision": track.calibration_revision,
             "identity_revision": track.identity_revision,
             "last_measured_at": _utc(track.last_measured_at).isoformat().replace("+00:00", "Z"),
+            "accepted_anchor_ids": list(track.last_anchor_ids),
         },
     }
 
