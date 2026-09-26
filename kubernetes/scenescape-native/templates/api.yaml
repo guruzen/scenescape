@@ -49,6 +49,16 @@ spec:
             - {name: HISTORY_SAMPLE_SECONDS, value: {{ .Values.history.sampleSeconds | quote }}}
             - {name: HISTORY_RETENTION_DAYS, value: {{ .Values.history.observationDays | quote }}}
             - {name: EVENT_RETENTION_DAYS, value: {{ .Values.history.eventDays | quote }}}
+            - {name: BLUETOOTH_POSITIONING_ENABLED, value: {{ .Values.bluetooth.enabled | quote }}}
+            - {name: BLUETOOTH_TELEMETRY_ENABLED, value: {{ .Values.bluetooth.telemetryEnabled | quote }}}
+            - {name: BLUETOOTH_SPATIAL_EVENTS_ENABLED, value: {{ .Values.bluetooth.spatialEventsEnabled | quote }}}
+            - {name: BLUETOOTH_FUSION_ENABLED, value: {{ .Values.bluetooth.fusionEnabled | quote }}}
+            - {name: BLUETOOTH_REPLAY_WINDOW_S, value: {{ .Values.bluetooth.replayWindowSeconds | quote }}}
+            - {name: BLUETOOTH_MAX_RANGE_M, value: {{ .Values.bluetooth.maxRangeM | quote }}}
+            - {name: BLUETOOTH_RAW_RETENTION_S, value: {{ .Values.bluetooth.retention.rawMeasurementSeconds | quote }}}
+            - {name: BLUETOOTH_RAW_POSITION_RETENTION_S, value: {{ .Values.bluetooth.retention.rawPositionSeconds | quote }}}
+            - {name: BLUETOOTH_TRACKED_POSITION_RETENTION_S, value: {{ .Values.bluetooth.retention.trackedPositionSeconds | quote }}}
+            - {name: BLUETOOTH_DEVICE_TELEMETRY_RETENTION_S, value: {{ .Values.bluetooth.retention.deviceTelemetrySeconds | quote }}}
             {{- if .Values.autocalibration.url }}
             - {name: AUTOCALIBRATION_URL, value: {{ .Values.autocalibration.url | quote }}}
             - {name: UPSTREAM_CA_FILE, value: /run/secrets/autocalibration/ca.crt}
