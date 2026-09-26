@@ -126,7 +126,6 @@ jobs:
           npm run typecheck
           npm run build
 
-
   bt-helm:
     name: "Bluetooth Helm hardening"
     runs-on: ubuntu-latest
