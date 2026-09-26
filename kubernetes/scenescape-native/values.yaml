@@ -13,7 +13,8 @@ ui:
     requests: {cpu: 50m, memory: 64Mi}
     limits: {cpu: 500m, memory: 256Mi}
 worker:
-  # Exactly one collector per MQTT client ID. Separate from API replicas.
+  # Replicas can scale when mqtt.sharedSubscriptionGroup is configured.
+  replicas: 1
   resources:
     requests: {cpu: 250m, memory: 512Mi}
     limits: {cpu: "2", memory: 2Gi}
@@ -43,7 +44,25 @@ mqtt:
   host: ""
   port: 1883
   clientId: scenescape-native-historian
+  sharedSubscriptionGroup: "" # Required for worker.replicas > 1.
   caSecret: "" # Existing Secret with ca.crt
+bluetooth:
+  # Disabled by default in production deployment; control-plane config remains.
+  enabled: false
+  telemetryEnabled: false
+  spatialEventsEnabled: true
+  fusionEnabled: false
+  solverQueueCapacity: 10000
+  solverDrainPerMessage: 100
+  replayWindowSeconds: 300
+  maxRangeM: 1000
+  retention:
+    enabled: true
+    schedule: "*/15 * * * *"
+    rawMeasurementSeconds: 86400
+    rawPositionSeconds: 86400
+    trackedPositionSeconds: 604800
+    deviceTelemetrySeconds: 604800
 history:
   sampleSeconds: 1
   observationDays: 7
