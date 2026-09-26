@@ -11,6 +11,7 @@ from .auth import Principal, browser_principal, service_principal
 from .bluetooth_calibration import calibration_public, geometry_report
 from .bluetooth_control import delete_anchor, delete_tag, transition_anchor, transition_tag
 from .bluetooth_telemetry import DeviceTelemetryEnvelope, ingest_device_telemetry, latest_device_telemetry, telemetry_public
+from .bluetooth_survey import add_survey_sample, close_survey_point, coverage_diagnostics, create_bias_calibration_revisions, create_survey_point, estimate_anchor_biases
 from .bluetooth_ingest import (
     MeasurementRejected,
     RangeEnvelope,
@@ -39,6 +40,7 @@ from .bluetooth_domain import (
     create_assignment,
     create_calibration,
     create_tag,
+    calibration_to_dict,
     tag_to_dict,
     update_anchor,
     update_tag,
@@ -863,6 +865,152 @@ def get_anchor_telemetry(
   _scene_allowed(p, anchor.scene_id)
   row = latest_device_telemetry(db, "anchor", anchor_id)
   return {"device_type": "anchor", "device_id": anchor_id, "telemetry": telemetry_public(row) if row else None}
+
+
+@router.post("/surveys/points", summary="Create Bluetooth survey point")
+def create_bt_survey_point(
+    body: dict,
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  _admin(p)
+  try:
+    point = create_survey_point(
+        db,
+        scene_id=str(body.get("scene_id") or ""),
+        name=str(body.get("name") or ""),
+        x_m=body.get("x_m"),
+        y_m=body.get("y_m"),
+        z_m=body.get("z_m"),
+        actor=p.subject,
+        uid=body.get("uid"),
+    )
+  except (TypeError, ValueError) as exc:
+    raise HTTPException(422, detail={"code": "invalid_survey_point", "message": str(exc)}) from exc
+  _audit(db, p, "create", "survey_point", point.uid, scene_id=point.scene_id)
+  db.commit()
+  return {
+      "uid": point.uid,
+      "scene_id": point.scene_id,
+      "name": point.name,
+      "position": {"x_m": point.x_m, "y_m": point.y_m, "z_m": point.z_m},
+      "state": point.state,
+  }
+
+
+@router.post("/surveys/points/{point_id}/samples", summary="Add Bluetooth survey range sample")
+def add_bt_survey_sample(
+    point_id: str,
+    body: dict,
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  _admin(p)
+  try:
+    sample = add_survey_sample(
+        db,
+        survey_point_uid=point_id,
+        anchor_uid=str(body.get("anchor_uid") or ""),
+        distance_m=body.get("distance_m"),
+        distance_stddev_m=body.get("distance_stddev_m", 0.05),
+        quality=body.get("quality", 1.0),
+        observed_at=(
+            datetime.fromisoformat(str(body["observed_at"]).replace("Z", "+00:00"))
+            if body.get("observed_at")
+            else utcnow()
+        ),
+        details=body.get("details") or {},
+    )
+  except (TypeError, ValueError) as exc:
+    raise HTTPException(422, detail={"code": "invalid_survey_sample", "message": str(exc)}) from exc
+  _audit(db, p, "sample", "survey_point", point_id, details={"sample_id": sample.id, "anchor_uid": sample.anchor_uid})
+  db.commit()
+  return {"id": sample.id, "survey_point_uid": sample.survey_point_uid, "anchor_uid": sample.anchor_uid}
+
+
+@router.post("/surveys/points/{point_id}/close", summary="Close Bluetooth survey point")
+def close_bt_survey_point(
+    point_id: str,
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  _admin(p)
+  try:
+    point = close_survey_point(db, point_id)
+  except ValueError as exc:
+    raise HTTPException(404, detail={"code": "survey_point_not_found", "message": str(exc)}) from exc
+  _audit(db, p, "close", "survey_point", point.uid, scene_id=point.scene_id)
+  db.commit()
+  return {"uid": point.uid, "state": point.state}
+
+
+@router.get("/surveys/bias", summary="Estimate Bluetooth anchor range bias")
+def get_bt_survey_bias(
+    scene_id: str,
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  _scene_allowed(p, scene_id)
+  return {"scene_id": scene_id, "anchors": estimate_anchor_biases(db, scene_id)}
+
+
+@router.post("/surveys/bias/revisions", summary="Create draft bias-corrected calibration revisions")
+def create_bt_bias_revisions(
+    scene_id: str,
+    minimum_samples: int = Query(default=3, ge=3, le=10000),
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  _admin(p)
+  try:
+    rows = create_bias_calibration_revisions(
+        db,
+        scene_id,
+        p.subject,
+        minimum_samples=minimum_samples,
+    )
+  except ValueError as exc:
+    raise HTTPException(422, detail={"code": "bias_estimation_failed", "message": str(exc)}) from exc
+  for row in rows:
+    _audit(
+        db,
+        p,
+        "create_bias_revision",
+        "calibration",
+        row.uid,
+        scene_id=scene_id,
+        details={"anchor_uid": row.anchor_uid, "calibration_revision": row.calibration_revision},
+    )
+  db.commit()
+  return {"scene_id": scene_id, "created": [calibration_to_dict(row) for row in rows]}
+
+
+@router.get("/surveys/coverage", summary="Read Bluetooth geometry and observed survey coverage")
+def get_bt_survey_coverage(
+    scene_id: str,
+    min_x_m: float,
+    max_x_m: float,
+    min_y_m: float,
+    max_y_m: float,
+    step_m: float = Query(default=1.0, gt=0.0, le=1000.0),
+    fixed_z_m: float = 1.0,
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  _scene_allowed(p, scene_id)
+  try:
+    return coverage_diagnostics(
+        db,
+        scene_id,
+        min_x_m=min_x_m,
+        max_x_m=max_x_m,
+        min_y_m=min_y_m,
+        max_y_m=max_y_m,
+        step_m=step_m,
+        fixed_z_m=fixed_z_m,
+    )
+  except ValueError as exc:
+    raise HTTPException(422, detail={"code": "invalid_coverage_request", "message": str(exc)}) from exc
 
 
 @router.get("/diagnostics", summary="Read Bluetooth control-plane diagnostics")
