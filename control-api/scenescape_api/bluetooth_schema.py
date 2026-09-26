@@ -11,6 +11,7 @@ from .database import (
     BluetoothProvider,
     BluetoothRawPosition,
     BluetoothTag,
+    BluetoothTrackedPosition,
 )
 
 
@@ -82,4 +83,13 @@ BT07_TABLES = (BluetoothRawPosition.__table__,)
 def upgrade_bt07(engine) -> None:
   """Create persisted raw Bluetooth positioning solves for BT-07."""
   for table in BT07_TABLES:
+    table.create(bind=engine, checkfirst=True)
+
+
+BT08_TABLES = (BluetoothTrackedPosition.__table__,)
+
+
+def upgrade_bt08(engine) -> None:
+  """Create persisted Bluetooth tracked-position storage for BT-08."""
+  for table in BT08_TABLES:
     table.create(bind=engine, checkfirst=True)
