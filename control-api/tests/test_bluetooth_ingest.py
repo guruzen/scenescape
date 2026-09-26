@@ -436,3 +436,59 @@ def test_bt06_diagnostics_report_ingress_counts_without_exposing_to_viewer(api):
   )
   assert viewer.status_code == 200
   assert viewer.json()["ingress"] == {"visible": False}
+
+
+
+def test_bt16_http_ingress_feature_flag_disables_without_deleting_config(api, monkeypatch):
+  client, database = api
+  _commission(client, database)
+  monkeypatch.setenv("BLUETOOTH_POSITIONING_ENABLED", "false")
+  now = datetime.now(timezone.utc)
+
+  response = client.post(
+      "/api/v2/bluetooth/measurements",
+      headers=_service_headers(client),
+      json=_envelope(now=now),
+  )
+  assert response.status_code == 503
+  assert response.json()["detail"]["code"] == "feature_disabled"
+
+  with database.sessions()() as db:
+    assert db.scalar(select(BluetoothMeasurement.id).limit(1)) is None
+    from scenescape_api.database import BluetoothAnchor, BluetoothProvider, BluetoothTag
+    assert db.get(BluetoothProvider, "svc") is not None
+    assert db.get(BluetoothAnchor, "anchor-a") is not None
+    assert db.get(BluetoothTag, "tag-a") is not None
+
+
+def test_bt16_service_metrics_are_aggregate_and_location_private(api):
+  client, database = api
+  _commission(client, database)
+  now = datetime.now(timezone.utc)
+  accepted = client.post(
+      "/api/v2/bluetooth/measurements",
+      headers=_service_headers(client),
+      json=_envelope(now=now),
+  )
+  assert accepted.status_code == 202
+
+  response = client.get(
+      "/api/v2/bluetooth/metrics",
+      headers=_service_headers(client),
+  )
+  assert response.status_code == 200
+  assert response.headers["content-type"].startswith("text/plain")
+  body = response.text
+  for metric in (
+      "scenescape_bluetooth_enabled",
+      "scenescape_bluetooth_ingress_accepted_total",
+      "scenescape_bluetooth_solver_queue_depth",
+      "scenescape_bluetooth_raw_measurements",
+      "scenescape_bluetooth_raw_retention_seconds",
+  ):
+    assert metric in body
+
+  # Prometheus output is intentionally aggregate: no scene, tag, anchor,
+  # assignment or provider labels that disclose precise location/identity.
+  for private_value in ("scene-a", "tag-a", "anchor-a", "svc"):
+    assert private_value not in body
