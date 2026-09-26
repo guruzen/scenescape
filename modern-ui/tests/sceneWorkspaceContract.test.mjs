@@ -284,6 +284,78 @@ test("unit: object inspector derives current speed dwell visibility and persiste
   assert.match(model.persistentData, /A7/);
 });
 
+test("BT-09 contract: Bluetooth inspector exposes provenance quality freshness and battery", () => {
+  const model = buildInspectorModel({
+    kind: "object",
+    id: "bt:tag-a",
+    value: {
+      id: "bt:tag-a",
+      source: "bluetooth",
+      category: "asset",
+      translation: [4, 5, 1],
+      velocity: [0.8, 0.1, 0],
+      timestamp: "2026-09-26T10:00:01Z",
+      bluetooth: {
+        method: "channel_sounding",
+        state: "good",
+        predicted: false,
+        horizontal_uncertainty_m: 0.24,
+        anchors_used: 4,
+        anchor_ids: ["a1", "a2", "a3", "a4"],
+        last_measured_at: "2026-09-26T10:00:01Z",
+        battery: {
+          percent: 55,
+          status: "normal",
+          source: "gatt_battery_service",
+        },
+      },
+    },
+  });
+  assert.equal(model.kind, "Bluetooth tracked object");
+  assert.equal(
+    model.fields.find((field) => field.label === "Source").value,
+    "Bluetooth · Channel Sounding",
+  );
+  assert.equal(
+    model.fields.find((field) => field.label === "Position state").value,
+    "good",
+  );
+  assert.equal(
+    model.fields.find((field) => field.label === "Horizontal uncertainty").value,
+    "0.24 m",
+  );
+  assert.match(
+    model.fields.find((field) => field.label === "Anchors used").value,
+    /4.*a1.*a4/,
+  );
+  assert.match(
+    model.fields.find((field) => field.label === "Freshness").value,
+    /Measured.*2026-09-26/,
+  );
+  assert.equal(
+    model.fields.find((field) => field.label === "Battery").value,
+    "55% · normal",
+  );
+});
+
+test("BT-09 contract: Scene Workspace exposes Bluetooth live-layer controls", () => {
+  const appSource = readFileSync(
+    new URL("../src/App.tsx", import.meta.url),
+    "utf8",
+  );
+  const threeSource = readFileSync(
+    new URL("../src/native/ThreeScene.tsx", import.meta.url),
+    "utf8",
+  );
+  for (const label of ["Tags", "Anchors", "Uncertainty", "Anchor links"]) {
+    assert.match(appSource, new RegExp(label));
+  }
+  assert.match(appSource, /showBluetoothAnchorLinks/);
+  assert.match(appSource, /bluetooth-anchor-link/);
+  assert.match(threeSource, /showBluetoothUncertainty/);
+  assert.match(threeSource, /showBluetoothAnchorLinks/);
+});
+
 test("unit: inspector preserves Unknown for unavailable optional data", () => {
   const camera = buildInspectorModel({
     kind: "camera",
