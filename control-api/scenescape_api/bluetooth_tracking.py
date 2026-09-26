@@ -504,7 +504,7 @@ class BluetoothTracker:
             "reason": reason,
             "calibration_revision": track.calibration_revision,
             "identity_revision": track.identity_revision,
-            "last_measured_at": track.last_measured_at,
+            "last_measured_at": _utc(track.last_measured_at).isoformat().replace("+00:00", "Z"),
         },
     }
 
