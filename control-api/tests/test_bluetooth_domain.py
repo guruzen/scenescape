@@ -22,7 +22,19 @@ from scenescape_api.bluetooth_domain import (
     tag_to_dict,
     update_anchor,
 )
-from scenescape_api.bluetooth_schema import bluetooth_table_names, downgrade_bt01, upgrade_bt01
+from scenescape_api.bluetooth_schema import (
+    bluetooth_all_table_names,
+    bluetooth_table_names,
+    downgrade_all_bluetooth,
+    downgrade_bt01,
+    upgrade_bt01,
+    upgrade_bt02,
+    upgrade_bt06,
+    upgrade_bt07,
+    upgrade_bt08,
+    upgrade_bt10,
+    upgrade_bt11,
+)
 from scenescape_api.database import (
     Base,
     BluetoothAnchor,
@@ -75,6 +87,53 @@ def test_bt01_schema_upgrade_and_safe_downgrade_preserve_native_data(db):
   assert db.scalar(
       select(Resource).where(Resource.kind == "scene", Resource.uid == "keep-scene")
   ) is not None
+
+
+def test_bt16_full_schema_rollback_preserves_native_data_and_can_reupgrade(db):
+  db.add(Resource(
+      kind="scene",
+      uid="keep-scene-bt16",
+      revision=1,
+      payload={"uid": "keep-scene-bt16"},
+  ))
+  db.commit()
+  engine = db.get_bind()
+
+  downgrade_all_bluetooth(engine)
+  tables = set(inspect(engine).get_table_names())
+  assert not set(bluetooth_all_table_names()) & tables
+  assert "native_resources" in tables
+  assert db.scalar(
+      select(Resource).where(
+          Resource.kind == "scene",
+          Resource.uid == "keep-scene-bt16",
+      )
+  ) is not None
+
+  for upgrade in (
+      upgrade_bt01,
+      upgrade_bt02,
+      upgrade_bt06,
+      upgrade_bt07,
+      upgrade_bt08,
+      upgrade_bt10,
+      upgrade_bt11,
+  ):
+    upgrade(engine)
+  tables = set(inspect(engine).get_table_names())
+  assert set(bluetooth_all_table_names()) <= tables
+
+
+def test_bt16_full_schema_rollback_refuses_any_populated_bluetooth_table(db):
+  create_provider(db, {"uid": "provider-bt16", "name": "Provider BT16"}, "admin")
+  db.commit()
+  engine = db.get_bind()
+
+  with pytest.raises(RuntimeError, match="Refusing Bluetooth full schema downgrade"):
+    downgrade_all_bluetooth(engine)
+
+  tables = set(inspect(engine).get_table_names())
+  assert set(bluetooth_all_table_names()) <= tables
 
 
 def test_bt01_schema_downgrade_refuses_silent_bluetooth_data_loss(db):
