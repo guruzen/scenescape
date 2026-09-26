@@ -7,6 +7,7 @@ from .database import (
     BluetoothAssignment,
     BluetoothAudit,
     BluetoothCalibration,
+    BluetoothMeasurement,
     BluetoothProvider,
     BluetoothTag,
 )
@@ -62,4 +63,13 @@ BT02_TABLES = (BluetoothAudit.__table__,)
 def upgrade_bt02(engine) -> None:
   """Create BT-02 audit persistence without changing BT-01 device data."""
   for table in BT02_TABLES:
+    table.create(bind=engine, checkfirst=True)
+
+
+BT06_TABLES = (BluetoothMeasurement.__table__,)
+
+
+def upgrade_bt06(engine) -> None:
+  """Create bounded raw Bluetooth measurement persistence for BT-06."""
+  for table in BT06_TABLES:
     table.create(bind=engine, checkfirst=True)
