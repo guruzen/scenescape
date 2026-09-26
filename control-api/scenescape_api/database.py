@@ -423,6 +423,39 @@ class BluetoothTrackedPosition(Base):
   created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
+class BluetoothDeviceTelemetry(Base):
+  __tablename__ = "native_bluetooth_device_telemetry"
+  __table_args__ = (
+      Index(
+          "ix_native_bluetooth_device_telemetry_device_time",
+          "device_type",
+          "device_uid",
+          "observed_at",
+      ),
+      Index(
+          "ix_native_bluetooth_device_telemetry_provider_time",
+          "provider_id",
+          "observed_at",
+      ),
+  )
+
+  id: Mapped[int] = mapped_column(Integer, primary_key=True)
+  device_type: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+  device_uid: Mapped[str] = mapped_column(String(96), nullable=False, index=True)
+  provider_id: Mapped[str] = mapped_column(String(96), nullable=False, index=True)
+  source: Mapped[str] = mapped_column(String(64), nullable=False)
+  observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+  ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+  battery_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+  battery_voltage_v: Mapped[float | None] = mapped_column(Float, nullable=True)
+  battery_status: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+  manufacturer: Mapped[str | None] = mapped_column(String(160), nullable=True)
+  model: Mapped[str | None] = mapped_column(String(160), nullable=True)
+  hardware_revision: Mapped[str | None] = mapped_column(String(96), nullable=True)
+  firmware_revision: Mapped[str | None] = mapped_column(String(96), nullable=True)
+  details: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 def get_engine():
   global _engine, _Session
   url = database_url()
