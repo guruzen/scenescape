@@ -293,3 +293,28 @@ def test_bt10_poll_cache_protects_devices_and_is_memory_bounded():
   assert cache.should_poll("tag-c", now) is True
   assert cache.should_poll("tag-d", now) is True
   assert len(cache) == 3
+
+
+
+def test_bt16_telemetry_ingress_honors_feature_disable(api, monkeypatch):
+  client, database = api
+  monkeypatch.setenv("BLUETOOTH_TELEMETRY_ENABLED", "false")
+  now = datetime.now(timezone.utc)
+
+  response = client.post(
+      "/api/v2/bluetooth/telemetry",
+      headers=_service_headers(client),
+      json={
+          "provider_id": "svc",
+          "source_timestamp": now.isoformat(),
+          "device_type": "tag",
+          "device_id": "tag-a",
+          "battery_percent": 72,
+      },
+  )
+  assert response.status_code == 503
+  assert response.json()["detail"]["code"] == "feature_disabled"
+
+  with database.sessions()() as db:
+    tag = db.get(database.BluetoothTag, "tag-a")
+    assert tag.battery_percent is None
