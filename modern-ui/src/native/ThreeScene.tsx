@@ -31,6 +31,9 @@ export default function ThreeScene({
   childTripwires = [],
   childSensors = [],
   bluetoothAnchors = [],
+  showBluetoothAnchors = true,
+  showBluetoothUncertainty = true,
+  showBluetoothAnchorLinks = false,
   mediaOverrideUrl,
   previewAsset,
   showTrackedObjects = true,
@@ -63,6 +66,9 @@ export default function ThreeScene({
   childTripwires?: Row[];
   childSensors?: Row[];
   bluetoothAnchors?: Row[];
+  showBluetoothAnchors?: boolean;
+  showBluetoothUncertainty?: boolean;
+  showBluetoothAnchorLinks?: boolean;
   mediaOverrideUrl?: string;
   previewAsset?: Row;
   showTrackedObjects?: boolean;
@@ -630,6 +636,7 @@ export default function ThreeScene({
         }
       }
       if (
+        showBluetoothUncertainty &&
         item.source === "bluetooth" &&
         Number(item.tracking_radius || 0) > 0
       ) {
@@ -655,6 +662,35 @@ export default function ThreeScene({
         uncertainty.userData.generatedGeometry = true;
         uncertainty.position.set(root.position.x, root.position.y, 0.03);
         group.add(uncertainty);
+      }
+      if (showBluetoothAnchorLinks && item.source === "bluetooth") {
+        const anchorIds = Array.isArray(item.bluetooth?.anchor_ids)
+          ? item.bluetooth.anchor_ids.map(String)
+          : [];
+        for (const anchorId of anchorIds) {
+          const anchor = (bluetoothAnchors || []).find(
+            (value) => String(value.id || "") === anchorId,
+          );
+          if (!anchor || !Array.isArray(anchor.translation)) continue;
+          const points = [
+            root.position.clone(),
+            new THREE.Vector3(
+              Number(anchor.translation[0] || 0),
+              Number(anchor.translation[1] || 0),
+              Number(anchor.translation[2] || 0),
+            ),
+          ];
+          const line = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(points),
+            new THREE.LineBasicMaterial({
+              color: 0x5b8cff,
+              transparent: true,
+              opacity: 0.5,
+            }),
+          );
+          line.userData.generatedGeometry = true;
+          group.add(line);
+        }
       }
       if (showHeatmap) {
         const radius = Math.max(
@@ -694,6 +730,9 @@ export default function ThreeScene({
     showTrackedObjects,
     showHeatmap,
     showVelocity,
+    showBluetoothUncertainty,
+    showBluetoothAnchorLinks,
+    bluetoothAnchors,
     heatmapOpacity,
     selectedObjectId,
   ]);
@@ -1125,7 +1164,7 @@ export default function ThreeScene({
       );
       group.add(marker);
     }
-    for (const anchor of bluetoothAnchors || []) {
+    if (showBluetoothAnchors) for (const anchor of bluetoothAnchors || []) {
       if (!Array.isArray(anchor.translation)) continue;
       const position = anchor.translation;
       const marker = new THREE.Mesh(
@@ -1145,7 +1184,7 @@ export default function ThreeScene({
       );
       group.add(marker);
     }
-  }, [pickedPoints, bluetoothAnchors]);
+  }, [pickedPoints, bluetoothAnchors, showBluetoothAnchors]);
 
   const commandView = (command: string) =>
     host.current?.dispatchEvent(
