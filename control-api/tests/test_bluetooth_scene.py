@@ -319,3 +319,51 @@ def test_bt09_live_works_without_any_vision_observation(api):
   assert [item["id"] for item in value["objects"]] == ["bt:tag-a"]
   assert value["bluetooth"]["count"] == 1
   assert value["observed_at"]
+
+
+
+def test_bt16_disabling_bluetooth_removes_live_overlay_without_deleting_history(api, monkeypatch):
+  client, database = api
+  now = _seed_scene(database)
+  vision = {
+      "id": "scene-a",
+      "objects": [{
+          "id": "vision-only",
+          "category": "person",
+          "translation": [2.0, 2.0, 0.0],
+      }],
+  }
+  with database.sessions()() as db:
+    db.add(Observation(
+        scene_id="scene-a",
+        topic="scenescape/data/scene/scene-a",
+        observed_at=now,
+        payload=vision,
+    ))
+    db.commit()
+
+  monkeypatch.setenv("BLUETOOTH_POSITIONING_ENABLED", "false")
+  live = client.get("/api/v2/scenes/scene-a/live", headers=_headers())
+  assert live.status_code == 200
+  assert [item["id"] for item in live.json()["objects"]] == ["vision-only"]
+  assert live.json()["bluetooth"]["count"] == 0
+
+  bundle = client.get("/api/v2/scenes/scene-a/bundle", headers=_headers())
+  assert bundle.status_code == 200
+  assert bundle.json()["bluetooth_anchors"] == []
+
+  # Disable is non-destructive: history remains available for audit/rollback.
+  history = client.get(
+      "/api/v2/scenes/scene-a/history/bluetooth?tag_id=tag-a",
+      headers=_headers(),
+  )
+  assert history.status_code == 200
+  assert len(history.json()) == 1
+
+  with database.sessions()() as db:
+    rows = db.scalars(
+        select(BluetoothTrackedPosition).where(
+            BluetoothTrackedPosition.scene_id == "scene-a"
+        )
+    ).all()
+  assert len(rows) == 1
