@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timezone
 
 from .bluetooth_ingest import ingest_mqtt_message
+from .bluetooth_telemetry import ingest_device_telemetry, normalize_provider_device_payload
 from .database import Event, Incident, Observation
 
 
@@ -37,6 +38,25 @@ def scene_id_from_topic(topic: str) -> str:
 def persist(db, topic: str, raw: bytes):
   if str(topic).startswith("scenescape/data/bluetooth/range/"):
     return ingest_mqtt_message(db, topic, raw)
+  if str(topic).startswith("scenescape/data/bluetooth/device/"):
+    parts = [part for part in str(topic).split("/") if part]
+    if len(parts) != 6 or parts[:4] != ["scenescape", "data", "bluetooth", "device"]:
+      raise ValueError("Invalid Bluetooth device telemetry topic")
+    scene_id, topic_device_id = parts[4], parts[5]
+    if isinstance(raw, (bytes, bytearray)) and len(raw) > 16 * 1024:
+      raise ValueError("Bluetooth device telemetry payload exceeds 16 KiB")
+    payload = json.loads(raw.decode() if isinstance(raw, (bytes, bytearray)) else raw)
+    if not isinstance(payload, dict):
+      raise ValueError("Bluetooth device telemetry payload must be a JSON object")
+    envelope = normalize_provider_device_payload(payload)
+    if envelope.device_id != topic_device_id:
+      raise ValueError("Bluetooth telemetry device ID does not match MQTT topic")
+    if envelope.device_type == "anchor":
+      from .database import BluetoothAnchor
+      anchor = db.get(BluetoothAnchor, envelope.device_id)
+      if anchor is not None and anchor.scene_id != scene_id:
+        raise ValueError("Bluetooth telemetry anchor does not belong to MQTT topic scene")
+    return ingest_device_telemetry(db, envelope)
   if isinstance(raw, (bytes, bytearray)) and len(raw) > 8 * 1024 * 1024:
     raise ValueError("MQTT payload exceeds 8 MiB ingest limit")
   payload = json.loads(raw.decode() if isinstance(raw, (bytes, bytearray)) else raw)
