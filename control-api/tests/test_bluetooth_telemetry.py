@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from scenescape_api.bluetooth_domain import create_anchor, create_provider, create_tag
+from scenescape_api.database import Resource
 from scenescape_api.bluetooth_telemetry import (
     TelemetryPollCache,
     battery_status,
@@ -59,6 +60,13 @@ def api(tmp_path, monkeypatch):
   client = TestClient(app_module.app)
 
   with database.sessions()() as db:
+    db.add(Resource(
+        kind="scene",
+        uid="scene-a",
+        revision=1,
+        payload={"uid": "scene-a", "name": "Telemetry scene"},
+    ))
+    db.flush()
     create_provider(
         db,
         {"uid": "svc", "name": "provider", "state": "active"},
