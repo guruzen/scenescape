@@ -660,6 +660,27 @@ test("regression: live scene normalization rejects non-array object payloads wit
   assert.deepEqual(normalizeLiveSceneState(null), { objects: [], stale: true });
 });
 
+test("BT-11 contract: Bluetooth calibration separates theoretical geometry from observed RF", () => {
+  const ui = readFileSync(
+    new URL("../src/native/BluetoothCalibration.tsx", import.meta.url),
+    "utf8",
+  );
+  const client = readFileSync(
+    new URL("../src/native/bluetoothApi.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(ui, /Theoretical GDOP/);
+  assert.match(ui, /Observed RF surveys/);
+  assert.match(ui, /Survey-anchor links/);
+  assert.match(ui, /Survey bias & coverage/);
+  assert.match(ui, /Create bias-corrected drafts/);
+  assert.match(ui, /theoretical_geometry/);
+  assert.match(ui, /observed_rf/);
+  assert.match(client, /surveys\/coverage/);
+  assert.match(client, /surveys\/bias/);
+  assert.match(client, /createBiasRevisions/);
+});
+
 test("BT-03 contract: Bluetooth management UI is explicit, accessible and quality-honest", () => {
   const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
   const ui = readFileSync(
