@@ -272,6 +272,18 @@ class BluetoothSpatialAdapter:
     tag_id = str(tracked.get("tag_id") or "")
     timestamp = _utc(tracked["source_timestamp"])
     spatial_key = (scene_id, tag_id)
+    quality = tracked.get("quality") if isinstance(tracked.get("quality"), Mapping) else {}
+    tracker = tracked.get("tracker") if isinstance(tracked.get("tracker"), Mapping) else {}
+    # A solve is attempted after each anchor packet. The first packets in a
+    # timestamp cohort can therefore yield prediction/unavailable refinements.
+    # Do not let those partial results consume the timestamp; wait for the
+    # first measured good/degraded fix so region/tripwire state sees coherent
+    # geometry rather than the first packet that happened to arrive.
+    if str(quality.get("state") or "") not in {"good", "degraded"}:
+      return []
+    if bool(tracker.get("predicted")):
+      return []
+
     previous_spatial_time = self._last_spatial_timestamp.get(spatial_key)
     if previous_spatial_time is not None and timestamp <= previous_spatial_time:
       return []
