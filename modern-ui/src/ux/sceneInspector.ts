@@ -71,11 +71,21 @@ export function buildInspectorModel(
     const visibility = Array.isArray(row.visibility)
       ? row.visibility.join(", ") || "None"
       : "Unknown";
+    const fusion =
+      row.fusion && typeof row.fusion === "object" ? row.fusion : null;
+    const fusedBluetooth =
+      row.source_objects?.bluetooth?.bluetooth &&
+      typeof row.source_objects.bluetooth.bluetooth === "object"
+        ? row.source_objects.bluetooth.bluetooth
+        : null;
     const bluetooth =
-      row.bluetooth && typeof row.bluetooth === "object" ? row.bluetooth : null;
+      row.bluetooth && typeof row.bluetooth === "object"
+        ? row.bluetooth
+        : fusedBluetooth;
     const method = String(bluetooth?.method || "").toLowerCase();
-    const sourceLabel =
-      method === "channel_sounding"
+    const sourceLabel = fusion
+      ? "Vision + Bluetooth fusion"
+      : method === "channel_sounding"
         ? "Bluetooth · Channel Sounding"
         : method === "aoa"
           ? "Bluetooth · AoA"
@@ -90,9 +100,35 @@ export function buildInspectorModel(
     const anchorIds = Array.isArray(bluetooth?.anchor_ids)
       ? bluetooth.anchor_ids.map(String).filter(Boolean)
       : [];
-    const bluetoothFields: InspectorField[] = bluetooth
+    const fusionConfidence = Number(fusion?.confidence);
+    const fusionFields: InspectorField[] = fusion
       ? [
           { label: "Source", value: sourceLabel },
+          {
+            label: "Fusion confidence",
+            value: Number.isFinite(fusionConfidence)
+              ? `${Math.round(fusionConfidence * 100)}%`
+              : "Unknown",
+          },
+          {
+            label: "Vision source",
+            value: unknown(fusion?.source_ids?.vision ?? fusion?.vision_object_id),
+          },
+          {
+            label: "Bluetooth source",
+            value: unknown(
+              fusion?.source_ids?.bluetooth ??
+                (fusion?.bluetooth_tag_id
+                  ? `bt:${fusion.bluetooth_tag_id}`
+                  : undefined),
+            ),
+          },
+          { label: "Identity source", value: unknown(fusion?.identity_source) },
+        ]
+      : [];
+    const bluetoothFields: InspectorField[] = bluetooth
+      ? [
+          ...(!fusion ? [{ label: "Source", value: sourceLabel }] : []),
           { label: "Position state", value: unknown(bluetooth.state) },
           {
             label: "Horizontal uncertainty",
@@ -126,12 +162,17 @@ export function buildInspectorModel(
       : [];
     return {
       title: `Object ${unknown(row.id ?? selection.id)}`,
-      kind: bluetooth ? "Bluetooth tracked object" : "Tracked object",
+      kind: fusion
+        ? "Vision + Bluetooth fused object"
+        : bluetooth
+          ? "Bluetooth tracked object"
+          : "Tracked object",
       fields: [
         { label: "Category", value: unknown(row.category ?? row.type) },
         { label: "Position", value: vector(row.translation) },
         { label: "Velocity", value: vector(row.velocity) },
         { label: "Speed", value: speed === "Unknown" ? speed : `${speed} m/s` },
+        ...fusionFields,
         ...bluetoothFields,
         { label: "Regions", value: regions },
         { label: "Dwell", value: dwell },
