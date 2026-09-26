@@ -13,6 +13,7 @@ from .bluetooth_control import delete_anchor, delete_tag, transition_anchor, tra
 from .bluetooth_telemetry import DeviceTelemetryEnvelope, ingest_device_telemetry, latest_device_telemetry, telemetry_public
 from .bluetooth_survey import add_survey_sample, close_survey_point, coverage_diagnostics, create_bias_calibration_revisions, create_survey_point, estimate_anchor_biases
 from .bluetooth_pipeline import runtime_diagnostics as pipeline_runtime_diagnostics
+from .bluetooth_operations import bluetooth_health_summary
 from .bluetooth_ingest import (
     MeasurementRejected,
     RangeEnvelope,
@@ -1012,6 +1013,15 @@ def get_bt_survey_coverage(
     )
   except ValueError as exc:
     raise HTTPException(422, detail={"code": "invalid_coverage_request", "message": str(exc)}) from exc
+
+
+@router.get("/health", summary="Read Bluetooth operational health")
+def get_bluetooth_health(
+    p: Principal = Depends(browser_principal),
+    db=Depends(db_dep),
+):
+  _admin(p)
+  return bluetooth_health_summary(db)
 
 
 @router.get("/diagnostics", summary="Read Bluetooth control-plane diagnostics")
