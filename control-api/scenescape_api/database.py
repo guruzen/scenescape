@@ -376,6 +376,53 @@ class BluetoothRawPosition(Base):
   created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
+class BluetoothTrackedPosition(Base):
+  __tablename__ = "native_bluetooth_tracked_positions"
+  __table_args__ = (
+      Index(
+          "ix_native_bluetooth_tracked_positions_scene_tag_time",
+          "scene_id",
+          "tag_uid",
+          "source_timestamp",
+      ),
+      Index(
+          "ix_native_bluetooth_tracked_positions_state_time",
+          "state",
+          "source_timestamp",
+      ),
+  )
+
+  id: Mapped[int] = mapped_column(Integer, primary_key=True)
+  scene_id: Mapped[str] = mapped_column(String(96), nullable=False, index=True)
+  tag_uid: Mapped[str] = mapped_column(
+      String(96),
+      ForeignKey("native_bluetooth_tags.uid"),
+      nullable=False,
+      index=True,
+  )
+  source_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+  x_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+  y_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+  z_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+  vx_mps: Mapped[float | None] = mapped_column(Float, nullable=True)
+  vy_mps: Mapped[float | None] = mapped_column(Float, nullable=True)
+  vz_mps: Mapped[float | None] = mapped_column(Float, nullable=True)
+  heading_deg: Mapped[float | None] = mapped_column(Float, nullable=True)
+  state: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+  predicted: Mapped[bool] = mapped_column(default=False, nullable=False)
+  horizontal_uncertainty_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+  vertical_uncertainty_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+  score: Mapped[float] = mapped_column(Float, nullable=False)
+  anchors_used: Mapped[int] = mapped_column(Integer, nullable=False)
+  method: Mapped[str] = mapped_column(String(32), nullable=False)
+  solver_name: Mapped[str] = mapped_column(String(64), nullable=False)
+  solver_version: Mapped[str] = mapped_column(String(32), nullable=False)
+  tracker_name: Mapped[str] = mapped_column(String(64), nullable=False)
+  tracker_version: Mapped[str] = mapped_column(String(32), nullable=False)
+  provenance: Mapped[dict] = mapped_column(JSON, default=dict)
+  created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
 def get_engine():
   global _engine, _Session
   url = database_url()
