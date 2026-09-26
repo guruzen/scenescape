@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import func, select
 
+from scenescape_api.bluetooth_benchmark import run_benchmark
 from scenescape_api.bluetooth_retention import (
     BluetoothRetentionPolicy,
     purge_bluetooth_history,
@@ -305,3 +306,20 @@ def test_bt16_helm_defaults_fail_closed_and_schedule_retention():
 
   assert "kind: PodDisruptionBudget" in pdb
   assert "minAvailable: 1" in pdb
+
+
+
+def test_bt16_benchmark_smoke_reports_truthful_workload_and_no_invalid_positions():
+  report = run_benchmark(
+      tags=3,
+      anchors=4,
+      update_hz=2.0,
+      duration_s=1.0,
+      seed=1616,
+  )
+  assert report["workload"]["fixes"] == 6
+  assert report["workload"]["range_observations"] == 24
+  assert report["quality"]["available_fraction"] == 1.0
+  assert report["quality"]["invalid_numeric"] == 0
+  assert report["runtime"]["fix_throughput_hz"] > 0
+  assert report["runtime"]["solve_latency_ms"]["p95"] is not None
