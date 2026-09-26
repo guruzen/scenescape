@@ -123,6 +123,7 @@ class BluetoothSpatialAdapter:
     self._region_stable: dict[tuple[str, str, str], bool] = {}
     self._region_pending: dict[tuple[str, str, str], tuple[bool, int]] = {}
     self._last_position: dict[tuple[str, str], tuple[tuple[float, float], datetime]] = {}
+    self._last_spatial_timestamp: dict[tuple[str, str], datetime] = {}
     self._last_event: dict[tuple[str, str, str, str], datetime] = {}
     self.metrics = {
         "processed": 0,
@@ -136,6 +137,7 @@ class BluetoothSpatialAdapter:
     self._region_stable.clear()
     self._region_pending.clear()
     self._last_position.clear()
+    self._last_spatial_timestamp.clear()
     self._last_event.clear()
 
   def _quality_allowed(self, tracked: Mapping[str, Any], rule: Mapping[str, Any]) -> bool:
@@ -268,6 +270,11 @@ class BluetoothSpatialAdapter:
     scene_id = str(tracked.get("scene_id") or "")
     tag_id = str(tracked.get("tag_id") or "")
     timestamp = _utc(tracked["source_timestamp"])
+    spatial_key = (scene_id, tag_id)
+    previous_spatial_time = self._last_spatial_timestamp.get(spatial_key)
+    if previous_spatial_time is not None and timestamp <= previous_spatial_time:
+      return []
+    self._last_spatial_timestamp[spatial_key] = timestamp
     events = []
 
     resources = db.scalars(
