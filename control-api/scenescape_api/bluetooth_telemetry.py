@@ -162,6 +162,49 @@ def normalize_vendor_telemetry(
   )
 
 
+
+def normalize_provider_device_payload(
+    payload: Mapping[str, Any],
+) -> DeviceTelemetryEnvelope:
+  value = dict(payload)
+  battery = value.pop("battery", None)
+  battery = dict(battery) if isinstance(battery, Mapping) else {}
+  device_information = value.pop("device_information", None)
+  device_information = (
+      dict(device_information) if isinstance(device_information, Mapping) else {}
+  )
+  return DeviceTelemetryEnvelope(
+      schema_version=str(value.pop("schema_version", "1.0")),
+      provider_id=str(value.pop("provider_id")),
+      source_timestamp=value.pop("source_timestamp"),
+      device_type=str(value.pop("device_type")),
+      device_id=str(value.pop("device_id")),
+      source=str(battery.pop("source", value.pop("source", "provider"))),
+      battery_percent=battery.pop("percent", value.pop("battery_percent", None)),
+      battery_voltage_v=battery.pop(
+          "voltage_v",
+          value.pop("battery_voltage_v", None),
+      ),
+      manufacturer=device_information.pop(
+          "manufacturer",
+          value.pop("manufacturer", None),
+      ),
+      model=device_information.pop("model", value.pop("model", None)),
+      hardware_revision=device_information.pop(
+          "hardware_revision",
+          value.pop("hardware_revision", None),
+      ),
+      firmware_revision=device_information.pop(
+          "firmware_revision",
+          value.pop("firmware_revision", None),
+      ),
+      details={
+          **value,
+          **({"battery_details": battery} if battery else {}),
+          **({"device_information_details": device_information} if device_information else {}),
+      },
+  )
+
 def _device(db, envelope: DeviceTelemetryEnvelope):
   model = BluetoothTag if envelope.device_type == "tag" else BluetoothAnchor
   row = db.get(model, envelope.device_id)
