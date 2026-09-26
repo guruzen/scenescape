@@ -40,6 +40,12 @@ def _raw(
           "method": "channel_sounding",
       },
       "solver": {"name": "robust-wls", "version": "1"},
+      "accepted_anchors": [
+          {"anchor_id": "a1"},
+          {"anchor_id": "a2"},
+          {"anchor_id": "a3"},
+          {"anchor_id": "a4"},
+      ],
   }
 
 
@@ -170,6 +176,7 @@ def test_bt08_dropout_prediction_expires_to_stale_then_unavailable():
   predicted = tracker.predict("scene-a", "tag-a", BASE + timedelta(seconds=4))
   assert predicted["quality"]["state"] == "predicted"
   assert predicted["tracker"]["predicted"] is True
+  assert predicted["provenance"]["accepted_anchor_ids"] == ["a1", "a2", "a3", "a4"]
 
   stale = tracker.predict("scene-a", "tag-a", BASE + timedelta(seconds=6))
   assert stale["quality"]["state"] == "stale"
