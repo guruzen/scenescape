@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
@@ -367,7 +368,10 @@ class BluetoothSpatialAdapter:
 
 def bluetooth_health_summary(db, *, now: datetime | None = None) -> dict[str, Any]:
   current = _utc(now or utcnow())
-  telemetry_stale_s = max(1.0, float(os.getenv("BLUETOOTH_TELEMETRY_STALE_S", "3600"))) if False else 3600.0
+  telemetry_stale_s = max(
+      1.0,
+      float(os.getenv("BLUETOOTH_TELEMETRY_STALE_S", "3600")),
+  )
   anchors = db.scalars(select(BluetoothAnchor)).all()
   tags = db.scalars(select(BluetoothTag)).all()
   providers = db.scalars(select(BluetoothProvider)).all()
