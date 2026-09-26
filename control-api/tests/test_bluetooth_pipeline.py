@@ -265,7 +265,7 @@ def test_bt14_tripwire_direction_crossing_debounces_same_event_time(db):
   assert incidents[0].title == "Tripwire crossed · Door line"
 
 
-def test_bt14_incident_filters_separate_bluetooth_from_vision(api_client=None):
+def test_bt14_incident_filters_separate_bluetooth_from_vision():
   # Covered at the incident-context level here to avoid coupling this backend
   # pipeline test to a second application fixture.
   from scenescape_api.app import _incident_event_context
