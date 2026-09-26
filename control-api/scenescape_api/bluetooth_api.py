@@ -7,9 +7,16 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 
-from .auth import Principal, browser_principal
+from .auth import Principal, browser_principal, service_principal
 from .bluetooth_calibration import calibration_public, geometry_report
 from .bluetooth_control import delete_anchor, delete_tag, transition_anchor, transition_tag
+from .bluetooth_ingest import (
+    MeasurementRejected,
+    RangeEnvelope,
+    ingest_measurement,
+    measurement_to_dict,
+    metrics as ingress_metrics,
+)
 from .bluetooth_domain import (
     AnchorInput,
     AnchorPatch,
@@ -40,6 +47,7 @@ from .database import (
     BluetoothAssignment,
     BluetoothAudit,
     BluetoothCalibration,
+    BluetoothMeasurement,
     BluetoothTag,
     sessions,
     utcnow,
@@ -764,6 +772,36 @@ def restore_calibration(
   return calibration_public(db, row)
 
 
+@router.post(
+    "/measurements",
+    status_code=202,
+    summary="Ingest one normalized Bluetooth range measurement",
+)
+def add_measurement(
+    body: RangeEnvelope,
+    p: Principal = Depends(service_principal),
+    db=Depends(db_dep),
+):
+  if body.payload.provider_id != p.subject:
+    raise HTTPException(
+        403,
+        detail={
+            "code": "provider_scope_denied",
+            "message": "Service identity may ingest only its matching Bluetooth provider ID",
+        },
+    )
+  try:
+    row = ingest_measurement(db, body)
+  except MeasurementRejected as exc:
+    status = 409 if exc.code in {"duplicate", "out_of_order"} else 422
+    raise HTTPException(
+        status,
+        detail={"code": exc.code, "message": exc.message},
+    ) from exc
+  db.commit()
+  return {"accepted": True, "measurement": measurement_to_dict(row)}
+
+
 @router.get("/diagnostics", summary="Read Bluetooth control-plane diagnostics")
 def diagnostics(p: Principal = Depends(browser_principal), db=Depends(db_dep)):
   anchor_statement = _anchor_statement(
@@ -803,4 +841,16 @@ def diagnostics(p: Principal = Depends(browser_principal), db=Depends(db_dep)):
         "by_state": tag_states,
         "battery": battery_states,
     }
+    raw_count = int(db.scalar(select(func.count()).select_from(BluetoothMeasurement)) or 0)
+    oldest = db.scalar(select(func.min(BluetoothMeasurement.source_timestamp)))
+    newest = db.scalar(select(func.max(BluetoothMeasurement.source_timestamp)))
+    value["ingress"] = {
+        "visible": True,
+        "raw_measurements": raw_count,
+        "oldest_source_timestamp": oldest,
+        "newest_source_timestamp": newest,
+        "process_metrics": ingress_metrics.snapshot(),
+    }
+  else:
+    value["ingress"] = {"visible": False}
   return value
