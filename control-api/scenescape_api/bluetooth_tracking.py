@@ -260,7 +260,7 @@ class BluetoothTracker:
           reason="track_created",
       )
 
-    if timestamp <= track.timestamp:
+    if timestamp < track.timestamp:
       self.metrics["out_of_order"] += 1
       return self._render(
           scene_id,
