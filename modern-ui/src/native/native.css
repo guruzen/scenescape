@@ -2475,3 +2475,19 @@
     min-height: 330px;
   }
 }
+
+
+/* Bluetooth live positioning diagnostics (BT-09). */
+.bluetooth-anchor-link {
+  stroke: color-mix(in srgb, rgb(var(--accent)) 58%, transparent);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.bluetooth-anchor-link,
+.bluetooth-uncertainty {
+  transition:
+    opacity 120ms ease,
+    stroke-width 120ms ease;
+}
