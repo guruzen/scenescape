@@ -16,6 +16,7 @@ on: # yamllint disable-line rule:truthy
       - "control-api/scenescape_api/cli.py"
       - "control-api/scenescape_api/scene_service.py"
       - "control-api/tests/test_bluetooth_*.py"
+      - "control-api/tests/data/bluetooth-positioning/**"
       - "control-api/tests/browser_server.py"
       - "modern-ui/src/App.tsx"
       - "modern-ui/src/api/client.ts"
