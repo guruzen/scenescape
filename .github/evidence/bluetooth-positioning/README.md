@@ -1,0 +1,25 @@
+# Bluetooth Positioning Evidence Ledger
+
+This directory is the execution evidence ledger for `docs/specs/bluetooth-positioning`.
+
+| Iteration | Status   | Evidence                                                            |
+| --------- | -------- | ------------------------------------------------------------------- |
+| BT-00     | COMPLETE | [BT-00 specification baseline](BT-00-specification-baseline.md)     |
+| BT-01     | COMPLETE | [BT-01 domain/persistence](BT-01-domain-model-and-persistence.md)   |
+| BT-02     | COMPLETE | [BT-02 control-plane API](BT-02-control-plane-api.md)               |
+| BT-03     | COMPLETE | [BT-03 management UI](BT-03-management-ui.md)                       |
+| BT-04     | COMPLETE | [BT-04 scene anchor calibration](BT-04-scene-anchor-calibration.md) |
+| BT-05     | PLANNED  | —                                                                   |
+| BT-06     | PLANNED  | —                                                                   |
+| BT-07     | PLANNED  | —                                                                   |
+| BT-08     | PLANNED  | —                                                                   |
+| BT-09     | PLANNED  | —                                                                   |
+| BT-10     | PLANNED  | —                                                                   |
+| BT-11     | PLANNED  | —                                                                   |
+| BT-12     | PLANNED  | —                                                                   |
+| BT-13     | PLANNED  | —                                                                   |
+| BT-14     | PLANNED  | —                                                                   |
+| BT-15     | PLANNED  | —                                                                   |
+| BT-16     | PLANNED  | —                                                                   |
+
+An iteration moves to COMPLETE only after its specification acceptance criteria and required tests/evidence are satisfied.

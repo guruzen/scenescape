@@ -30,6 +30,13 @@ source tests/.venv/bin/activate
 # Run the Kubernetes deployment smoke tests
 pytest tests/kubernetes --backend=kubernetes -v
 
+# Run the same KinD deployment using FastAPI + React + Keycloak
+make build-native-images
+SCENESCAPE_K8S_NATIVE=1 pytest tests/kubernetes --backend=kubernetes -v
+
+# Run Kubernetes-capable API / functional / UI tests against native mode
+SCENESCAPE_K8S_NATIVE=1 pytest --backend=kubernetes -v
+
 # Run the out-of-box test on Kubernetes
 pytest tests/ui/test_out_of_box.py --backend=kubernetes -v
 

@@ -1,3 +1,4 @@
+{{- if not .Values.native.enabled }}
 # SPDX-FileCopyrightText: (C) 2025 - 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
@@ -62,6 +63,61 @@ spec:
             - autocalibration.{{ .Release.Namespace }}.svc.cluster.local:8443
             - --overwrite-user-auth
           env:
+          {{- if .Values.modernUI.enabled }}
+          - name: KEYCLOAK_ENABLED
+            value: "true"
+          - name: KEYCLOAK_REALM
+            value: {{ .Values.modernUI.auth.realm | quote }}
+          - name: KEYCLOAK_CLIENT_ID
+            value: {{ .Values.modernUI.auth.clientId | quote }}
+          - name: KEYCLOAK_ADMIN_ROLE
+            value: {{ .Values.modernUI.auth.adminRole | quote }}
+          - name: KEYCLOAK_AUTO_PROVISION_USERS
+            value: {{ .Values.modernUI.auth.autoProvisionUsers | quote }}
+          - name: KEYCLOAK_VERIFY_SSL
+            value: {{ .Values.modernUI.auth.verifySsl | quote }}
+          {{- if .Values.keycloak.enabled }}
+          - name: KEYCLOAK_ISSUER_URL
+            value: "https://{{ .Values.certdomain }}/auth/realms/{{ .Values.modernUI.auth.realm }}"
+          - name: KEYCLOAK_JWKS_URL
+            value: "http://keycloak.{{ .Release.Namespace }}.svc.cluster.local:8080/auth/realms/{{ .Values.modernUI.auth.realm }}/protocol/openid-connect/certs"
+          - name: KEYCLOAK_URL
+            value: "http://keycloak.{{ .Release.Namespace }}.svc.cluster.local:8080/auth"
+          - name: KEYCLOAK_ADMIN_URL
+            value: "http://keycloak.{{ .Release.Namespace }}.svc.cluster.local:8080/auth"
+          - name: KEYCLOAK_ADMIN_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ if .Values.keycloak.existingSecret }}{{ .Values.keycloak.existingSecret }}{{ else }}{{ .Release.Name }}-keycloak-bootstrap{{ end }}
+                key: username
+          - name: KEYCLOAK_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ if .Values.keycloak.existingSecret }}{{ .Values.keycloak.existingSecret }}{{ else }}{{ .Release.Name }}-keycloak-bootstrap{{ end }}
+                key: password
+          {{- else }}
+          - name: KEYCLOAK_ISSUER_URL
+            value: {{ required "modernUI.auth.issuerUrl is required when embedded keycloak is disabled" .Values.modernUI.auth.issuerUrl | quote }}
+          - name: KEYCLOAK_JWKS_URL
+            value: {{ default (printf "%s/protocol/openid-connect/certs" (trimSuffix "/" .Values.modernUI.auth.issuerUrl)) .Values.modernUI.auth.jwksUrl | quote }}
+          - name: KEYCLOAK_URL
+            value: {{ required "modernUI.auth.keycloakUrl is required when embedded keycloak is disabled" .Values.modernUI.auth.keycloakUrl | quote }}
+          {{- if .Values.modernUI.auth.adminSecret }}
+          - name: KEYCLOAK_ADMIN_URL
+            value: {{ .Values.modernUI.auth.keycloakUrl | quote }}
+          - name: KEYCLOAK_ADMIN_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.modernUI.auth.adminSecret | quote }}
+                key: {{ .Values.modernUI.auth.adminUsernameKey | quote }}
+          - name: KEYCLOAK_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.modernUI.auth.adminSecret | quote }}
+                key: {{ .Values.modernUI.auth.adminPasswordKey | quote }}
+          {{- end }}
+          {{- end }}
+          {{- end }}
           {{- if .Values.mapping.enabled }}
           - name: MAPPING_SERVICE_URL
             value: https://mapping.{{ .Release.Namespace }}.svc.cluster.local:8444
@@ -188,3 +244,4 @@ spec:
         persistentVolumeClaim:
           claimName: {{ .Release.Name }}-migrations-pvc
 status: {}
+{{- end }}

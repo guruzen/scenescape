@@ -1,221 +1,159 @@
-# Installation
+# Installation and migration: native UI and API
 
-- **Time to Complete:** 30-45 minutes
+This guide applies to `guruzen/scenescape`, branch `feature/react-keycloak-modern-ui`, based on SceneScape 2026.2.0. **Native mode serves one React application with a FastAPI backend. There is no Django login or fallback page in normal navigation.** The original source and an explicit rollback path remain available.
 
-## Prerequisites
+The implementation is an engineering preview. Read [validation and parity boundaries](../../ux/native/VALIDATION.md) before migrating important data. Automated local tests are not a substitute for a clean WSL2 deployment test.
 
-- Verify you meet the [System Requirements](./system-requirements.md).
+## Prerequisites on WSL2
 
-- Install required software such as Docker; see [System Requirements](./system-requirements.md) for details.
+Use an Ubuntu WSL2 distribution and a normal Linux user, not `sudo` to run the lifecycle script. Start Docker Desktop with its Linux engine and enable **Settings > Resources > WSL Integration** for that distribution. Required tools are Docker Compose 2.24.4+, Python 3, Make and OpenSSL. The native overlay uses Compose's explicit `!override` semantics so old Django ports, commands and secret mounts are not accidentally retained.
 
-## Step 1: Get Scenescape
-
-<!--hide_directive::::{tab-set}hide_directive-->
-<!--hide_directive:::{tab-item}hide_directive--> **Download a release**
-
-Note that these operations must be executed when logged in as a standard (non-root) user. **Do NOT use root or sudo.**
-
-1. Download the Scenescape software archive from <https://github.com/open-edge-platform/scenescape/releases>.
-
-2. Extract the Scenescape archive on the target Ubuntu system. Change directories to the extracted Scenescape folder.
-
-   ```bash
-   cd scenescape-<version>
-   ```
-
-<!--hide_directive:::hide_directive-->
-<!--hide_directive:::{tab-item}hide_directive--> **Get the source code**
-
-Clone the repository and change directories to the cloned repository:
+Keep the checkout on the Linux filesystem where practical:
 
 ```bash
-git clone https://github.com/open-edge-platform/scenescape.git -b release-2026.2.0
-cd scenescape/
+mkdir -p ~/src
+cd ~/src
+git clone --branch feature/react-keycloak-modern-ui https://github.com/guruzen/scenescape.git
+cd scenescape
+./scenescape.sh doctor
 ```
 
-**Note**: The default branch is `main`. To work with a stable release version, list the available tags and checkout a specific version tag:
+The installer does not install or reconfigure Docker Desktop, Windows, WSL, drivers or system packages. Docker/npm/Python registries must be reachable for the first build. Existing upstream [system requirements](system-requirements.md) still apply to tracking/inference workloads.
+
+## A. You already installed the earlier React + Django version
+
+**Do not run `uninstall`, `docker compose down -v`, `make demo-close` or any global Docker prune.** Those are not migration steps.
+
+Close other users' configuration sessions and run from the repository:
 
 ```bash
-git tag
-git checkout <tag-version>
+git switch feature/react-keycloak-modern-ui
+git pull --ff-only
+./scenescape.sh doctor
+./scenescape.sh migrate-native --skip-processing-build
 ```
 
-<!--hide_directive:::hide_directive-->
-<!--hide_directive::::hide_directive-->
+The last option reuses existing processing images/models. Omit it to rebuild tracking, Analytics and calibration as well. The new API and UI are always built. The helper asks you to type `MIGRATE`; `--yes` is available only for deliberately unattended migration.
 
-## Step 2: Build Scenescape container images
+### What the migration does
 
-Build container images:
+It builds before downtime, stops the old stack, starts only PostgreSQL for export, and runs the old manager image **once as an export tool**, not as a web server. A transactional snapshot preserves scene/camera/sensor/geometry/asset identifiers. A `pg_dump` backup, media archive, original configuration files and exact old image IDs are recorded under:
+
+```text
+.scenescape-runtime/backups/<UTC timestamp>/
+```
+
+It then creates separate `sscape_*` tables, validates/imports the snapshot, attaches Keycloak's `basic` scope and a `scenescape-api` access-token audience mapper, and starts the native stack. The existing PostgreSQL volume and Keycloak users are not reset. Unsupported or inconsistent legacy configuration causes an error rather than partial/silent data loss.
+
+The Compose service named `web` is now the native API. It retains the private `https://web.scenescape.intel.com:443/api/v1` endpoint for existing processing clients; it does not serve Django pages. Its former host port 443 is removed. The React gateway at port 8088 handles browser access and validates the API's internal TLS CA.
+
+After cutover, **sign out and sign in again** to receive the new audience claim. Old access tokens remain old tokens until replaced.
+
+### Check the result
 
 ```bash
-make
+./scenescape.sh status
+./scenescape.sh logs web native-worker modern-ui
 ```
 
-The build may take around 15 minutes depending on target machine.
-This step generates common base docker image and docker images for all microservices.
+Open `http://localhost:8088`. Open a scene from the overview: it should remain inside React with native 2D/3D, geometry and calibration tabs. Check **Health** for MQTT/worker state and last observations. An HTTP-ready API does not by itself prove cameras or the collector are producing data.
 
-By default, a parallel build is being run with the number of jobs equal to the number of processors in the system.
-Optionally, the number of jobs can be adjusted by setting the `JOBS` variable, e.g. to achieve sequential building:
+Do not interpret an empty scene as successful tracking. Confirm an actual input, calibration, Analytics observation and event against the intended physical/test scenario.
+
+### Recovery
+
+Migration failures preserve old volumes and attempt to restart the legacy deployment. Read the actual error; do not delete volumes to make the installer continue. If the export cannot load the old image/settings, or legacy configuration is rejected, keep the backup and resolve that incompatibility first.
+
+After a successful cutover, an explicit rollback is available:
 
 ```bash
-make JOBS=1
+./scenescape.sh rollback-native
 ```
 
-### (Optional): Build dependency list of Scenescape container images
+Type `ROLLBACK` when prompted. It restores the old runtime and pre-cutover configuration using recorded image IDs. **Changes made in the native database after migration are not copied back to Django.** Native tables and backups are retained; rollback is not a bidirectional data synchronization feature. Do not delete rollback images until the native installation has been accepted.
+
+## B. Fresh installation
 
 ```bash
-make list-dependencies
+./scenescape.sh configure
+./scenescape.sh install
 ```
 
-This step generates dependency lists. Two separate files are created for system packages and Python packages per each microservice image.
+The initial build creates processing images/models, the native API image and the UI image, initializes schema/sample data and starts the stack. No Django manager image is built for this native path. Some upstream secret-generation tooling remains in the source tree for service compatibility.
 
-## Step 3: Deploy Scenescape demo to the target system
+Defaults:
 
-Before deploying the demo of Scenescape for the first time, please set the environment variable SUPASS with the super user password for logging into Scenescape.
-Important: This should be different than the password for your system user.
+```text
+Application:         http://localhost:8088
+Keycloak management: http://localhost:8088/auth/admin/
+```
+
+For a different local port, configure it before installation:
 
 ```bash
-export SUPASS=<password>
+./scenescape.sh configure --port 8090
+./scenescape.sh install
 ```
+
+The script generates matching client redirect URLs. Remote HTTP is rejected. A remote HTTPS origin requires a separately configured, trusted TLS reverse proxy; selecting an HTTPS URL does not create that proxy or certificate. An installed issuer is not silently changed by `configure`.
+
+## First Keycloak user
+
+The bootstrap administrator credentials are in the private `.scenescape-modern.env` file. Read them locally; do not paste the file into an issue or chat:
 
 ```bash
-make demo
+grep -E '^KEYCLOAK_ADMIN_(USERNAME|PASSWORD)=' .scenescape-modern.env
 ```
 
-The Docker Compose demo targets are tiered, each building on the previous one:
+Use those credentials at the Keycloak management URL. Select the **scenescape** realm, not `master`. Create an application user, set their password, and assign `scenescape-viewer` or `scenescape-admin`. Sign into the React application with that user. Existing users are preserved during migration.
 
-| Target      | Includes                                                |
-| ----------- | ------------------------------------------------------- |
-| `demo`      | Core services with tracking, without ReID               |
-| `demo-reid` | `demo` plus the ReID vector database                    |
-| `demo-all`  | `demo-reid` plus cluster analytics and mapping services |
+The public client `scenescape-ui` uses Authorization Code with PKCE S256. Password grants and implicit flow are disabled. The default `basic` scope supplies the subject claim; the dedicated audience mapper adds `scenescape-api` to access tokens, not ID tokens. The API checks signature, issuer, audience, subject and expiry. Media/history/stream access uses the same authorization rather than a second browser session.
 
-The ReID targets use VDMS by default. Set `REID_BACKEND=qdrant` to use Qdrant:
+The local embedded Keycloak uses `start-dev` for evaluation. Production requires an appropriately hardened identity deployment, trusted TLS, backups and operational controls; these are not supplied by a demo Compose file.
+
+## Daily lifecycle
 
 ```bash
-make demo-reid
-make demo-reid REID_BACKEND=qdrant
+./scenescape.sh start
+./scenescape.sh stop
+./scenescape.sh restart
+./scenescape.sh status
+./scenescape.sh logs web native-worker modern-ui
+./scenescape.sh open
 ```
 
-`make demo-close` remembers the selected override and stops the matching
-deployment.
+`stop` preserves data and credentials. After a native code update:
 
-### (Optional): LiDAR-Intersection fusion demo
-
-A separate, opt-in demo fuses a recorded LiDAR point-cloud stream with a
-recorded camera image sequence. Run it with the dedicated `make demo-lidar` target.
-See [Run the LiDAR-Intersection Fusion Demo](../how-to-guides/run-lidar-intersection-demo.md)
-for the full setup and scene-import steps.
-
-## Step 4: Verify a successful deployment
-
-If you are running remotely, connect using `https://<ip_address>` or `https://<hostname>`, using the correct IP address or hostname of the remote Scenescape system. If accessing on a local system use `https://localhost`. If you see a certificate warning, click the prompts to continue to the site. For example, in Chrome click "Advanced" and then "Proceed to &lt;ip_address> (unsafe)".
-
-> **Note:** These certificate warnings are expected due to the use of a self-signed certificate for initial deployment purposes. This certificate is generated at deploy time and is unique to the instance.
-
-### Logging In
-
-Enter "admin" for the user name and the value you typed earlier for SUPASS.
-
-### Docker Compose Profiles
-
-Scenescape uses [Docker Compose profiles](https://docs.docker.com/compose/how-tos/profiles/) to organize services into logical groups. When starting or stopping services, you must specify the same profile(s) used during deployment.
-
-The following profiles are available:
-
-| Profile             | Description                                                                             |
-| ------------------- | --------------------------------------------------------------------------------------- |
-| `controller`        | Scene Controller (tracking) + Analytics service. Used by `make demo`.                   |
-| `mapping`           | Enables mapping service.                                                                |
-| `cluster-analytics` | Enables cluster-analytics service.                                                      |
-| `tracker`           | Tracker service + Analytics service (no Scene Controller). Used by `make demo-tracker`. |
-
-> **ReID backends:** The `demo-reid` and `demo-all` targets default to VDMS (`REID_BACKEND=vdms`); set `REID_BACKEND=qdrant` to switch. For raw Compose, add exactly one of `sample_data/docker-compose.vdms-override.yml` or `sample_data/docker-compose.qdrant-override.yml`. Both overrides provide the same logical `reid` service, shared host `reid.scenescape.intel.com`, port `55555`, TLS settings, and certificates. See [Selecting the ReID Vector Database Backend](../other-topics/how-to-enable-reidentification.md#selecting-the-reid-vector-database-backend).
-
-Profiles can be specified on the command line with `--profile`:
-
-```console
-docker compose --profile controller up -d
+```bash
+git pull --ff-only
+./scenescape.sh build --skip-processing-build
+./scenescape.sh restart
 ```
 
-Multiple profiles can be combined:
+An old hybrid installation deliberately refuses the new normal build/install path until explicitly migrated. This prevents a new frontend from being placed over an incompatible old backend without a backup.
 
-```console
-docker compose --profile controller --profile mapping up -d
+## Uninstall
+
+```bash
+./scenescape.sh uninstall
 ```
 
-Alternatively, profiles can be set via the `COMPOSE_PROFILES` environment variable:
+This asks for `UNINSTALL`, then removes **this Compose project's** containers and operational volumes, including PostgreSQL and Keycloak data. It does not prune unrelated Docker projects. Source, backups and local credentials are retained. `--yes` skips the confirmation and must not be used as a routine recovery step.
 
-```console
-export COMPOSE_PROFILES=controller
-docker compose up -d
-```
+## Troubleshooting
 
-For multiple profiles, use a comma-separated list:
+| Symptom                               | Check                                                                                                                                                       |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Docker unavailable                    | Start Docker Desktop and enable this WSL distribution; use Linux containers.                                                                                |
+| `!override` parsing error             | Update Docker Compose to 2.24.4 or later.                                                                                                                   |
+| Missing `sub` or audience             | Reconcile the correct Keycloak client, then sign out/in. Do not disable JWT claim verification.                                                             |
+| API TLS verification error            | The mounted CA and `SCENESCAPE_API_SERVER_NAME` must match the API certificate. Do not fix this by disabling verification.                                  |
+| Migration validation failure          | Keep the stopped/exported snapshot and backup; unsupported fields are rejected rather than discarded. The script attempts legacy recovery.                  |
+| Media permission error                | API UID 1000 needs read access to existing maps and write access to `native-uploads`; avoid recursively changing ownership of all old media without review. |
+| No live objects                       | Check native worker MQTT connectivity, Analytics regulated output, scene IDs and timestamps; API readiness alone is insufficient.                           |
+| Camera/auto-calibration request fails | Confirm the corresponding upstream camera/calibration service and TLS/credentials. Native forms cannot create an unavailable upstream capability.           |
+| No WebGL2                             | Use native 2D; the application does not redirect to Django. GPU/WSL/browser configuration is separate from the API.                                         |
 
-```console
-export COMPOSE_PROFILES=controller,mapping
-docker compose up -d
-```
+## Kubernetes
 
-For more details, see the [Docker Compose profiles documentation](https://docs.docker.com/compose/how-tos/profiles/) and the [COMPOSE_PROFILES environment variable reference](https://docs.docker.com/compose/how-tos/environment-variables/envvars/#compose_profiles).
-
-> **Note:** The `--profile` flags used with `docker compose down` must match those used when starting the services. Otherwise, containers started under a specific profile will remain running.
-
-### Stopping the System
-
-To stop the containers, use the following command in the project directory (see [Docker Compose Profiles](#docker-compose-profiles) for details on choosing profiles):
-
-```console
-docker compose --profile controller down --remove-orphans
-```
-
-### Starting the System
-
-To start after the first time, use the following command in the project directory:
-
-```console
-docker compose --profile controller up -d
-```
-
-## Summary
-
-Scenescape was downloaded, built and deployed onto a fresh Ubuntu system. Using the web user interface, Scenescape provides two scenes by default that can be explored running from stored video data.
-
-![Scenescape WebUI Homepage](../_assets/ui/homepage.png "scenescape web ui homepage")
-
-> **Note:** The "Documentation" menu option allows you to view Scenescape HTML version of the documentation in the browser.
-
-## Next Steps
-
-- Check [Deploy Scenescape](../how-to-guides/deploy-scenescape-using-prebuilt-containers.md) for step-by-step instructions on how to deploy Scenescape using prebuilt Docker images.
-
-### Explore other topics
-
-- [How to Define Object Properties](../other-topics/how-to-define-object-properties.md): Step-by-step guide for configuring the properties of an object class.
-
-- [How to enable reidentification](../other-topics/how-to-enable-reidentification.md): Step-by-step guide to enable reidentification.
-
-- [Viewing Re-identification Metrics](../other-topics/how-to-view-reid-metrics.md): Guide for exposing and querying ReID match-latency, camera-count, and tracked-object-count metrics via OpenTelemetry.
-
-- [How to Enable Observability (Experimental)](../other-topics/how-to-enable-observability.md): Guide for enabling OpenTelemetry-based metrics and distributed traces for the Scene Controller and Tracker Service.
-
-- [Geti AI model integration](../other-topics/how-to-integrate-geti-trained-model.md): Step-by-step guide for integrating a Geti trained AI model with Scenescape.
-
-- [Running License Plate Recognition with 3D Object Detection](../other-topics/how-to-run-LPR-with-3D-object-detection.md): Step-by-step guide for running license plate recognition with 3D object detection.
-
-- [How to Configure DL Streamer Video Pipeline](../other-topics/how-to-configure-dlstreamer-video-pipeline.md): Step-by-step guide for configuring DL Streamer video pipeline.
-
-- [Model configuration file format](../other-topics/model-configuration-file-format.md): Model configuration file overview.
-
-- [How to Manage Files in Volumes](../other-topics/how-to-manage-files-in-volumes.md): Step-by-step guide for managing files in Docker and Kubernetes volumes.
-
-## Additional Resources
-
-- [How to upgrade Scenescape](../additional-resources/how-to-upgrade.md): Step-by-step guide for upgrading from an older version of Scenescape.
-
-- [How Scenescape converts Pixel-Based Bounding Boxes to Normalized Image Space](../additional-resources/convert-object-detections-to-normalized-image-space.md)
-
-- [Hardening Guide for Custom TLS](../additional-resources/hardening-guide.md): Optimizing security posture for a Scenescape installation.
-
-- [Release Notes](../release-notes.md)
+The separate [native Helm chart](../../../kubernetes/scenescape-native/README.md) deploys API/worker/UI against external PostgreSQL, Keycloak, MQTT and media storage. Do not substitute it in an existing umbrella release with `helm upgrade`: omitted resources could be deleted. Use an isolated release and a staged migration/contract test first. The root WSL2 script is a Compose lifecycle tool, not an automatic Kubernetes migration controller.

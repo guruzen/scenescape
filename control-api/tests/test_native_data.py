@@ -1,0 +1,106 @@
+import importlib.util
+import json
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+TOOLS = Path(__file__).parents[2] / 'tools'
+sys.path.insert(0, str(TOOLS))
+spec = importlib.util.spec_from_file_location('native_data', Path(__file__).parents[2] / 'tools/native_data.py')
+native_data = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(native_data)
+rt = native_data.rt
+
+
+def prepare(tmp_path, monkeypatch):
+  root = tmp_path / 'repo'; root.mkdir()
+  monkeypatch.setattr(rt, 'ROOT', root)
+  monkeypatch.setattr(rt, 'RUNTIME', root / '.scenescape-runtime')
+  monkeypatch.setattr(rt, 'STATE', root / '.scenescape-runtime/native-state.json')
+  monkeypatch.setattr(rt, 'CONFIG', root / '.scenescape-modern.env')
+  rt.save_state({'mode':'native','installed':True})
+  return root
+
+
+def test_seed_native_data_never_deletes_existing_data(tmp_path, monkeypatch):
+  prepare(tmp_path, monkeypatch)
+  run=Mock(); compose=Mock(); monkeypatch.setattr(rt,'run',run); monkeypatch.setattr(rt,'compose',compose)
+  native_data.seed_native({'COMPOSE_PROJECT_NAME':'test'})
+  assert run.call_args.args[0][:2]==['make','init-sample-data']
+  assert compose.call_args.args[1:7]==('run','--rm','-T','--no-deps','web','seed')
+  assert '--volumes' not in compose.call_args.args
+
+
+def test_recover_legacy_data_exports_then_imports_without_volume_deletion(tmp_path, monkeypatch):
+  root=prepare(tmp_path, monkeypatch)
+  monkeypatch.setattr(rt,'doctor',Mock())
+  legacy_config={'services':{'web':{'image':'intel/scenescape-manager:2026.2.0'}}}
+  calls=[]
+  def fake_compose(config,*args,**kwargs):
+    calls.append((args,kwargs))
+    if args[:3]==('config','--format','json'):
+      return SimpleNamespace(stdout=json.dumps(legacy_config).encode(),returncode=0)
+    if kwargs.get('output') is not None:
+      payload={'scenes':[{'uid':'s1','name':'Legacy'}], '_migration':{'counts':{'scenes':1}}}
+      kwargs['output'].write(json.dumps(payload).encode())
+    return SimpleNamespace(stdout=b'',returncode=0)
+  monkeypatch.setattr(rt,'compose',fake_compose)
+  monkeypatch.setattr(rt,'run',Mock(return_value=SimpleNamespace(returncode=0,stdout=b'')))
+  (root/'tools').mkdir(parents=True,exist_ok=True)
+  (root/'sample_data').mkdir(parents=True,exist_ok=True)
+  (root/'tools/export_legacy.py').write_text('print("fixture")\n')
+  native_data.recover_legacy({'COMPOSE_PROJECT_NAME':'test'})
+  assert any(kwargs.get('native') is False and '--entrypoint' in args for args,kwargs in calls)
+  assert any(kwargs.get('native') is True and 'scenescape_api.migrate_legacy' in args for args,kwargs in calls)
+  assert all('--volumes' not in args for args,_ in calls)
+  state=rt.read_state(); assert state['mode']=='native' and state.get('legacy_recovery_snapshot')
+
+
+def test_legacy_export_bootstraps_manager_package_and_secrets():
+  source = (TOOLS / 'export_legacy.py').read_text()
+  assert 'manager.settings' in source
+  assert 'sscape.settings' not in source
+  assert '/home/scenescape/Scenescape' in source
+  assert '/run/secrets/django/secrets.py' in source
+  assert 'sys.path.insert(0, str(project_root))' in source
+  assert 'spec_from_file_location("manager.secrets"' in source
+
+
+def test_repair_media_copies_only_missing_packaged_media(tmp_path, monkeypatch):
+  root=prepare(tmp_path, monkeypatch)
+  (root/'sample_data').mkdir()
+  run=Mock(return_value=SimpleNamespace(returncode=0, stdout=b''))
+  monkeypatch.setattr(rt,'run',run)
+  native_data.repair_media({'COMPOSE_PROJECT_NAME':'demo'})
+  args=run.call_args.args[0]
+  assert args[:3]==['docker','run','--rm']
+  assert f"{root/'sample_data'}:/source:ro" in args
+  assert 'demo_vol-media:/dest' in args
+  script=args[-1]
+  assert 'cp "$f" "/dest/$name"' in script
+  assert '[ ! -e "/dest/$name" ]' in script
+  assert 'rm -' not in script
+
+
+def test_repair_media_restores_recorded_legacy_backup_without_overwrite(tmp_path, monkeypatch):
+  root=prepare(tmp_path, monkeypatch)
+  backup=root/'.scenescape-runtime/backups/cutover'
+  backup.mkdir(parents=True)
+  archive=backup/'media.tar.gz'
+  archive.write_bytes(b'fixture')
+  rt.save_state({'mode':'native','installed':True,'backup':'.scenescape-runtime/backups/cutover'})
+  (root/'sample_data').mkdir()
+  run=Mock(return_value=SimpleNamespace(returncode=0, stdout=b''))
+  monkeypatch.setattr(rt,'run',run)
+  native_data.repair_media({'COMPOSE_PROJECT_NAME':'demo'})
+  assert run.call_count==2
+  restore_args=run.call_args_list[0].args[0]
+  assert f"{archive}:/backup/media.tar.gz:ro" in restore_args
+  assert 'demo_vol-media:/dest' in restore_args
+  restore_script=restore_args[-1]
+  assert '[ ! -e "$dest" ]' in restore_script
+  assert 'cp "$f" "$dest"' in restore_script
+  assert 'rm -rf /dest' not in restore_script
+  packaged_args=run.call_args_list[1].args[0]
+  assert f"{root/'sample_data'}:/source:ro" in packaged_args

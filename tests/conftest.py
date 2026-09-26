@@ -880,7 +880,10 @@ def _inject_k8s_options(config, spec, k8s_mgr):
   opt.rootcert = k8s_mgr.cert_file
   opt.broker_url = "broker.scenescape.intel.com"
   opt.broker_port = k8s_mgr.mqtt_port
-  opt.weburl = f"https://web.scenescape.intel.com:{k8s_mgr.web_port}"
+  if getattr(k8s_mgr, "native_mode", False):
+    opt.weburl = f"http://web.scenescape.intel.com:{k8s_mgr.ui_port}"
+  else:
+    opt.weburl = f"https://web.scenescape.intel.com:{k8s_mgr.web_port}"
   opt.resturl = f"https://web.scenescape.intel.com:{k8s_mgr.web_port}/api/v1"
 
   # Parse extra_args (--key value pairs) into option attributes.
