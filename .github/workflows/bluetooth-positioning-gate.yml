@@ -28,6 +28,7 @@ on: # yamllint disable-line rule:truthy
       - "modern-ui/tests/sceneWorkspaceContract.test.mjs"
       - "modern-ui/tests/e2e/sceneWorkspace.spec.ts"
       - "modern-ui/tests/e2e/nativeSceneWorkspace.spec.ts"
+      - "kubernetes/scenescape-native/**"
       - "docs/specs/bluetooth-positioning/**"
       - ".github/evidence/bluetooth-positioning/**"
       - ".github/workflows/bluetooth-positioning-gate.yml"
@@ -124,3 +125,96 @@ jobs:
         run: |
           npm run typecheck
           npm run build
+
+
+  bt-helm:
+    name: "Bluetooth Helm hardening"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Verify Helm is available
+        run: helm version --short
+
+      - name: Render fail-closed default deployment
+        run: |
+          helm lint kubernetes/scenescape-native \
+            --set runtimeSecret=runtime \
+            --set serviceAuthSecret=service-auth \
+            --set tls.existingSecret=api-tls \
+            --set tls.serverName=scenescape-api \
+            --set media.existingClaim=media \
+            --set mqtt.host=broker \
+            --set mqtt.caSecret=mqtt-ca \
+            --set publicOrigin=https://scenescape.example.test \
+            --set oidc.issuer=https://id.example.test/realms/scenescape \
+            --set oidc.browserUrl=https://id.example.test \
+            --set ingress.enabled=false
+          helm template bt16 kubernetes/scenescape-native \
+            --set runtimeSecret=runtime \
+            --set serviceAuthSecret=service-auth \
+            --set tls.existingSecret=api-tls \
+            --set tls.serverName=scenescape-api \
+            --set media.existingClaim=media \
+            --set mqtt.host=broker \
+            --set mqtt.caSecret=mqtt-ca \
+            --set publicOrigin=https://scenescape.example.test \
+            --set oidc.issuer=https://id.example.test/realms/scenescape \
+            --set oidc.browserUrl=https://id.example.test \
+            --set ingress.enabled=false \
+            > /tmp/bt16-default.yaml
+          grep -q 'name: BLUETOOTH_POSITIONING_ENABLED' /tmp/bt16-default.yaml
+          grep -q 'value: "false"' /tmp/bt16-default.yaml
+          if grep -q 'kind: CronJob' /tmp/bt16-default.yaml; then
+            echo "Bluetooth retention CronJob must not render while Bluetooth is disabled"
+            exit 1
+          fi
+
+      - name: Render safe replicated Bluetooth workers
+        run: |
+          helm template bt16 kubernetes/scenescape-native \
+            --set runtimeSecret=runtime \
+            --set serviceAuthSecret=service-auth \
+            --set tls.existingSecret=api-tls \
+            --set tls.serverName=scenescape-api \
+            --set media.existingClaim=media \
+            --set mqtt.host=broker \
+            --set mqtt.caSecret=mqtt-ca \
+            --set mqtt.sharedSubscriptionGroup=bt-workers \
+            --set worker.replicas=2 \
+            --set bluetooth.enabled=true \
+            --set bluetooth.telemetryEnabled=true \
+            --set publicOrigin=https://scenescape.example.test \
+            --set oidc.issuer=https://id.example.test/realms/scenescape \
+            --set oidc.browserUrl=https://id.example.test \
+            --set ingress.enabled=false \
+            > /tmp/bt16-scaled.yaml
+          grep -q 'kind: CronJob' /tmp/bt16-scaled.yaml
+          grep -q 'kind: PodDisruptionBudget' /tmp/bt16-scaled.yaml
+          grep -q 'name: MQTT_SHARED_SUBSCRIPTION_GROUP' /tmp/bt16-scaled.yaml
+          grep -q 'value: "bt-workers"' /tmp/bt16-scaled.yaml
+
+      - name: Reject unsafe duplicate MQTT ownership
+        run: |
+          if helm template bt16 kubernetes/scenescape-native \
+            --set runtimeSecret=runtime \
+            --set serviceAuthSecret=service-auth \
+            --set tls.existingSecret=api-tls \
+            --set tls.serverName=scenescape-api \
+            --set media.existingClaim=media \
+            --set mqtt.host=broker \
+            --set mqtt.caSecret=mqtt-ca \
+            --set worker.replicas=2 \
+            --set publicOrigin=https://scenescape.example.test \
+            --set oidc.issuer=https://id.example.test/realms/scenescape \
+            --set oidc.browserUrl=https://id.example.test \
+            --set ingress.enabled=false \
+            > /tmp/bt16-unsafe.yaml 2> /tmp/bt16-unsafe.err; then
+            echo "Unsafe replicated worker render unexpectedly succeeded"
+            exit 1
+          fi
+          grep -q 'mqtt.sharedSubscriptionGroup is required when worker.replicas > 1' /tmp/bt16-unsafe.err
