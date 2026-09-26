@@ -2,11 +2,12 @@ import argparse
 import json
 import os
 import ssl
+from datetime import datetime, timezone
 from pathlib import Path
 
 import uvicorn
 
-from sqlalchemy import delete, text
+from sqlalchemy import delete, select, text
 
 from .database import (
     Base,
@@ -33,7 +34,56 @@ from .database import (
 from .bluetooth_schema import upgrade_bt01, upgrade_bt02, upgrade_bt06, upgrade_bt07, upgrade_bt08, upgrade_bt10, upgrade_bt11
 from .ingest import persist
 from .bluetooth_pipeline import drain_solver_queue
+from .bluetooth_retention import BluetoothRetentionPolicy, purge_bluetooth_history
 from .migrate_legacy import migrate as migrate_snapshot
+
+
+def _enabled(name: str, default: str = "0") -> bool:
+  return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _mqtt_subscription(topic: str) -> str:
+  group = os.getenv("MQTT_SHARED_SUBSCRIPTION_GROUP", "").strip().strip("/")
+  return f"$share/{group}/{topic}" if group else topic
+
+
+def _mqtt_client_id() -> str:
+  base = os.getenv("MQTT_CLIENT_ID", "scenescape-native-historian").strip()
+  suffix = os.getenv("MQTT_CLIENT_ID_SUFFIX", "").strip()
+  if not suffix and os.getenv("MQTT_SHARED_SUBSCRIPTION_GROUP", "").strip():
+    suffix = os.getenv("HOSTNAME", "").strip()
+  return f"{base}-{suffix}"[:160] if suffix else base[:160]
+
+
+def run_retention():
+  policy = BluetoothRetentionPolicy.from_env()
+  with sessions()() as db:
+    removed = purge_bluetooth_history(db, policy=policy)
+    db.commit()
+  print(json.dumps({"retention": policy.to_dict(), "removed": removed}, sort_keys=True))
+
+
+def worker_health(*, ready: bool) -> None:
+  max_age_s = max(5.0, float(os.getenv("WORKER_HEALTH_MAX_AGE_S", "90")))
+  with sessions()() as db:
+    heartbeat = db.scalar(select(Heartbeat).where(Heartbeat.key == "mqtt"))
+  if heartbeat is None:
+    raise SystemExit("MQTT worker heartbeat is missing")
+  updated_at = heartbeat.updated_at
+  if updated_at.tzinfo is None:
+    updated_at = updated_at.replace(tzinfo=timezone.utc)
+  age_s = max(0.0, (datetime.now(timezone.utc) - updated_at).total_seconds())
+  if age_s > max_age_s:
+    raise SystemExit(f"MQTT worker heartbeat is stale ({age_s:.1f}s)")
+  if ready and heartbeat.state != "connected":
+    raise SystemExit(f"MQTT worker is not ready ({heartbeat.state})")
+  if not ready and heartbeat.state not in {"connected", "connecting", "degraded"}:
+    raise SystemExit(f"MQTT worker is unhealthy ({heartbeat.state})")
+  print(json.dumps({
+      "state": heartbeat.state,
+      "age_s": round(age_s, 3),
+      "ready": heartbeat.state == "connected",
+  }, sort_keys=True))
 
 
 def migrate():
@@ -121,7 +171,7 @@ def worker():
   port = int(os.getenv("MQTT_PORT", "1883"))
   client = mqtt.Client(
       mqtt.CallbackAPIVersion.VERSION2,
-      client_id=os.getenv("MQTT_CLIENT_ID", "scenescape-native-historian"),
+      client_id=_mqtt_client_id(),
   )
   auth_file = os.getenv("MQTT_AUTH_FILE")
   if auth_file and Path(auth_file).is_file():
@@ -141,12 +191,18 @@ def worker():
       pass
 
   def on_connect(c, user_data, flags, reason, properties):
-    set_heartbeat("connected", reason=str(reason))
-    c.subscribe("scenescape/regulated/scene/#")
-    c.subscribe("scenescape/data/sensor/#")
-    c.subscribe("scenescape/data/bluetooth/range/#")
-    c.subscribe("scenescape/data/bluetooth/device/#")
-    c.subscribe("scenescape/event/#")
+    set_heartbeat("connected", reason=str(reason), client_id=_mqtt_client_id())
+    topics = [
+        "scenescape/regulated/scene/#",
+        "scenescape/data/sensor/#",
+        "scenescape/event/#",
+    ]
+    if _enabled("BLUETOOTH_POSITIONING_ENABLED", "1"):
+      topics.append("scenescape/data/bluetooth/range/#")
+    if _enabled("BLUETOOTH_TELEMETRY_ENABLED", "1"):
+      topics.append("scenescape/data/bluetooth/device/#")
+    for topic in topics:
+      c.subscribe(_mqtt_subscription(topic))
 
   def on_disconnect(c, user_data, disconnect_flags, reason, properties):
     set_heartbeat("disconnected", reason=str(reason))
@@ -155,7 +211,10 @@ def worker():
     try:
       with sessions()() as db:
         persisted = persist(db, msg.topic, msg.payload)
-        if str(msg.topic).startswith("scenescape/data/bluetooth/range/"):
+        if (
+            _enabled("BLUETOOTH_POSITIONING_ENABLED", "1")
+            and str(msg.topic).startswith("scenescape/data/bluetooth/range/")
+        ):
           drain_solver_queue(
               db,
               maximum=max(
@@ -186,7 +245,19 @@ def worker():
 
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument("command", choices=["serve", "worker", "migrate", "seed", "reset"])
+  parser.add_argument(
+      "command",
+      choices=[
+          "serve",
+          "worker",
+          "migrate",
+          "seed",
+          "reset",
+          "retention",
+          "worker-health",
+          "worker-ready",
+      ],
+  )
   parser.add_argument("arg", nargs="?")
   args = parser.parse_args()
   if args.command == "serve":
@@ -201,6 +272,12 @@ def main():
     seed(args.arg)
   elif args.command == "reset":
     reset(args.arg)
+  elif args.command == "retention":
+    run_retention()
+  elif args.command == "worker-health":
+    worker_health(ready=False)
+  elif args.command == "worker-ready":
+    worker_health(ready=True)
 
 
 if __name__ == "__main__":
