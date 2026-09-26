@@ -157,6 +157,7 @@ def _seed_scene(database, *, scene_id="scene-a", with_assignment=True):
             "calibration_revision": "cal-r1",
             "identity_revision": "assign-a",
             "last_measured_at": now.isoformat(),
+            "accepted_anchor_ids": ["anchor-a"],
         },
     ))
     db.commit()
@@ -231,6 +232,7 @@ def test_bt09_live_endpoint_appends_stable_bt_object_and_preserves_camera(api):
   assert bluetooth["translation"] == [4.0, 5.0, 1.0]
   assert bluetooth["velocity"] == [0.8, 0.1, 0.0]
   assert bluetooth["bluetooth"]["method"] == "channel_sounding"
+  assert bluetooth["bluetooth"]["anchor_ids"] == ["anchor-a"]
   assert bluetooth["bluetooth"]["battery"]["percent"] == 55.0
 
 
