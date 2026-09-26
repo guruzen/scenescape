@@ -108,6 +108,58 @@ export type BluetoothGeometry = {
   ready_for_2d: boolean;
 };
 
+export type BluetoothSurveyBias = {
+  anchor_id: string;
+  status: string;
+  sample_count: number;
+  accepted_count: number;
+  rejected_count: number;
+  bias_m?: number | null;
+  stddev_m?: number | null;
+  median_m?: number | null;
+  mad_m?: number | null;
+  calibration_uid?: string;
+  calibration_revision?: number;
+  points?: Array<{
+    survey_point_uid: string;
+    sample_count: number;
+    median_residual_m: number;
+  }>;
+};
+
+export type BluetoothCoverage = {
+  scene_id: string;
+  theoretical_geometry: {
+    model: string;
+    fixed_z_m: number;
+    anchor_count: number;
+    cells: Array<{
+      x_m: number;
+      y_m: number;
+      gdop?: number | null;
+      geometry_state: "good" | "degraded" | "poor" | "unavailable";
+    }>;
+  };
+  observed_rf: {
+    source: string;
+    points: Array<{
+      survey_point_uid: string;
+      name: string;
+      position: number[];
+      sample_count: number;
+      average_quality?: number | null;
+    }>;
+  };
+};
+
+export type BluetoothSurveyPoint = {
+  uid: string;
+  scene_id: string;
+  name: string;
+  position: { x_m: number; y_m: number; z_m: number };
+  state: string;
+};
+
 export type CalibrationPayload = {
   anchor_uid: string;
   scene_id: string;
@@ -366,6 +418,83 @@ export const bluetoothApi = {
     restore(uid: string, revision: number) {
       return apiFetch<BluetoothCalibration>(
         `/api/v2/bluetooth/calibrations/${encodeURIComponent(uid)}/restore?revision=${revision}`,
+        { method: "POST" },
+      );
+    },
+  },
+  surveys: {
+    bias(sceneId: string) {
+      return apiFetch<{
+        scene_id: string;
+        anchors: Record<string, BluetoothSurveyBias>;
+      }>(
+        `/api/v2/bluetooth/surveys/bias?scene_id=${encodeURIComponent(sceneId)}`,
+      );
+    },
+    createBiasRevisions(sceneId: string, minimumSamples = 3) {
+      return apiFetch<{
+        scene_id: string;
+        created: BluetoothCalibration[];
+      }>(
+        `/api/v2/bluetooth/surveys/bias/revisions${query({
+          scene_id: sceneId,
+          minimum_samples: minimumSamples,
+        })}`,
+        { method: "POST" },
+      );
+    },
+    coverage(
+      sceneId: string,
+      bounds: {
+        minX: number;
+        maxX: number;
+        minY: number;
+        maxY: number;
+        step: number;
+        fixedZ?: number;
+      },
+    ) {
+      return apiFetch<BluetoothCoverage>(
+        `/api/v2/bluetooth/surveys/coverage${query({
+          scene_id: sceneId,
+          min_x_m: bounds.minX,
+          max_x_m: bounds.maxX,
+          min_y_m: bounds.minY,
+          max_y_m: bounds.maxY,
+          step_m: bounds.step,
+          fixed_z_m: bounds.fixedZ ?? 1,
+        })}`,
+      );
+    },
+    createPoint(payload: {
+      scene_id: string;
+      name: string;
+      x_m: number;
+      y_m: number;
+      z_m: number;
+    }) {
+      return apiFetch<BluetoothSurveyPoint>(
+        "/api/v2/bluetooth/surveys/points",
+        { method: "POST", body: JSON.stringify(payload) },
+      );
+    },
+    addSample(
+      pointId: string,
+      payload: {
+        anchor_uid: string;
+        distance_m: number;
+        distance_stddev_m?: number;
+        quality?: number;
+      },
+    ) {
+      return apiFetch(
+        `/api/v2/bluetooth/surveys/points/${encodeURIComponent(pointId)}/samples`,
+        { method: "POST", body: JSON.stringify(payload) },
+      );
+    },
+    closePoint(pointId: string) {
+      return apiFetch(
+        `/api/v2/bluetooth/surveys/points/${encodeURIComponent(pointId)}/close`,
         { method: "POST" },
       );
     },
