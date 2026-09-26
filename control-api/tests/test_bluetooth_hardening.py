@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 from sqlalchemy import func, select
@@ -206,7 +207,9 @@ def test_bt16_retention_purges_high_rate_history_but_preserves_control_plane(db)
   assert session.get(BluetoothProvider, "provider-a") is not None
   assert session.get(BluetoothAnchor, "anchor-a") is not None
   assert session.get(BluetoothTag, "tag-a") is not None
-  assert session.get(database.Resource, 1) is not None
+  assert session.scalar(
+      select(Resource).where(Resource.kind == "scene", Resource.uid == "scene-a")
+  ) is not None
 
 
 def test_bt16_retention_policy_is_independently_configurable(monkeypatch):
@@ -262,3 +265,43 @@ def test_bt16_worker_health_distinguishes_liveness_and_readiness(db, capsys):
   worker_health(ready=False)
   with pytest.raises(SystemExit, match="not ready"):
     worker_health(ready=True)
+
+
+
+def test_bt16_helm_defaults_fail_closed_and_schedule_retention():
+  values = Path("kubernetes/scenescape-native/values.yaml").read_text(encoding="utf-8")
+  worker = Path(
+      "kubernetes/scenescape-native/templates/worker.yaml"
+  ).read_text(encoding="utf-8")
+  api = Path(
+      "kubernetes/scenescape-native/templates/api.yaml"
+  ).read_text(encoding="utf-8")
+  retention = Path(
+      "kubernetes/scenescape-native/templates/bluetooth-retention.yaml"
+  ).read_text(encoding="utf-8")
+  pdb = Path(
+      "kubernetes/scenescape-native/templates/worker-pdb.yaml"
+  ).read_text(encoding="utf-8")
+
+  assert "bluetooth:\n" in values
+  assert "enabled: false" in values
+  assert "telemetryEnabled: false" in values
+  assert "sharedSubscriptionGroup" in values
+  assert "worker.replicas > 1" in values
+
+  assert "MQTT_SHARED_SUBSCRIPTION_GROUP" in worker
+  assert "MQTT_CLIENT_ID_SUFFIX" in worker
+  assert "worker-ready" in worker
+  assert "worker-health" in worker
+  assert "mqtt.sharedSubscriptionGroup is required when worker.replicas > 1" in worker
+
+  assert "BLUETOOTH_POSITIONING_ENABLED" in api
+  assert "BLUETOOTH_TELEMETRY_ENABLED" in api
+  assert "BLUETOOTH_RAW_RETENTION_S" in api
+
+  assert "kind: CronJob" in retention
+  assert "concurrencyPolicy: Forbid" in retention
+  assert "args: [retention]" in retention
+
+  assert "kind: PodDisruptionBudget" in pdb
+  assert "minAvailable: 1" in pdb
