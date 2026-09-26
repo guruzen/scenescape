@@ -22,6 +22,15 @@ from .database import (
 )
 
 
+def _positioning_enabled() -> bool:
+  return os.getenv("BLUETOOTH_POSITIONING_ENABLED", "1").strip().lower() in {
+      "1",
+      "true",
+      "yes",
+      "on",
+  }
+
+
 def _utc(value: datetime) -> datetime:
   if value.tzinfo is None:
     return value.replace(tzinfo=timezone.utc)
@@ -150,6 +159,8 @@ def scene_bluetooth_objects(
     *,
     include_assignment_label: bool,
 ) -> list[dict[str, Any]]:
+  if not _positioning_enabled():
+    return []
   objects: list[dict[str, Any]] = []
   for row in _latest_tracks(db, scene_id):
     value = bluetooth_object(
@@ -224,6 +235,8 @@ def merge_live_payload(
 
 
 def scene_bluetooth_anchors(db, scene_id: str) -> list[dict[str, Any]]:
+  if not _positioning_enabled():
+    return []
   anchors = db.scalars(
       select(BluetoothAnchor)
       .where(
