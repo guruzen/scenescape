@@ -332,6 +332,50 @@ class BluetoothMeasurement(Base):
   provider_details: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class BluetoothRawPosition(Base):
+  __tablename__ = "native_bluetooth_raw_positions"
+  __table_args__ = (
+      Index(
+          "ix_native_bluetooth_raw_positions_scene_tag_time",
+          "scene_id",
+          "tag_uid",
+          "source_timestamp",
+      ),
+      Index(
+          "ix_native_bluetooth_raw_positions_state_time",
+          "state",
+          "source_timestamp",
+      ),
+  )
+
+  id: Mapped[int] = mapped_column(Integer, primary_key=True)
+  scene_id: Mapped[str] = mapped_column(String(96), nullable=False, index=True)
+  tag_uid: Mapped[str] = mapped_column(
+      String(96),
+      ForeignKey("native_bluetooth_tags.uid"),
+      nullable=False,
+      index=True,
+  )
+  source_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+  x_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+  y_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+  z_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+  dimension: Mapped[str] = mapped_column(String(16), nullable=False)
+  state: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+  horizontal_uncertainty_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+  vertical_uncertainty_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+  score: Mapped[float] = mapped_column(Float, nullable=False)
+  anchors_visible: Mapped[int] = mapped_column(Integer, nullable=False)
+  anchors_used: Mapped[int] = mapped_column(Integer, nullable=False)
+  residual_rms_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+  gdop: Mapped[float | None] = mapped_column(Float, nullable=True)
+  method: Mapped[str] = mapped_column(String(32), nullable=False)
+  solver_name: Mapped[str] = mapped_column(String(64), nullable=False)
+  solver_version: Mapped[str] = mapped_column(String(32), nullable=False)
+  diagnostics: Mapped[dict] = mapped_column(JSON, default=dict)
+  created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
 def get_engine():
   global _engine, _Session
   url = database_url()
