@@ -290,6 +290,42 @@ async function mockNativeApi(page: Page) {
       return json(row);
     }
     if (
+      path === "/api/v2/bluetooth/surveys/bias" &&
+      request.method() === "GET"
+    ) {
+      return json({
+        scene_id: url.searchParams.get("scene_id") || "",
+        anchors: {},
+      });
+    }
+    if (
+      path === "/api/v2/bluetooth/surveys/coverage" &&
+      request.method() === "GET"
+    ) {
+      return json({
+        scene_id: url.searchParams.get("scene_id") || "",
+        theoretical_geometry: {
+          model: "2d-range-gdop",
+          fixed_z_m: 1,
+          anchor_count: btAnchors.length,
+          cells: [],
+        },
+        observed_rf: {
+          source: "survey_samples",
+          points: [],
+        },
+      });
+    }
+    if (
+      path === "/api/v2/bluetooth/surveys/bias/revisions" &&
+      request.method() === "POST"
+    ) {
+      return json({
+        scene_id: url.searchParams.get("scene_id") || "",
+        created: [],
+      });
+    }
+    if (
       path === "/api/v2/bluetooth/calibrations/geometry" &&
       request.method() === "GET"
     ) {
