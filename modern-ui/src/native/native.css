@@ -2491,3 +2491,128 @@
     opacity 120ms ease,
     stroke-width 120ms ease;
 }
+
+
+/* Advanced Bluetooth calibration and coverage (BT-11). */
+.bt-cal-overlay-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0 16px 10px;
+  padding: 9px 11px;
+  border: 1px solid rgb(var(--line));
+  border-radius: 8px;
+  background: rgb(var(--soft));
+  color: rgb(var(--muted));
+  font-size: 9px;
+}
+.bt-cal-overlay-controls label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: rgb(var(--text));
+  font-weight: 700;
+}
+.bt-cal-overlay-controls > span {
+  margin-left: auto;
+}
+.bt-cal-gdop-cell {
+  opacity: 0.28;
+  stroke-width: 1;
+  pointer-events: none;
+}
+.bt-cal-gdop-cell.good {
+  fill: rgb(var(--success));
+  stroke: rgb(var(--success));
+}
+.bt-cal-gdop-cell.degraded {
+  fill: rgb(var(--warning));
+  stroke: rgb(var(--warning));
+}
+.bt-cal-gdop-cell.poor,
+.bt-cal-gdop-cell.unavailable {
+  fill: rgb(var(--danger));
+  stroke: rgb(var(--danger));
+}
+.bt-cal-survey-link {
+  stroke: color-mix(in srgb, rgb(var(--accent)) 45%, transparent);
+  stroke-width: 1.2;
+  stroke-dasharray: 5 5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.bt-cal-survey-point rect {
+  fill: color-mix(in srgb, rgb(var(--panel)) 55%, rgb(var(--accent)));
+  stroke: rgb(var(--text));
+  stroke-width: 2;
+}
+.bt-cal-survey-point text {
+  fill: rgb(var(--text));
+  font-size: 14px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: rgb(var(--bg));
+  stroke-width: 3px;
+}
+.bt-cal-survey-diagnostics {
+  margin: 0 16px 16px;
+  padding-top: 13px;
+  border-top: 1px solid rgb(var(--line));
+}
+.bt-cal-survey-heading {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: start;
+}
+.bt-cal-survey-heading h3 {
+  margin: 0;
+  font-size: 13px;
+}
+.bt-cal-survey-heading p {
+  max-width: 620px;
+  margin: 4px 0 10px;
+  color: rgb(var(--muted));
+  font-size: 9px;
+  line-height: 1.45;
+}
+.bt-cal-bias-list {
+  display: grid;
+  gap: 6px;
+}
+.bt-cal-bias-row {
+  display: grid;
+  grid-template-columns:
+    minmax(72px, 0.7fr) minmax(90px, 1fr) minmax(90px, 0.8fr)
+    minmax(80px, 0.7fr) minmax(120px, 1.2fr);
+  gap: 8px;
+  align-items: center;
+  padding: 7px 8px;
+  border: 1px solid rgb(var(--line));
+  border-radius: 7px;
+  background: rgb(var(--soft));
+  font-size: 9px;
+}
+.bt-cal-bias-row span {
+  color: rgb(var(--muted));
+}
+.bt-cal-coverage-summary {
+  display: flex;
+  gap: 16px;
+  margin-top: 9px;
+  color: rgb(var(--muted));
+  font-size: 9px;
+}
+@media (max-width: 800px) {
+  .bt-cal-overlay-controls > span {
+    width: 100%;
+    margin-left: 0;
+  }
+  .bt-cal-survey-heading {
+    flex-direction: column;
+  }
+  .bt-cal-bias-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
