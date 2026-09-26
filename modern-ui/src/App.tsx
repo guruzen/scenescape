@@ -1636,6 +1636,7 @@ function SceneWorkspace({
                   childRegions={bundle.child_regions || []}
                   childTripwires={bundle.child_tripwires || []}
                   childSensors={bundle.child_sensors || []}
+                  bluetoothAnchors={bundle.bluetooth_anchors || []}
                 />
               </>
             )}
