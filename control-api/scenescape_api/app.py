@@ -18,6 +18,7 @@ from sqlalchemy import func, or_, select
 from .auth import Principal, current_principal, issue_token, service_principal, verify_service
 from .asset_service import cleanup_replaced_asset_media, create_asset, delete_asset, update_asset
 from .bluetooth_api import router as bluetooth_router
+from .bluetooth_scene import bluetooth_history, merge_live_payload, scene_bluetooth_anchors, scene_bluetooth_objects
 from .calibration_service import camera_calibration as proxy_camera_calibration, scene_registration as proxy_scene_registration, service_status as proxy_calibration_status
 from .camera_io import CameraSnapshotError, fetch_camera_calibration, fetch_camera_snapshot, request_camera_frame, request_camera_video, update_camera_runtime
 from .camera_service import update_camera_resource
@@ -1124,20 +1125,42 @@ def scene_bundle(scene_id: str, p=Depends(current_principal), db=Depends(db_dep)
   result["child_regions"] = child_meta["regions"]
   result["child_tripwires"] = child_meta["tripwires"]
   result["child_sensors"] = child_meta["sensors"]
+  result["bluetooth_anchors"] = scene_bluetooth_anchors(db, scene_id)
   return result
+
+
+def _live_payload_for_scene(db, scene_id: str, p: Principal):
+  row = _latest_scene_observation(db, scene_id)
+  bluetooth_objects = scene_bluetooth_objects(
+      db,
+      scene_id,
+      include_assignment_label=bool(p.is_admin),
+  )
+  if row:
+    payload = dict(row.payload or {})
+    payload["scene_id"] = scene_id
+    payload["observed_at"] = row.observed_at.isoformat()
+    payload["stale"] = _age_seconds(row.observed_at) > 5
+  else:
+    payload = {"id": scene_id, "scene_id": scene_id, "objects": [], "stale": True}
+  merged = merge_live_payload(payload, bluetooth_objects)
+  if bluetooth_objects:
+    latest_bt = max(str(item.get("timestamp") or "") for item in bluetooth_objects)
+    merged["bluetooth"]["latest_observed_at"] = latest_bt
+    merged["bluetooth"]["stale"] = all(
+        str((item.get("bluetooth") or {}).get("state") or "") in {"stale", "unavailable"}
+        for item in bluetooth_objects
+    )
+    if row is None:
+      merged["observed_at"] = latest_bt
+      merged["stale"] = merged["bluetooth"]["stale"]
+  return merged
 
 
 @app.get("/api/v2/scenes/{scene_id}/live")
 def live(scene_id: str, p=Depends(current_principal), db=Depends(db_dep)):
   _scene_allowed(p, scene_id)
-  row = _latest_scene_observation(db, scene_id)
-  if not row:
-    return {"id": scene_id, "objects": [], "stale": True}
-  payload = dict(row.payload or {})
-  payload["scene_id"] = scene_id
-  payload["observed_at"] = row.observed_at.isoformat()
-  payload["stale"] = _age_seconds(row.observed_at) > 5
-  return payload
+  return _live_payload_for_scene(db, scene_id, p)
 
 
 @app.get("/api/v2/scenes/{scene_id}/live/stream")
@@ -1145,29 +1168,26 @@ async def live_stream(scene_id: str, p=Depends(current_principal)):
   _scene_allowed(p, scene_id)
 
   async def events():
-    last_id = None
-    stale_sent = False
+    last_signature = None
     last_heartbeat = 0.0
     yield "retry: 1500\n\n"
     while True:
       db = sessions()()
       try:
-        row = _latest_scene_observation(db, scene_id)
-        if row and row.id != last_id:
-          last_id = row.id
-          stale_sent = False
-          payload = dict(row.payload or {})
-          payload["scene_id"] = scene_id
-          payload["observed_at"] = row.observed_at.isoformat()
-          payload["stale"] = False
-          yield f"data: {json.dumps(payload, separators=(',', ':'))}\n\n"
-        elif row and not stale_sent and _age_seconds(row.observed_at) > 5:
-          stale_sent = True
-          payload = dict(row.payload or {})
-          payload["scene_id"] = scene_id
-          payload["observed_at"] = row.observed_at.isoformat()
-          payload["stale"] = True
-          yield f"event: status\ndata: {json.dumps(payload, separators=(',', ':'))}\n\n"
+        payload = _live_payload_for_scene(db, scene_id, p)
+        signature = json.dumps(
+            {
+                "observed_at": payload.get("observed_at"),
+                "stale": payload.get("stale"),
+                "bluetooth": payload.get("bluetooth"),
+            },
+            sort_keys=True,
+            default=str,
+            separators=(",", ":"),
+        )
+        if signature != last_signature:
+          last_signature = signature
+          yield f"data: {json.dumps(payload, separators=(',', ':'), default=str)}\n\n"
       finally:
         db.close()
       now = asyncio.get_running_loop().time()
@@ -1176,7 +1196,11 @@ async def live_stream(scene_id: str, p=Depends(current_principal)):
         yield ": keepalive\n\n"
       await asyncio.sleep(0.2)
 
-  return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+  return StreamingResponse(
+      events(),
+      media_type="text/event-stream",
+      headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+  )
 
 
 @app.get("/api/v2/scenes/{scene_id}/history")
@@ -1186,6 +1210,32 @@ def history(scene_id: str, limit: int = Query(200, ge=1, le=5000), p=Depends(cur
       select(Observation).where(_scene_observation_clause(scene_id)).order_by(Observation.observed_at.desc()).limit(limit)
   ).all()
   return [{"id": r.id, "timestamp": r.observed_at.isoformat(), "payload": r.payload} for r in reversed(rows)]
+
+
+@app.get("/api/v2/scenes/{scene_id}/history/bluetooth")
+def bluetooth_scene_history(
+    scene_id: str,
+    tag_id: str | None = Query(default=None, max_length=96),
+    state: str | None = Query(default=None, max_length=32),
+    since: datetime | None = Query(default=None),
+    until: datetime | None = Query(default=None),
+    limit: int = Query(default=500, ge=1, le=5000),
+    p=Depends(current_principal),
+    db=Depends(db_dep),
+):
+  _scene_allowed(p, scene_id)
+  if state and state not in {"good", "degraded", "predicted", "stale", "unavailable"}:
+    raise HTTPException(422, "Invalid Bluetooth track state")
+  return bluetooth_history(
+      db,
+      scene_id,
+      tag_id=tag_id,
+      state=state,
+      since=since,
+      until=until,
+      limit=limit,
+      include_assignment_label=bool(p.is_admin),
+  )
 
 
 @app.get("/api/v2/scenes/{scene_id}/trends")
