@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import math
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
@@ -34,6 +34,7 @@ class TrackerConfig:
   reset_gap_s: float = 8.0
   max_speed_mps: float = 15.0
   max_jump_margin_m: float = 2.0
+  motion_limits_mps: dict[str, float] = field(default_factory=dict)
   max_tracks: int = 10_000
   min_heading_speed_mps: float = 0.15
 
@@ -51,6 +52,26 @@ class TrackState:
   last_solver: dict[str, Any]
   last_method: str
   last_anchor_ids: list[str]
+  motion_class: str
+
+
+def _motion_class(value: str | None) -> str:
+  normalized = str(value or "default").strip().lower()
+  return normalized or "default"
+
+
+def _speed_limit(config: TrackerConfig, motion_class: str) -> float:
+  fallback = max(float(config.max_speed_mps), 0.1)
+  raw = config.motion_limits_mps.get(_motion_class(motion_class))
+  if raw is None:
+    return fallback
+  try:
+    value = float(raw)
+  except (TypeError, ValueError):
+    return fallback
+  if not math.isfinite(value) or value <= 0.0:
+    return fallback
+  return value
 
 
 def _transition(dt_s: float) -> np.ndarray:
@@ -187,6 +208,7 @@ class BluetoothTracker:
       timestamp: datetime,
       calibration_revision: str,
       identity_revision: str,
+      motion_class: str,
       *,
       reason: str,
   ) -> dict[str, Any]:
@@ -202,8 +224,9 @@ class BluetoothTracker:
     measurement_covariance = _measurement_covariance(raw, self.config)
     covariance = np.zeros((6, 6), dtype=float)
     covariance[:3, :3] = measurement_covariance
+    speed_limit = _speed_limit(self.config, motion_class)
     covariance[3:, 3:] = np.eye(3, dtype=float) * max(
-        self.config.max_speed_mps / 3.0,
+        speed_limit / 3.0,
         1.0,
     ) ** 2
     state = np.zeros(6, dtype=float)
@@ -221,6 +244,7 @@ class BluetoothTracker:
         last_solver=dict(raw.get("solver") or {}),
         last_method=str(quality.get("method") or "unknown"),
         last_anchor_ids=_accepted_anchor_ids(raw),
+        motion_class=_motion_class(motion_class),
     )
     self._remember((scene_id, tag_id), track)
     self.metrics["created"] += 1
@@ -257,12 +281,14 @@ class BluetoothTracker:
       *,
       calibration_revision: str = "",
       identity_revision: str = "",
+      motion_class: str = "default",
   ) -> dict[str, Any]:
     timestamp_value = raw.get("source_timestamp")
     if not isinstance(timestamp_value, datetime):
       raise ValueError("raw source_timestamp must be a datetime")
     timestamp = _utc(timestamp_value)
     key = (str(scene_id), str(tag_id))
+    motion_class = _motion_class(motion_class)
     track = self._tracks.get(key)
     measured_position = _position_from_raw(raw)
     measured_state = str(raw.get("state") or (raw.get("quality") or {}).get("state") or "unavailable")
@@ -277,6 +303,7 @@ class BluetoothTracker:
           timestamp,
           calibration_revision,
           identity_revision,
+          motion_class,
           reason="track_created",
       )
 
@@ -299,6 +326,8 @@ class BluetoothTracker:
       reset_reason = "calibration_revision_changed"
     elif str(identity_revision) != track.identity_revision:
       reset_reason = "identity_revision_changed"
+    elif motion_class != track.motion_class:
+      reset_reason = "motion_class_changed"
     elif gap_s > self.config.reset_gap_s and measured_position is not None:
       reset_reason = "long_gap"
 
@@ -311,6 +340,7 @@ class BluetoothTracker:
           timestamp,
           calibration_revision,
           identity_revision,
+          motion_class,
           reason=reset_reason,
       )
 
@@ -357,9 +387,10 @@ class BluetoothTracker:
 
     predicted_position = predicted_state[:3]
     jump_m = float(np.linalg.norm(measured_position - predicted_position))
+    speed_limit = _speed_limit(self.config, motion_class)
     allowed_jump = (
         self.config.max_jump_margin_m
-        + self.config.max_speed_mps * max(dt_s, 0.0)
+        + speed_limit * max(dt_s, 0.0)
     )
     if jump_m > allowed_jump:
       self.metrics["resets"] += 1
@@ -371,6 +402,7 @@ class BluetoothTracker:
           timestamp,
           calibration_revision,
           identity_revision,
+          motion_class,
           reason="impossible_jump_reset",
       )
 
@@ -396,6 +428,7 @@ class BluetoothTracker:
           timestamp,
           calibration_revision,
           identity_revision,
+          motion_class,
           reason="covariance_reset",
       )
     updated_state = predicted_state + gain @ innovation
@@ -417,6 +450,7 @@ class BluetoothTracker:
           timestamp,
           calibration_revision,
           identity_revision,
+          motion_class,
           reason="non_finite_filter_reset",
       )
 
@@ -426,6 +460,7 @@ class BluetoothTracker:
     track.last_measured_at = timestamp
     track.calibration_revision = str(calibration_revision)
     track.identity_revision = str(identity_revision)
+    track.motion_class = motion_class
     track.last_quality = dict(raw.get("quality") or {})
     track.last_solver = dict(raw.get("solver") or {})
     track.last_method = str(track.last_quality.get("method") or "unknown")
@@ -464,6 +499,7 @@ class BluetoothTracker:
         synthetic_raw,
         calibration_revision=track.calibration_revision if track else "",
         identity_revision=track.identity_revision if track else "",
+        motion_class=track.motion_class if track else "default",
     )
 
   def _render(
@@ -527,6 +563,8 @@ class BluetoothTracker:
             "identity_revision": track.identity_revision,
             "last_measured_at": _utc(track.last_measured_at).isoformat().replace("+00:00", "Z"),
             "accepted_anchor_ids": list(track.last_anchor_ids),
+            "motion_class": track.motion_class,
+            "motion_limit_mps": _speed_limit(self.config, track.motion_class),
         },
     }
 
