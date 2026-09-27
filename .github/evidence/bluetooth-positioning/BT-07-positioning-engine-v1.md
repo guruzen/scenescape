@@ -43,13 +43,13 @@ Delivered behavior:
 
 The BT-07 solver tests use truth-known range geometry.
 
-| Scenario | Deterministic evidence |
-| --- | --- |
-| Exact four-anchor square | horizontal error < 0.00001 m |
-| Seeded Gaussian noise, 120 solves, σ=0.06 m | P50 < 0.12 m; P95 < 0.30 m |
-| One +4 m low-quality/high-NLOS outlier | horizontal error < 0.35 m |
-| Many-tag solver path, 250 solves, σ=0.05 m | P95 horizontal error < 0.35 m |
-| Observable 3D geometry | 3D Euclidean error < 0.0001 m |
+| Scenario                                    | Deterministic evidence        |
+| ------------------------------------------- | ----------------------------- |
+| Exact four-anchor square                    | horizontal error < 0.00001 m  |
+| Seeded Gaussian noise, 120 solves, σ=0.06 m | P50 < 0.12 m; P95 < 0.30 m    |
+| One +4 m low-quality/high-NLOS outlier      | horizontal error < 0.35 m     |
+| Many-tag solver path, 250 solves, σ=0.05 m  | P95 horizontal error < 0.35 m |
+| Observable 3D geometry                      | 3D Euclidean error < 0.0001 m |
 
 These are simulator/software results only. They are not a real Bluetooth
 hardware accuracy claim; real-site qualification belongs to BT-13.
