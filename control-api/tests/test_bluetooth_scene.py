@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 import jwt
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from scenescape_api.bluetooth_domain import (
     activate_calibration,
