@@ -1,6 +1,7 @@
 # BT-12 — Real Channel Sounding Provider
 
-**Status:** PLANNED  
+**Status:** BLOCKED
+**Blocker:** Real Channel Sounding hardware/vendor SDK and HIL environment are not available in the repository.  
 **Dependencies:** BT-06, BT-10, BT-11  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -55,7 +56,7 @@ Integrate one real Channel Sounding hardware stack through the provider abstract
 - [ ] Known-distance sanity.
 - [ ] Telemetry.
 - [ ] Capacity saturation.
-- [ ] Simulator regression.
+- [x] Simulator regression.
 
 ## Evidence required
 
@@ -67,7 +68,7 @@ Integrate one real Channel Sounding hardware stack through the provider abstract
 ## Acceptance criteria
 
 - [ ] Real measurements flow through solver/tracker.
-- [ ] Core contracts unchanged.
+- [x] Core contracts unchanged.
 - [ ] Recovery graceful.
 - [ ] Capacity visible.
 
@@ -82,9 +83,9 @@ Disable provider deployment; core/simulator remain.
 
 ## Implementation record
 
-- Implementation commit: _not yet recorded_
-- Evidence: _not yet recorded_
-- Known deviations: _none at planning baseline_
+- Implementation commits: `3f7028167350`, `ee2b56c63840`, `0a822f95f10d`
+- Evidence: `.github/evidence/bluetooth-positioning/BT-12-real-channel-sounding-provider.md`
+- Known deviations: The vendor-neutral adapter boundary, scheduler, telemetry normalization and reconnect contracts are implemented and software-tested. No concrete vendor adapter or real Channel Sounding HIL evidence exists, so hardware-specific tests/acceptance remain blocked.
 
 ## Continuation prompt
 
