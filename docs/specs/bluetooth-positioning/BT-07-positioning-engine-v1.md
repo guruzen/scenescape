@@ -1,6 +1,6 @@
 # BT-07 — Positioning Engine v1
 
-**Status:** PLANNED  
+**Status:** COMPLETE  
 **Dependencies:** BT-04, BT-06  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -48,26 +48,26 @@ Compute robust quality-aware 2D/2.5D positions from coherent ranges and calibrat
 
 ## Required tests
 
-- [ ] Exact geometry.
-- [ ] Seeded P50/P95 error.
-- [ ] Outlier/NLOS.
-- [ ] Insufficient/collinear.
-- [ ] 2D vs bad 3D.
-- [ ] NaN/divergence.
-- [ ] Many-tag performance.
+- [x] Exact geometry.
+- [x] Seeded P50/P95 error.
+- [x] Outlier/NLOS.
+- [x] Insufficient/collinear.
+- [x] 2D vs bad 3D.
+- [x] NaN/divergence.
+- [x] Many-tag performance.
 
 ## Evidence required
 
-- [ ] Error table.
-- [ ] Residual/uncertainty samples.
-- [ ] Performance/tests.
+- [x] Error table.
+- [x] Residual/uncertainty samples.
+- [x] Performance/tests.
 
 ## Acceptance criteria
 
-- [ ] Error quantified.
-- [ ] Quality degrades correctly.
-- [ ] No invalid numerics serialized.
-- [ ] Method/version/anchors/uncertainty present.
+- [x] Error quantified.
+- [x] Quality degrades correctly.
+- [x] No invalid numerics serialized.
+- [x] Method/version/anchors/uncertainty present.
 
 ## Out of scope
 
@@ -80,9 +80,9 @@ Disable solver; continue raw collection.
 
 ## Implementation record
 
-- Implementation commit: _not yet recorded_
-- Evidence: _not yet recorded_
-- Known deviations: _none at planning baseline_
+- Implementation commits: `8dac007e2cf1`, `99a1b9f76a5b`, `8acb21e34e1d`, `f25db632531f`, `bfb1c2671335`, `6ca990e90076`, `f85396a3472f`, `fc127e82f4f5`, `509fe29c2ffd`
+- Evidence: `.github/evidence/bluetooth-positioning/BT-07-positioning-engine-v1.md`
+- Known deviations: BT-07 persists the canonical raw solve but does not create a separate external publisher; Live/SSE/scene publication is BT-09. 2.5D is represented as constrained-z 2D (`2d_constrained_z`).
 
 ## Continuation prompt
 
