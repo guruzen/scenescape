@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 
 from scenescape_api.bluetooth_domain import create_anchor, create_provider, create_tag
+import scenescape_api.bluetooth_ingest as bluetooth_ingest_module
 from scenescape_api.bluetooth_ingest import (
     BoundedMeasurementBuffer,
     MeasurementRejected,
@@ -291,6 +292,65 @@ def test_bt06_rejects_nan_impossible_range_and_oversized_metadata(api):
       json=oversized,
   )
   assert response.status_code == 422
+
+
+def test_bt06_malformed_mqtt_payloads_are_rejected_and_counted(api):
+  client, database = api
+  _commission(client, database)
+  now = datetime.now(timezone.utc)
+
+  with database.sessions()() as db:
+    with pytest.raises(MeasurementRejected) as malformed:
+      ingest_mqtt_message(
+          db,
+          "scenescape/data/bluetooth/range/scene-a/anchor-a/tag-a",
+          b"{not-json",
+          now=now,
+      )
+    assert malformed.value.code == "malformed_json"
+
+    with pytest.raises(MeasurementRejected) as oversized:
+      ingest_mqtt_message(
+          db,
+          "scenescape/data/bluetooth/range/scene-a/anchor-a/tag-a",
+          b"x" * (16 * 1024 + 1),
+          now=now,
+      )
+    assert oversized.value.code == "payload_too_large"
+
+  snapshot = metrics.snapshot()
+  assert snapshot["rejected_by_reason"]["malformed_json"] == 1
+  assert snapshot["rejected_by_reason"]["payload_too_large"] == 1
+
+
+def test_bt06_real_backpressure_persists_raw_before_solver_drop(api, monkeypatch):
+  client, database = api
+  _commission(client, database)
+  now = datetime.now(timezone.utc)
+  tiny_buffer = BoundedMeasurementBuffer(1)
+  monkeypatch.setattr(bluetooth_ingest_module, "solver_buffer", tiny_buffer)
+
+  with database.sessions()() as db:
+    first = ingest_measurement(
+        db,
+        _envelope(now=now, session_id="burst", sequence=1),
+        now=now,
+    )
+    second = ingest_measurement(
+        db,
+        _envelope(now=now, session_id="burst", sequence=2),
+        now=now,
+    )
+    db.commit()
+    stored = db.scalars(
+        select(BluetoothMeasurement)
+        .where(BluetoothMeasurement.session_id == "burst")
+        .order_by(BluetoothMeasurement.sequence)
+    ).all()
+
+  assert [row.id for row in stored] == [first.id, second.id]
+  assert len(tiny_buffer) == 1
+  assert metrics.snapshot()["solver_queue_drops"] == 1
 
 
 def test_bt06_duplicate_and_out_of_order_sequences_are_rejected(api):
