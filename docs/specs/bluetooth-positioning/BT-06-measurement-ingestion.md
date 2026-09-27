@@ -1,6 +1,6 @@
 # BT-06 — Measurement Ingestion and Normalization
 
-**Status:** PLANNED  
+**Status:** COMPLETE  
 **Dependencies:** BT-01, BT-05  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -49,24 +49,24 @@ Accept simulated/future provider measurements, validate/normalize them and provi
 
 ## Required tests
 
-- [ ] Simulator E2E.
-- [ ] Malformed/NaN/oversized.
-- [ ] Duplicate/out-of-order.
-- [ ] Cross-scene spoof.
-- [ ] Retention.
-- [ ] Burst/backpressure.
+- [x] Simulator E2E.
+- [x] Malformed/NaN/oversized.
+- [x] Duplicate/out-of-order.
+- [x] Cross-scene spoof.
+- [x] Retention.
+- [x] Burst/backpressure.
 
 ## Evidence required
 
-- [ ] Metrics sample.
-- [ ] Retention sample.
-- [ ] Throughput/tests.
+- [x] Metrics sample.
+- [x] Retention sample.
+- [x] Throughput/tests.
 
 ## Acceptance criteria
 
-- [ ] One normalized contract for sim+real.
-- [ ] Malformed never reaches solver.
-- [ ] Ingress independent of request path.
+- [x] One normalized contract for sim+real.
+- [x] Malformed never reaches solver.
+- [x] Ingress independent of request path.
 
 ## Out of scope
 
@@ -79,9 +79,9 @@ Disable subscriptions/API; TTL cleans raw data.
 
 ## Implementation record
 
-- Implementation commit: _not yet recorded_
-- Evidence: _not yet recorded_
-- Known deviations: _none at planning baseline_
+- Implementation commits: `03c240f4ac60`, `71413b9da721`, `365bbfe342c2`, `9e00203f9091`, `271d0ccd5f24`, `ca9ca9db6cbf`, `302167baf50c`, `c48363fef3ea`, `770e47a1b084`, `fc17f3434ace`, `95fc9ec4179b`
+- Evidence: `.github/evidence/bluetooth-positioning/BT-06-measurement-ingestion.md`
+- Known deviations: BT-06 establishes bounded functional backpressure and retention evidence but does not declare a production throughput support envelope; measured production capacity is deferred to BT-16.
 
 ## Continuation prompt
 
