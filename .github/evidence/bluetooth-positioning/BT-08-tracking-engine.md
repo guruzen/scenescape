@@ -90,11 +90,11 @@ With:
 
 and the last measured fix at t=3 s:
 
-| Event time | Output state | Behavior |
-| --- | --- | --- |
-| t=4 s | predicted | bounded constant-velocity prediction |
-| t=6 s | stale | prediction retained but visibly stale |
-| t=8 s | unavailable | coordinate removed and track expired |
+| Event time | Output state | Behavior                              |
+| ---------- | ------------ | ------------------------------------- |
+| t=4 s      | predicted    | bounded constant-velocity prediction  |
+| t=6 s      | stale        | prediction retained but visibly stale |
+| t=8 s      | unavailable  | coordinate removed and track expired  |
 
 Predicted output includes `tracker.predicted=true` and retains the last
 measured timestamp and contributing anchor provenance.
@@ -124,7 +124,7 @@ BLUETOOTH_TRACKER_MOTION_LIMITS_JSON
 Example:
 
 ```json
-{"person": 2.2, "vehicle": 12.0, "asset": 4.0}
+{ "person": 2.2, "vehicle": 12.0, "asset": 4.0 }
 ```
 
 An active tag assignment's `entity_type` becomes the motion class. Unknown or
