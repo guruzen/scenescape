@@ -139,7 +139,7 @@ def test_bt16_full_schema_rollback_refuses_any_populated_bluetooth_table(db):
 def test_bt01_schema_downgrade_refuses_silent_bluetooth_data_loss(db):
   create_provider(db, {"uid": "provider-a", "name": "Provider A"}, "admin")
   db.commit()
-  with pytest.raises(RuntimeError, match="Refusing Bluetooth schema downgrade"):
+  with pytest.raises(RuntimeError, match=r"Refusing Bluetooth(?: BT-01)? schema downgrade"):
     downgrade_bt01(db.get_bind())
 
 
