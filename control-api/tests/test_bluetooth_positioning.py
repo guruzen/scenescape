@@ -4,12 +4,20 @@
 import math
 import random
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pytest
 
-from scenescape_api.bluetooth_positioning import SolverConfig, solve_ranges
+from sqlalchemy import select
+
+from scenescape_api.bluetooth_positioning import (
+    SolverConfig,
+    coherent_measurements,
+    persist_raw_solve,
+    solve_ranges,
+)
+from scenescape_api.database import Base, BluetoothMeasurement, BluetoothRawPosition
 
 
 def _calibrations(points):
@@ -188,6 +196,122 @@ def test_bt07_non_finite_measurements_never_serialize_invalid_position():
       for value in result["quality"].values()
       if isinstance(value, (int, float))
   )
+
+
+@pytest.fixture
+def bt07_db(tmp_path, monkeypatch):
+  monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path}/bt07.db")
+  import scenescape_api.database as database
+
+  if database._engine is not None:
+    database._engine.dispose()
+  database._engine = None
+  database._Session = None
+  engine = database.get_engine()
+  Base.metadata.create_all(engine)
+  session = database.sessions()()
+  yield session
+  session.close()
+  engine.dispose()
+  database._engine = None
+  database._Session = None
+
+
+def _stored_measurement(anchor_id, timestamp, sequence, distance):
+  return BluetoothMeasurement(
+      scene_id="scene-a",
+      anchor_uid=anchor_id,
+      tag_uid="tag-1",
+      provider_id="provider-a",
+      session_id="bt07-window",
+      sequence=sequence,
+      source_timestamp=timestamp,
+      ingested_at=timestamp,
+      method="channel_sounding",
+      distance_m=distance,
+      distance_stddev_m=0.05,
+      nlos_probability=0.0,
+      quality=0.98,
+      provider_details={},
+  )
+
+
+def test_bt07_coherent_window_uses_latest_epoch_and_newest_range_per_anchor(bt07_db):
+  base = datetime(2026, 9, 26, 10, 0, tzinfo=timezone.utc)
+  bt07_db.add_all([
+      # Stale measurement outside the 250 ms solve window.
+      _stored_measurement("a1", base, 1, 10.0),
+      # Two current measurements from the same anchor; only the newest survives.
+      _stored_measurement("a1", base + timedelta(milliseconds=900), 2, 4.2),
+      _stored_measurement("a1", base + timedelta(milliseconds=1000), 3, 4.0),
+      _stored_measurement("a2", base + timedelta(milliseconds=930), 4, 5.0),
+      _stored_measurement("a3", base + timedelta(milliseconds=970), 5, 6.0),
+  ])
+  bt07_db.commit()
+
+  rows = coherent_measurements(
+      bt07_db,
+      "scene-a",
+      "tag-1",
+      window_ms=250,
+  )
+
+  assert [row.anchor_uid for row in rows] == ["a1", "a2", "a3"]
+  a1 = next(row for row in rows if row.anchor_uid == "a1")
+  assert a1.sequence == 3
+  assert a1.distance_m == pytest.approx(4.0)
+  assert all(row.source_timestamp >= base + timedelta(milliseconds=750) for row in rows)
+
+
+def test_bt07_minimum_supported_geometry_is_explicitly_degraded():
+  anchors = [(0, 0, 3), (10, 0, 3), (0, 10, 3)]
+  truth = (3.0, 4.0, 1.0)
+  result = solve_ranges(
+      _measurements(anchors, truth),
+      _calibrations(anchors),
+      SolverConfig(fixed_z_m=1.0),
+  )
+
+  assert result["state"] == "degraded"
+  assert result["quality"]["state"] == "degraded"
+  assert result["quality"]["anchors_visible"] == 3
+  assert result["quality"]["anchors_used"] == 3
+  assert result["quality"]["horizontal_uncertainty_m"] is not None
+  assert result["quality"]["gdop"] is not None
+  assert result["quality"]["method"] == "channel_sounding"
+  assert result["solver"] == {"name": "robust-wls", "version": "1"}
+  assert _error(result, truth) < 1e-5
+
+
+def test_bt07_raw_solve_persistence_keeps_quality_anchor_and_solver_provenance(bt07_db):
+  anchors = [(0, 0, 3), (10, 0, 3), (10, 10, 3), (0, 10, 3)]
+  truth = (4.0, 3.0, 1.0)
+  result = solve_ranges(
+      _measurements(anchors, truth),
+      _calibrations(anchors),
+      SolverConfig(fixed_z_m=1.0),
+  )
+
+  row = persist_raw_solve(bt07_db, "scene-a", "tag-1", result)
+  bt07_db.commit()
+  stored = bt07_db.scalar(
+      select(BluetoothRawPosition).where(BluetoothRawPosition.id == row.id)
+  )
+
+  assert stored is not None
+  assert stored.state == "good"
+  assert stored.dimension == "2d_constrained_z"
+  assert stored.method == "channel_sounding"
+  assert stored.solver_name == "robust-wls"
+  assert stored.solver_version == "1"
+  assert stored.anchors_visible == 4
+  assert stored.anchors_used == 4
+  assert stored.horizontal_uncertainty_m is not None
+  assert stored.residual_rms_m is not None
+  assert stored.gdop is not None
+  assert len(stored.diagnostics["accepted_anchors"]) == 4
+  assert stored.diagnostics["rejected_anchors"] == []
+  assert stored.diagnostics["dimension_reason"] == "auto_2d_constrained_z"
 
 
 def test_bt07_many_tag_solver_path_has_bounded_runtime():
