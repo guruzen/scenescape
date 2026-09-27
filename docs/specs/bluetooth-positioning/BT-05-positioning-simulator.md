@@ -1,6 +1,6 @@
 # BT-05 — Deterministic Positioning Simulator
 
-**Status:** PLANNED  
+**Status:** COMPLETE  
 **Dependencies:** BT-04  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -44,22 +44,22 @@ Generate reproducible truth-known trajectories and ranging faults before real ha
 
 ## Required tests
 
-- [ ] Seed reproducibility.
-- [ ] Noise/loss/NLOS.
-- [ ] Truth interpolation.
-- [ ] Scenario validation.
+- [x] Seed reproducibility.
+- [x] Noise/loss/NLOS.
+- [x] Truth interpolation.
+- [x] Scenario validation.
 
 ## Evidence required
 
-- [ ] Scenario files.
-- [ ] Truth vs noisy range evidence.
-- [ ] Tests.
+- [x] Scenario files.
+- [x] Truth vs noisy range evidence.
+- [x] Tests.
 
 ## Acceptance criteria
 
-- [ ] Same seed=same data.
-- [ ] All failure modes available.
-- [ ] Solver cannot access hidden truth.
+- [x] Same seed=same data.
+- [x] All failure modes available.
+- [x] Solver cannot access hidden truth.
 
 ## Out of scope
 
@@ -72,9 +72,9 @@ Remove simulator without production impact.
 
 ## Implementation record
 
-- Implementation commit: _not yet recorded_
-- Evidence: _not yet recorded_
-- Known deviations: _none at planning baseline_
+- Implementation commits: `ee76196bb71a`, `5118f32c92ab`, `9576ce4dc5d6`, `b675d2a9f500`, `bdffbf09dc99`
+- Evidence: `.github/evidence/bluetooth-positioning/BT-05-positioning-simulator.md`
+- Known deviations: Canonical scenario classes are consolidated into three versioned JSON scenarios rather than one file per scenario class. `warehouse-walk-nlos` combines walk/NLOS/outage/fault cases and `forklift-edge` combines forklift/edge geometry. The normalized range envelope was later aligned with BT-06 in `6a607e01a78b`.
 
 ## Continuation prompt
 
