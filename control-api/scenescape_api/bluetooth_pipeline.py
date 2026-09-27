@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime
 from typing import Any
@@ -22,6 +23,27 @@ from .database import (
 )
 
 
+def _motion_limits_from_env() -> dict[str, float]:
+  raw = os.getenv("BLUETOOTH_TRACKER_MOTION_LIMITS_JSON", "").strip()
+  if not raw:
+    return {}
+  try:
+    value = json.loads(raw)
+  except json.JSONDecodeError:
+    return {}
+  if not isinstance(value, dict):
+    return {}
+  result: dict[str, float] = {}
+  for key, candidate in value.items():
+    try:
+      speed = float(candidate)
+    except (TypeError, ValueError):
+      continue
+    if speed > 0.0:
+      result[str(key).strip().lower()] = speed
+  return result
+
+
 _tracker = BluetoothTracker(
     TrackerConfig(
         max_tracks=max(1, int(os.getenv("BLUETOOTH_TRACKER_MAX_TRACKS", "10000"))),
@@ -33,6 +55,7 @@ _tracker = BluetoothTracker(
             0.2,
             float(os.getenv("BLUETOOTH_TRACKER_STALE_HORIZON_S", "5")),
         ),
+        motion_limits_mps=_motion_limits_from_env(),
     )
 )
 _spatial = BluetoothSpatialAdapter()
@@ -64,11 +87,11 @@ def calibration_revision_token(db, scene_id: str) -> str:
   )
 
 
-def identity_revision_token(
+def identity_context(
     db,
     tag_id: str,
     at: datetime,
-) -> str:
+) -> tuple[str, str]:
   row = db.scalar(
       select(BluetoothAssignment)
       .where(
@@ -83,8 +106,17 @@ def identity_revision_token(
       .limit(1)
   )
   if row is None:
-    return f"tag:{tag_id}:unassigned"
-  return f"assignment:{row.uid}:{row.revision}"
+    return f"tag:{tag_id}:unassigned", "default"
+  return f"assignment:{row.uid}:{row.revision}", str(row.entity_type or "default")
+
+
+def identity_revision_token(
+    db,
+    tag_id: str,
+    at: datetime,
+) -> str:
+  revision, _motion_class = identity_context(db, tag_id, at)
+  return revision
 
 
 def process_measurement_id(
@@ -109,7 +141,7 @@ def process_measurement_id(
   metrics["raw_solves"] += 1
 
   calibration_revision = calibration_revision_token(db, measurement.scene_id)
-  identity_revision = identity_revision_token(
+  identity_revision, motion_class = identity_context(
       db,
       measurement.tag_uid,
       measurement.source_timestamp,
@@ -120,6 +152,7 @@ def process_measurement_id(
       result,
       calibration_revision=calibration_revision,
       identity_revision=identity_revision,
+      motion_class=motion_class,
   )
   tracked_row = persist_tracked_position(db, tracked)
   metrics["tracked_positions"] += 1
