@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Any, Mapping
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 
@@ -226,12 +226,19 @@ def parse_mqtt_range_topic(topic: str) -> tuple[str, str, str]:
 
 def mqtt_envelope(topic: str, payload: Mapping[str, Any]) -> RangeEnvelope:
   scene_id, anchor_id, tag_id = parse_mqtt_range_topic(topic)
-  return RangeEnvelope.model_validate({
-      "scene_id": scene_id,
-      "anchor_id": anchor_id,
-      "tag_id": tag_id,
-      "payload": dict(payload),
-  })
+  try:
+    return RangeEnvelope.model_validate({
+        "scene_id": scene_id,
+        "anchor_id": anchor_id,
+        "tag_id": tag_id,
+        "payload": dict(payload),
+    })
+  except ValidationError as exc:
+    _reject(
+        "invalid_payload",
+        "Bluetooth range payload failed normalized schema validation",
+    )
+    raise AssertionError("unreachable") from exc
 
 
 def _configured_entities(db, envelope: RangeEnvelope):
