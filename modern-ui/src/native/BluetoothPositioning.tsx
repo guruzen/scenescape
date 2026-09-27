@@ -104,11 +104,14 @@ const telemetryFreshness = (telemetry: BluetoothTelemetry | null) => {
 };
 
 const telemetryBattery = (telemetry: BluetoothTelemetry | null) => {
-  if (!telemetry || telemetry.battery.percent === null || telemetry.battery.percent === undefined)
+  if (
+    !telemetry ||
+    telemetry.battery.percent === null ||
+    telemetry.battery.percent === undefined
+  )
     return "Unknown";
   return `${Math.round(Number(telemetry.battery.percent))}% · ${stateLabel(telemetry.battery.status)}`;
 };
-
 
 function StatusBadge({ state }: { state: string }) {
   return (
@@ -814,25 +817,39 @@ export default function BluetoothPositioning({
                 <div className="bt-readout-grid">
                   <div>
                     <span>Telemetry</span>
-                    <b>{deviceTelemetry ? stateLabel(deviceTelemetry.battery.status) : "Unknown"}</b>
+                    <b>
+                      {deviceTelemetry
+                        ? stateLabel(deviceTelemetry.battery.status)
+                        : "Unknown"}
+                    </b>
                     <small>{telemetryFreshness(deviceTelemetry)}</small>
                   </div>
                   <div>
                     <span>Firmware</span>
-                    <b>{deviceTelemetry?.device_information.firmware_revision || selectedAnchor?.firmware_revision || "Unknown"}</b>
+                    <b>
+                      {deviceTelemetry?.device_information.firmware_revision ||
+                        selectedAnchor?.firmware_revision ||
+                        "Unknown"}
+                    </b>
                     <small>
-                      {deviceTelemetry ? `Source ${deviceTelemetry.source}` : "No device telemetry received."}
+                      {deviceTelemetry
+                        ? `Source ${deviceTelemetry.source}`
+                        : "No device telemetry received."}
                     </small>
                   </div>
                   <div>
                     <span>Battery</span>
                     <b>{telemetryBattery(deviceTelemetry)}</b>
-                    <small>Unknown is distinct from a measured 0% battery.</small>
+                    <small>
+                      Unknown is distinct from a measured 0% battery.
+                    </small>
                   </div>
                   <div>
                     <span>Calibration</span>
                     <b>Configured separately</b>
-                    <small>Map calibration is managed in the Calibration tab.</small>
+                    <small>
+                      Map calibration is managed in the Calibration tab.
+                    </small>
                   </div>
                 </div>
 
@@ -1046,22 +1063,52 @@ export default function BluetoothPositioning({
             <div className="bt-readout-grid">
               <div>
                 <span>Battery</span>
-                <b>{deviceTelemetry ? telemetryBattery(deviceTelemetry) : selectedTag ? batteryText(selectedTag) : "Unknown"}</b>
-                <small>{deviceTelemetry ? telemetryFreshness(deviceTelemetry) : selectedTag?.battery?.observed_at ? `Observed ${displayTime(selectedTag.battery.observed_at)}` : "No battery telemetry received."}</small>
+                <b>
+                  {deviceTelemetry
+                    ? telemetryBattery(deviceTelemetry)
+                    : selectedTag
+                      ? batteryText(selectedTag)
+                      : "Unknown"}
+                </b>
+                <small>
+                  {deviceTelemetry
+                    ? telemetryFreshness(deviceTelemetry)
+                    : selectedTag?.battery?.observed_at
+                      ? `Observed ${displayTime(selectedTag.battery.observed_at)}`
+                      : "No battery telemetry received."}
+                </small>
               </div>
               <div>
                 <span>Telemetry source</span>
-                <b>{deviceTelemetry?.source || selectedTag?.battery?.source || "Unknown"}</b>
-                <small>Provider/gateway telemetry only; no browser BLE pairing.</small>
+                <b>
+                  {deviceTelemetry?.source ||
+                    selectedTag?.battery?.source ||
+                    "Unknown"}
+                </b>
+                <small>
+                  Provider/gateway telemetry only; no browser BLE pairing.
+                </small>
               </div>
               <div>
                 <span>Firmware</span>
-                <b>{deviceTelemetry?.device_information.firmware_revision || selectedTag?.firmware_revision || "Unknown"}</b>
-                <small>{deviceTelemetry?.device_information.model || selectedTag?.model || "Model unknown"}</small>
+                <b>
+                  {deviceTelemetry?.device_information.firmware_revision ||
+                    selectedTag?.firmware_revision ||
+                    "Unknown"}
+                </b>
+                <small>
+                  {deviceTelemetry?.device_information.model ||
+                    selectedTag?.model ||
+                    "Model unknown"}
+                </small>
               </div>
               <div>
                 <span>Last seen</span>
-                <b>{selectedTag ? displayTime(selectedTag.last_seen_at) : "Unknown"}</b>
+                <b>
+                  {selectedTag
+                    ? displayTime(selectedTag.last_seen_at)
+                    : "Unknown"}
+                </b>
                 <small>Telemetry is read-only in this management UI.</small>
               </div>
             </div>

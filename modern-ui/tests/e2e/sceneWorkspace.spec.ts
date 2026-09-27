@@ -1178,7 +1178,6 @@ test("BT-09 Bluetooth live layer renders in 2D and 3D with provenance", async ({
   await screenshot(page, testInfo, "bt09-live-3d.png");
 });
 
-
 test("BT-10 device telemetry shows battery freshness provenance and firmware", async ({
   page,
 }, testInfo) => {
