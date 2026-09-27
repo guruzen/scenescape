@@ -1,6 +1,7 @@
 # BT-16 — Production Hardening and Release
 
-**Status:** PLANNED  
+**Status:** BLOCKED  
+**Blocker:** BT-12/BT-13 real-provider and real-site qualification remain incomplete; final release scans, soak/fault and rollback evidence are also outstanding.  
 **Dependencies:** BT-13, BT-14, BT-15  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -64,8 +65,8 @@ Qualify complete subsystem for supported production scale, resilience, security,
 - [ ] Release readiness report.
 - [ ] Performance/soak charts.
 - [ ] Rollback evidence.
-- [ ] Threat model/scans.
-- [ ] Known limitations/support matrix.
+- [ ] Threat model/scans. Threat model exists; final release scans remain outstanding.
+- [x] Known limitations/support matrix.
 
 ## Acceptance criteria
 
@@ -73,8 +74,8 @@ Qualify complete subsystem for supported production scale, resilience, security,
 - [ ] Scale meets documented targets.
 - [ ] Upgrade+rollback demonstrated.
 - [ ] No unresolved critical/high release issue.
-- [ ] Runbook complete.
-- [ ] Disable path preserves existing SceneScape.
+- [x] Runbook complete.
+- [x] Disable path preserves existing SceneScape.
 
 ## Out of scope
 
@@ -86,9 +87,9 @@ Documented Helm rollback and feature-disable path preserving DB/config.
 
 ## Implementation record
 
-- Implementation commit: _not yet recorded_
-- Evidence: _not yet recorded_
-- Known deviations: _none at planning baseline_
+- Implementation commits: `3cfab3416b57`, `0b6980479f7d`, `edbf8f2a7e53`, `fe244a5bc655`, `eafa15863bdd`, `c498009dcbe5`, `400280e5bea1`, `b83f56ee769d`
+- Evidence: `.github/evidence/bluetooth-positioning/BT-16-production-hardening.md`
+- Known deviations: Hardening foundations are implemented, but production-scale soak/fault/rollback/security evidence and all BT-12/BT-13 release prerequisites remain open.
 
 ## Continuation prompt
 
