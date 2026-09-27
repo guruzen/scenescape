@@ -1083,7 +1083,6 @@ test("BT-04 anchor calibration smoke: map pixels become metres and revisions are
   await screenshot(page, testInfo, "bt04-anchor-calibration.png");
 });
 
-
 test("BT-09 Bluetooth live layer renders in 2D and 3D with provenance", async ({
   page,
 }, testInfo) => {
@@ -1132,10 +1131,18 @@ test("BT-09 Bluetooth live layer renders in 2D and 3D with provenance", async ({
   const btBundle = { ...bundle, bluetooth_anchors: [btAnchor] };
 
   await page.route("**/api/v2/scenes/scene-a/bundle", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(btBundle) }),
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(btBundle),
+    }),
   );
   await page.route("**/api/v2/scenes/scene-a/live", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(btLive) }),
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(btLive),
+    }),
   );
   await page.route("**/api/v2/scenes/scene-a/live/stream", (route) =>
     route.fulfill({
