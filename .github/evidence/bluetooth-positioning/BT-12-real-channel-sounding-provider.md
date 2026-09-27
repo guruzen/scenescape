@@ -275,14 +275,14 @@ Any unresolved critical/high vulnerability remains a release blocker.
 
 - [ ] HIL smoke — **blocked: no real hardware/vendor adapter**.
 - [ ] Multi-tag scheduling — software scheduler tested; real capacity HIL
-  still required.
+      still required.
 - [ ] Reconnect/reboot — process contract tested; real gateway/device reboot
-  HIL still required.
+      HIL still required.
 - [ ] Known-distance sanity — **blocked: no real hardware**.
 - [ ] Telemetry — normalization tested; real-device telemetry HIL still
-  required.
+      required.
 - [ ] Capacity saturation — software capacity logic tested; real saturation
-  HIL still required.
+      HIL still required.
 - [x] Simulator regression — 14 tests passed in focused BT-12 gate.
 
 ## Acceptance status
