@@ -1,6 +1,6 @@
 # BT-10 — Device and Battery Telemetry
 
-**Status:** PLANNED  
+**Status:** COMPLETE  
 **Dependencies:** BT-02, BT-06  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -47,25 +47,25 @@ Populate trustworthy battery/device/firmware health from standard Bluetooth serv
 
 ## Required tests
 
-- [ ] Standard service fixtures.
-- [ ] Vendor fixture.
-- [ ] Unknown/stale/0% distinction.
-- [ ] Thresholds.
-- [ ] Permissions.
-- [ ] Cache/polling.
+- [x] Standard service fixtures.
+- [x] Vendor fixture.
+- [x] Unknown/stale/0% distinction.
+- [x] Thresholds.
+- [x] Permissions.
+- [x] Cache/polling.
 
 ## Evidence required
 
-- [ ] UI screenshots.
-- [ ] Normalized samples.
-- [ ] Tests.
+- [x] UI screenshots.
+- [x] Normalized samples.
+- [x] Tests.
 
 ## Acceptance criteria
 
-- [ ] Battery has provenance/freshness.
-- [ ] Missing standard service does not block commissioning.
-- [ ] Low-battery state works.
-- [ ] No secrets.
+- [x] Battery has provenance/freshness.
+- [x] Missing standard service does not block commissioning.
+- [x] Low-battery state works.
+- [x] No secrets.
 
 ## Out of scope
 
