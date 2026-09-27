@@ -402,3 +402,79 @@ def test_bt08_persisted_track_retains_velocity_versions_and_provenance(bt08_db):
   assert stored.provenance["identity_revision"] == "assign-9"
   assert stored.provenance["accepted_anchor_ids"] == ["a1", "a2", "a3", "a4"]
   assert stored.provenance["reason"] == "measurement_update"
+
+
+
+def test_bt08_tag_class_motion_limits_change_impossible_jump_gate():
+  config = TrackerConfig(
+      max_speed_mps=20.0,
+      max_jump_margin_m=0.5,
+      motion_limits_mps={"person": 2.0, "vehicle": 10.0},
+  )
+
+  person = BluetoothTracker(config)
+  person.update(
+      "scene-a",
+      "tag-person",
+      _raw(0, x=0.0, y=0.0),
+      calibration_revision="cal-1",
+      identity_revision="assign-person",
+      motion_class="person",
+  )
+  person_result = person.update(
+      "scene-a",
+      "tag-person",
+      _raw(1, x=5.0, y=0.0),
+      calibration_revision="cal-1",
+      identity_revision="assign-person",
+      motion_class="person",
+  )
+  assert person_result["provenance"]["reason"] == "impossible_jump_reset"
+  assert person_result["provenance"]["motion_class"] == "person"
+  assert person_result["provenance"]["motion_limit_mps"] == pytest.approx(2.0)
+
+  vehicle = BluetoothTracker(config)
+  vehicle.update(
+      "scene-a",
+      "tag-vehicle",
+      _raw(0, x=0.0, y=0.0),
+      calibration_revision="cal-1",
+      identity_revision="assign-vehicle",
+      motion_class="vehicle",
+  )
+  vehicle_result = vehicle.update(
+      "scene-a",
+      "tag-vehicle",
+      _raw(1, x=5.0, y=0.0),
+      calibration_revision="cal-1",
+      identity_revision="assign-vehicle",
+      motion_class="vehicle",
+  )
+  assert vehicle_result["provenance"]["reason"] == "measurement_update"
+  assert vehicle_result["provenance"]["motion_limit_mps"] == pytest.approx(10.0)
+
+
+def test_bt08_motion_class_change_resets_filter():
+  tracker = BluetoothTracker(
+      TrackerConfig(motion_limits_mps={"person": 3.0, "vehicle": 12.0})
+  )
+  tracker.update(
+      "scene-a",
+      "tag-a",
+      _raw(0, x=1.0, y=1.0),
+      calibration_revision="cal-1",
+      identity_revision="assign-1",
+      motion_class="person",
+  )
+  changed = tracker.update(
+      "scene-a",
+      "tag-a",
+      _raw(1, x=2.0, y=1.0),
+      calibration_revision="cal-1",
+      identity_revision="assign-1",
+      motion_class="vehicle",
+  )
+
+  assert changed["provenance"]["reason"] == "motion_class_changed"
+  assert changed["provenance"]["motion_class"] == "vehicle"
+  assert tracker.metrics["resets"] == 1
