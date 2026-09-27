@@ -1177,3 +1177,60 @@ test("BT-09 Bluetooth live layer renders in 2D and 3D with provenance", async ({
   await expect(page.locator(".three-canvas")).toBeVisible();
   await screenshot(page, testInfo, "bt09-live-3d.png");
 });
+
+
+test("BT-10 device telemetry shows battery freshness provenance and firmware", async ({
+  page,
+}, testInfo) => {
+  await page.route("**/api/v2/bluetooth/tags/*/telemetry", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        device_type: "tag",
+        device_id: "tag-1",
+        telemetry: {
+          id: 17,
+          device_type: "tag",
+          device_id: "tag-1",
+          provider_id: "fixture-provider",
+          source: "bluetooth_standard_services",
+          observed_at: "2026-09-27T03:40:00Z",
+          ingested_at: "2026-09-27T03:40:01Z",
+          freshness: { age_s: 18, stale: false },
+          battery: { percent: 7, voltage_v: 2.81, status: "critical" },
+          device_information: {
+            manufacturer: "Example",
+            model: "CS-Tag",
+            hardware_revision: "A",
+            firmware_revision: "1.4.0",
+          },
+          details: {
+            battery_service_present: true,
+            device_information_service_present: true,
+          },
+        },
+      }),
+    }),
+  );
+
+  await page.goto("/tests/e2e/index.html#/bluetooth");
+  await page.getByRole("tab", { name: "Tags" }).click();
+  await page.getByRole("button", { name: "New tag" }).click();
+  await page.getByLabel("Serial number").fill("TAG-BT10-01");
+  await page
+    .locator(".bt-editor-panel")
+    .getByLabel("Provider ID")
+    .fill("fixture-provider");
+  await page.getByRole("button", { name: "Commission tag" }).click();
+
+  await expect(page.getByText("7% · critical", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Fresh · observed/)).toBeVisible();
+  await expect(
+    page.getByText("bluetooth_standard_services", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("1.4.0", { exact: true })).toBeVisible();
+  await expect(page.getByText("CS-Tag", { exact: true })).toBeVisible();
+
+  await screenshot(page, testInfo, "bt10-device-telemetry.png");
+});
