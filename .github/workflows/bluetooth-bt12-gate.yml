@@ -1,0 +1,60 @@
+---
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+name: "[Bluetooth] BT-12 Provider Readiness"
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - feature/react-keycloak-modern-ui
+    paths:
+      - "control-api/scenescape_api/bluetooth_provider.py"
+      - "control-api/scenescape_api/bluetooth_ingest.py"
+      - "control-api/scenescape_api/bluetooth_telemetry.py"
+      - "control-api/tests/test_bluetooth_provider.py"
+      - "control-api/tests/test_bluetooth_simulator.py"
+      - "docs/specs/bluetooth-positioning/BT-12-real-channel-sounding-provider.md"
+      - ".github/evidence/bluetooth-positioning/BT-12-real-channel-sounding-provider.md"
+      - ".github/workflows/bluetooth-bt12-gate.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bluetooth-bt12-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  provider-contract:
+    name: "BT-12 provider software readiness"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Create Python environment
+        run: |
+          python3 -m venv .venv-bt12
+          . .venv-bt12/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r control-api/requirements.txt -r control-api/requirements-test.txt
+      - name: Compile provider boundary
+        env:
+          PYTHONPATH: control-api
+        run: |
+          . .venv-bt12/bin/activate
+          python -m compileall -q control-api/scenescape_api/bluetooth_provider.py
+      - name: Run provider contract tests
+        env:
+          PYTHONPATH: control-api
+        run: |
+          . .venv-bt12/bin/activate
+          pytest -q control-api/tests/test_bluetooth_provider.py
+      - name: Run simulator non-regression
+        env:
+          PYTHONPATH: control-api
+        run: |
+          . .venv-bt12/bin/activate
+          pytest -q control-api/tests/test_bluetooth_simulator.py

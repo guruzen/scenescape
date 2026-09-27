@@ -1,0 +1,40 @@
+{{- if and .Values.bluetooth.enabled .Values.bluetooth.retention.enabled }}
+{{- $name := include "native.name" . -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}-bluetooth-retention
+spec:
+  schedule: {{ .Values.bluetooth.retention.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels: {app: "{{ $name }}-bluetooth-retention"}
+        spec:
+          restartPolicy: Never
+          securityContext: {fsGroup: 1000}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets: {{ toYaml . | nindent 10 }}
+          {{- end }}
+          containers:
+            - name: retention
+              image: {{ .Values.api.image | quote }}
+              imagePullPolicy: {{ .Values.api.imagePullPolicy }}
+              args: [retention]
+              env:
+                {{- include "native.dbEnv" . | nindent 16 }}
+                - {name: BLUETOOTH_RAW_RETENTION_S, value: {{ .Values.bluetooth.retention.rawMeasurementSeconds | quote }}}
+                - {name: BLUETOOTH_RAW_POSITION_RETENTION_S, value: {{ .Values.bluetooth.retention.rawPositionSeconds | quote }}}
+                - {name: BLUETOOTH_TRACKED_POSITION_RETENTION_S, value: {{ .Values.bluetooth.retention.trackedPositionSeconds | quote }}}
+                - {name: BLUETOOTH_DEVICE_TELEMETRY_RETENTION_S, value: {{ .Values.bluetooth.retention.deviceTelemetrySeconds | quote }}}
+              resources:
+                requests: {cpu: 50m, memory: 64Mi}
+                limits: {cpu: 500m, memory: 256Mi}
+              securityContext:
+                {{- include "native.security" . | nindent 16 }}
+{{- end }}

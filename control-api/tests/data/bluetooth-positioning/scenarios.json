@@ -1,0 +1,95 @@
+{
+  "schema_version": "1.0",
+  "scenarios": [
+    {
+      "name": "static-center",
+      "scene_id": "bt-demo",
+      "seed": 101,
+      "duration_s": 10.0,
+      "step_s": 0.5,
+      "anchors": [
+        { "anchor_id": "a-nw", "x_m": 0.0, "y_m": 0.0, "z_m": 3.0 },
+        { "anchor_id": "a-ne", "x_m": 12.0, "y_m": 0.0, "z_m": 3.0 },
+        { "anchor_id": "a-se", "x_m": 12.0, "y_m": 8.0, "z_m": 3.0 },
+        { "anchor_id": "a-sw", "x_m": 0.0, "y_m": 8.0, "z_m": 3.0 }
+      ],
+      "tags": [
+        {
+          "tag_id": "tag-static",
+          "trajectory": [
+            { "t_s": 0.0, "x_m": 6.0, "y_m": 4.0, "z_m": 1.0 },
+            { "t_s": 10.0, "x_m": 6.0, "y_m": 4.0, "z_m": 1.0 }
+          ]
+        }
+      ],
+      "faults": { "noise_stddev_m": 0.04 }
+    },
+    {
+      "name": "warehouse-walk-nlos",
+      "scene_id": "bt-demo",
+      "seed": 202,
+      "duration_s": 20.0,
+      "step_s": 0.2,
+      "mode": "accelerated",
+      "speed": 10.0,
+      "anchors": [
+        { "anchor_id": "a-nw", "x_m": 0.0, "y_m": 0.0, "z_m": 3.0 },
+        { "anchor_id": "a-ne", "x_m": 12.0, "y_m": 0.0, "z_m": 3.0 },
+        { "anchor_id": "a-se", "x_m": 12.0, "y_m": 8.0, "z_m": 3.0 },
+        { "anchor_id": "a-sw", "x_m": 0.0, "y_m": 8.0, "z_m": 3.0 }
+      ],
+      "tags": [
+        {
+          "tag_id": "tag-walker",
+          "battery_start_percent": 48.0,
+          "battery_drain_percent_per_hour": 2.0,
+          "trajectory": [
+            { "t_s": 0.0, "x_m": 1.0, "y_m": 1.0, "z_m": 1.0 },
+            { "t_s": 10.0, "x_m": 6.0, "y_m": 7.0, "z_m": 1.0 },
+            { "t_s": 20.0, "x_m": 11.0, "y_m": 1.0, "z_m": 1.0 }
+          ]
+        }
+      ],
+      "faults": {
+        "noise_stddev_m": 0.08,
+        "nlos_probability": 0.15,
+        "nlos_bias_m": 0.8,
+        "outlier_probability": 0.02,
+        "outlier_bias_m": 2.5,
+        "packet_loss_probability": 0.03,
+        "jitter_stddev_s": 0.01,
+        "out_of_order_probability": 0.03,
+        "outage_windows": [
+          { "anchor_id": "a-sw", "start_s": 8.0, "end_s": 12.0 }
+        ]
+      }
+    },
+    {
+      "name": "forklift-edge",
+      "scene_id": "bt-demo",
+      "seed": 303,
+      "duration_s": 15.0,
+      "step_s": 0.1,
+      "anchors": [
+        { "anchor_id": "a-nw", "x_m": 0.0, "y_m": 0.0, "z_m": 4.5 },
+        { "anchor_id": "a-ne", "x_m": 24.0, "y_m": 0.0, "z_m": 4.5 },
+        { "anchor_id": "a-se", "x_m": 24.0, "y_m": 14.0, "z_m": 4.5 },
+        { "anchor_id": "a-sw", "x_m": 0.0, "y_m": 14.0, "z_m": 4.5 }
+      ],
+      "tags": [
+        {
+          "tag_id": "tag-forklift",
+          "trajectory": [
+            { "t_s": 0.0, "x_m": 2.0, "y_m": 7.0, "z_m": 1.4 },
+            { "t_s": 7.5, "x_m": 22.5, "y_m": 12.5, "z_m": 1.4 },
+            { "t_s": 15.0, "x_m": 22.5, "y_m": 2.0, "z_m": 1.4 }
+          ]
+        }
+      ],
+      "faults": {
+        "noise_stddev_m": 0.06,
+        "packet_loss_probability": 0.01
+      }
+    }
+  ]
+}

@@ -53,3 +53,26 @@ SPDX-FileCopyrightText = [
   "(C) 2025 Intel Corporation"
 ]
 SPDX-License-Identifier = "Apache-2.0 AND BSD-3-Clause"
+
+[[annotations]]
+path = [
+  "control-api/**",
+  "modern-ui/**",
+  "docs/ux/operations-v2/**",
+  "kubernetes/scenescape-chart/templates/keycloak/**",
+  "kubernetes/scenescape-chart/templates/modern-ui/**",
+  "kubernetes/scenescape-chart/templates/native/**",
+  "kubernetes/scenescape-native/**",
+  "manager/src/manager/keycloak_auth.py",
+  "manager/src/manager/modern_api.py",
+  "sample_data/docker-compose.modern-ui-override.yml",
+  "sample_data/docker-compose.native-override.yml",
+  "scenescape.sh",
+  "tests/kubernetes/test_native_helm_templates.py",
+  "tools/export_legacy.py",
+  "tools/native_data.py",
+  "tools/native_runtime.py"
+]
+precedence = "override"
+SPDX-FileCopyrightText = "(C) 2026 Intel Corporation"
+SPDX-License-Identifier = "Apache-2.0"

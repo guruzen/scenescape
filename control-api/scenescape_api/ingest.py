@@ -1,0 +1,96 @@
+import json
+from datetime import datetime, timezone
+
+from .bluetooth_ingest import ingest_mqtt_message
+from .bluetooth_telemetry import ingest_device_telemetry, normalize_provider_device_payload
+from .database import Event, Incident, Observation
+
+
+def _ts(payload):
+  raw = payload.get("timestamp")
+  if isinstance(raw, str):
+    try:
+      return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+      pass
+  return datetime.now(timezone.utc)
+
+
+def scene_id_from_topic(topic: str) -> str:
+  """Return authoritative scene id encoded by SceneScape MQTT topic templates.
+
+  The regulated analytics payload inherits id from its upstream detector
+  message, so payload id can be a camera/source id. The topic is the source
+  of truth for scene identity.
+  """
+  parts = [part for part in str(topic).split("/") if part]
+  if len(parts) >= 4 and parts[:3] == ["scenescape", "regulated", "scene"]:
+    return parts[3]
+  if len(parts) >= 4 and parts[:3] == ["scenescape", "data", "scene"]:
+    return parts[3]
+  if len(parts) >= 4 and parts[:3] == ["scenescape", "data", "sensor"]:
+    return parts[3]
+  if len(parts) >= 4 and parts[:2] == ["scenescape", "event"]:
+    return parts[3]
+  return ""
+
+
+def persist(db, topic: str, raw: bytes):
+  if str(topic).startswith("scenescape/data/bluetooth/range/"):
+    return ingest_mqtt_message(db, topic, raw)
+  if str(topic).startswith("scenescape/data/bluetooth/device/"):
+    parts = [part for part in str(topic).split("/") if part]
+    if len(parts) != 6 or parts[:4] != ["scenescape", "data", "bluetooth", "device"]:
+      raise ValueError("Invalid Bluetooth device telemetry topic")
+    scene_id, topic_device_id = parts[4], parts[5]
+    if isinstance(raw, (bytes, bytearray)) and len(raw) > 16 * 1024:
+      raise ValueError("Bluetooth device telemetry payload exceeds 16 KiB")
+    payload = json.loads(raw.decode() if isinstance(raw, (bytes, bytearray)) else raw)
+    if not isinstance(payload, dict):
+      raise ValueError("Bluetooth device telemetry payload must be a JSON object")
+    envelope = normalize_provider_device_payload(payload)
+    if envelope.device_id != topic_device_id:
+      raise ValueError("Bluetooth telemetry device ID does not match MQTT topic")
+    if envelope.device_type == "anchor":
+      from .database import BluetoothAnchor
+      anchor = db.get(BluetoothAnchor, envelope.device_id)
+      if anchor is not None and anchor.scene_id != scene_id:
+        raise ValueError("Bluetooth telemetry anchor does not belong to MQTT topic scene")
+    return ingest_device_telemetry(db, envelope)
+  if isinstance(raw, (bytes, bytearray)) and len(raw) > 8 * 1024 * 1024:
+    raise ValueError("MQTT payload exceeds 8 MiB ingest limit")
+  payload = json.loads(raw.decode() if isinstance(raw, (bytes, bytearray)) else raw)
+  if not isinstance(payload, dict):
+    raise ValueError("MQTT payload must be a JSON object")
+  scene_id = scene_id_from_topic(topic) or str(payload.get("scene_id") or payload.get("id") or "")
+  if not scene_id:
+    raise ValueError("MQTT payload has no scene or sensor identity")
+  stamp = _ts(payload)
+  if "/event/" in topic:
+    event = Event(scene_id=scene_id, topic=topic, observed_at=stamp, payload=payload)
+    db.add(event)
+    db.flush()
+    parts = [part for part in str(topic).split("/") if part]
+    rule_type = parts[2] if len(parts) >= 3 else ""
+    event_type = parts[5] if len(parts) >= 6 else topic.rsplit("/", 1)[-1]
+    rule_name = str(payload.get(f"{rule_type}_name") or payload.get("region_name") or payload.get("tripwire_name") or "").strip()
+    label = rule_name or (parts[4] if len(parts) >= 5 else "Scene event")
+    entered = payload.get("entered") if isinstance(payload.get("entered"), list) else []
+    exited = payload.get("exited") if isinstance(payload.get("exited"), list) else []
+    if rule_type == "tripwire" and event_type == "objects":
+      title = f"Tripwire crossed · {label}"
+    elif rule_type == "region" and event_type == "count":
+      title = f"Region count changed · {label}"
+    elif rule_type == "region" and event_type == "objects" and entered and not exited:
+      title = f"Entered region · {label}"
+    elif rule_type == "region" and event_type == "objects" and exited and not entered:
+      title = f"Exited region · {label}"
+    elif rule_type == "region":
+      title = f"Region activity · {label}"
+    else:
+      title = f"{rule_type.title() or 'Scene'} event · {label}"
+    db.add(Incident(event_id=event.id, scene_id=scene_id, title=title, status="new", notes=[], audit=[{"action": "created", "at": stamp.isoformat()}]))
+    return event
+  obs = Observation(scene_id=scene_id, topic=topic, observed_at=stamp, payload=payload)
+  db.add(obs)
+  return obs

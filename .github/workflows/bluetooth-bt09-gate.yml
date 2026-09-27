@@ -1,0 +1,95 @@
+---
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+name: "[Bluetooth] BT-09 Scene Data Plane"
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - feature/react-keycloak-modern-ui
+    paths:
+      - "control-api/scenescape_api/bluetooth_scene.py"
+      - "control-api/scenescape_api/app.py"
+      - "control-api/tests/test_bluetooth_scene.py"
+      - "modern-ui/src/App.tsx"
+      - "modern-ui/src/native/ThreeScene.tsx"
+      - "modern-ui/src/ux/**"
+      - "modern-ui/src/index.css"
+      - "modern-ui/src/native/native.css"
+      - "modern-ui/tests/sceneWorkspaceContract.test.mjs"
+      - "modern-ui/tests/e2e/sceneWorkspace.spec.ts"
+      - "docs/specs/bluetooth-positioning/BT-09-scene-data-plane.md"
+      - ".github/evidence/bluetooth-positioning/BT-09-scene-data-plane.md"
+      - ".github/workflows/bluetooth-bt09-gate.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bluetooth-bt09-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: "BT-09 backend regression"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Create Python environment
+        run: |
+          python3 -m venv .venv-bt09
+          . .venv-bt09/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r control-api/requirements.txt -r control-api/requirements-test.txt
+      - name: Run BT-09 backend tests
+        env:
+          PYTHONPATH: control-api
+        run: |
+          . .venv-bt09/bin/activate
+          python -m compileall -q control-api/scenescape_api/bluetooth_scene.py
+          pytest -q control-api/tests/test_bluetooth_scene.py -k bt09
+
+  ui:
+    name: "BT-09 UI and Playwright"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Use Node.js 22
+        run: |
+          export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+          if [ -s "$NVM_DIR/nvm.sh" ]; then
+            . "$NVM_DIR/nvm.sh"
+            nvm install 22
+            nvm use 22
+          fi
+          node --version
+      - name: Install UI dependencies
+        working-directory: modern-ui
+        run: npm install --no-audit --no-fund
+      - name: Install Playwright Chromium
+        working-directory: modern-ui
+        run: npx playwright install --with-deps chromium
+      - name: Run Scene Workspace contracts and build
+        working-directory: modern-ui
+        run: |
+          npm run test:ux
+          npm run typecheck
+          npm run build
+      - name: Run BT-09 Playwright and capture 2D/3D evidence
+        working-directory: modern-ui
+        run: npx playwright test --config tests/e2e/playwright.config.ts --grep "BT-09 Bluetooth live layer"
+      - name: Upload BT-09 screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bt09-playwright-evidence
+          path: modern-ui/test-results/**/bt09-live-*.png
+          if-no-files-found: warn
+          retention-days: 30

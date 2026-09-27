@@ -1,0 +1,67 @@
+{
+  "repository": "guruzen/scenescape",
+  "branch": "feature/react-keycloak-modern-ui",
+  "base_commit": "ff1fca87dec0acd49b26334052d939767546fd4a",
+  "validation": {
+    "python-compile": {
+      "status": "passed",
+      "command": "python3 -m compileall -q control-api/scenescape_api tools"
+    },
+    "pytest": {
+      "status": "passed",
+      "tests": 15,
+      "command": "cd control-api && PYTHONPATH=. pytest -q"
+    },
+    "api-fixture-smoke": {
+      "status": "passed",
+      "observed": {
+        "scenes": 1,
+        "live_objects": 2,
+        "history_samples": 2,
+        "incidents": 1
+      }
+    },
+    "typescript-transpile": {
+      "status": "passed",
+      "files": 8,
+      "note": "Syntax/transpile check only; not npm build"
+    },
+    "frontend-build": {
+      "status": "blocked",
+      "command": "npm install --no-audit --no-fund",
+      "error": "EAI_AGAIN resolving registry.npmjs.org"
+    },
+    "compose-static": {
+      "status": "passed",
+      "note": "Native override parsed and service/command/TLS wiring assertions passed; Docker CLI unavailable"
+    },
+    "helm-static": {
+      "status": "passed",
+      "note": "Chart/values YAML and template delimiter/static checks passed; Helm CLI unavailable"
+    },
+    "shell-syntax": {
+      "status": "passed",
+      "commands": [
+        "bash -n scenescape.sh",
+        "sh -n modern-ui/docker-entrypoint.d/10-runtime-config.sh"
+      ]
+    },
+    "cli-migrate": {
+      "status": "passed",
+      "tables": 5
+    }
+  },
+  "unexecuted": [
+    "npm run build",
+    "Playwright browser_checks.py",
+    "docker compose config/build/up",
+    "live Keycloak PKCE",
+    "live MQTT",
+    "helm template/install/upgrade/rollback",
+    "WSL2 migration/rollback against a real installation"
+  ],
+  "push": {
+    "performed": false,
+    "reason": "User required push only after verification; frontend build/browser and executable Docker/Helm validation could not be completed in this sandbox."
+  }
+}

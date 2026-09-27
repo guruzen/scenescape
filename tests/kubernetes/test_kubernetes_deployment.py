@@ -96,12 +96,45 @@ def test_scenescape_pods_not_restarting(_k8s_manager):
 
 @pytest.mark.kubernetes_only
 def test_scenescape_web_app_accessible(_k8s_manager):
-  """Verify the web application responds with HTTP 200."""
-  url = f"https://localhost:{_k8s_manager.web_port}"
+  """Verify the active browser application responds with HTTP 200."""
+  if getattr(_k8s_manager, "native_mode", False):
+    url = f"http://localhost:{_k8s_manager.ui_port}"
+    verify = True
+  else:
+    url = f"https://localhost:{_k8s_manager.web_port}"
+    verify = False
   logger.info("Checking web app accessibility at %s", url)
-  response = requests.get(url, verify=False)
+  response = requests.get(url, verify=verify)
   logger.info("Web app response: HTTP %d", response.status_code)
   assert response.status_code == 200
+
+
+@pytest.mark.kubernetes_only
+def test_native_control_plane_health(_k8s_manager):
+  """Verify the FastAPI and historian workloads when native mode is selected."""
+  if not getattr(_k8s_manager, "native_mode", False):
+    pytest.skip("native Kubernetes mode is not enabled")
+
+  response = requests.get(
+    f"https://localhost:{_k8s_manager.web_port}/api/v1/health",
+    verify=False,
+    timeout=10,
+  )
+  assert response.status_code == 200
+  payload = response.json()
+  assert payload.get("ready") is True
+
+  result = subprocess.run(
+    [
+      "kubectl", "get", "deployment", "scenescape-native-worker",
+      "--namespace", "scenescape",
+      "--kubeconfig", _k8s_manager.kubeconfig,
+      "-o", "json",
+    ],
+    capture_output=True, text=True, check=True,
+  )
+  worker = json.loads(result.stdout)
+  assert worker["status"].get("readyReplicas", 0) >= 1
 
 
 @pytest.mark.kubernetes_only

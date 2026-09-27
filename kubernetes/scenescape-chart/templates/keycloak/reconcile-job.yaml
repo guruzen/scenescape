@@ -1,0 +1,144 @@
+{{- if and .Values.native.enabled (or .Values.keycloak.enabled .Values.modernUI.auth.adminSecret) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-keycloak-reconcile
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-keycloak-reconcile
+    spec:
+      restartPolicy: Never
+      {{ with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{ toYaml . | nindent 8 }}
+      {{ end }}
+      containers:
+        - name: reconcile
+          image: "{{ .Values.keycloak.image.repository }}:{{ .Values.keycloak.image.tag }}"
+          imagePullPolicy: {{ .Values.keycloak.image.pullPolicy }}
+          env:
+            - name: REALM
+              value: {{ .Values.modernUI.auth.realm | quote }}
+            - name: CLIENT_ID
+              value: {{ .Values.modernUI.auth.clientId | quote }}
+            - name: KEYCLOAK_SERVER
+              {{ if .Values.keycloak.enabled }}
+              value: "http://keycloak.{{ .Release.Namespace }}.svc.cluster.local:8080/auth"
+              {{ else }}
+              value: {{ required "modernUI.auth.keycloakUrl is required for external Keycloak reconciliation" .Values.modernUI.auth.keycloakUrl | quote }}
+              {{ end }}
+            - name: KEYCLOAK_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  {{ if .Values.keycloak.enabled }}
+                  name: {{ if .Values.keycloak.existingSecret }}{{ .Values.keycloak.existingSecret }}{{ else }}{{ .Release.Name }}-keycloak-bootstrap{{ end }}
+                  key: username
+                  {{ else }}
+                  name: {{ .Values.modernUI.auth.adminSecret | quote }}
+                  key: {{ .Values.modernUI.auth.adminUsernameKey | quote }}
+                  {{ end }}
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  {{ if .Values.keycloak.enabled }}
+                  name: {{ if .Values.keycloak.existingSecret }}{{ .Values.keycloak.existingSecret }}{{ else }}{{ .Release.Name }}-keycloak-bootstrap{{ end }}
+                  key: password
+                  {{ else }}
+                  name: {{ .Values.modernUI.auth.adminSecret | quote }}
+                  key: {{ .Values.modernUI.auth.adminPasswordKey | quote }}
+                  {{ end }}
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              set -eu
+              kcadm=/opt/keycloak/bin/kcadm.sh
+              config=/tmp/scenescape-kcadm.config
+
+              authenticated=0
+              i=0
+              while [ "$i" -lt 60 ]; do
+                if "$kcadm" config credentials                     --server "$KEYCLOAK_SERVER"                     --realm master                     --user "$KEYCLOAK_ADMIN_USERNAME"                     --password "$KEYCLOAK_ADMIN_PASSWORD"                     --config "$config" >/dev/null 2>&1; then
+                  authenticated=1
+                  break
+                fi
+                i=$((i+1))
+                sleep 2
+              done
+              if [ "$authenticated" -ne 1 ]; then
+                echo "Unable to authenticate to Keycloak administration API." >&2
+                exit 1
+              fi
+
+              client="$("$kcadm" get clients -r "$REALM" -q "clientId=$CLIENT_ID"                 --fields id --config "$config"                 | sed -n 's/.*"id" : "\([^"]*\)".*/\1/p' | head -n 1)"
+              if [ -z "$client" ]; then
+                echo "SceneScape OIDC client was not found: $CLIENT_ID" >&2
+                exit 1
+              fi
+
+              basic="$("$kcadm" get client-scopes -r "$REALM" --fields id,name --config "$config"                 | tr -d '\n' | sed 's/},/}\n/g'                 | grep '"name" : "basic"'                 | sed -n 's/.*"id" : "\([^"]*\)".*/\1/p' | head -n 1 || true)"
+              if [ -n "$basic" ]; then
+                "$kcadm" update "clients/$client/default-client-scopes/$basic"                   -r "$REALM" --config "$config" >/dev/null
+              fi
+
+              path="clients/$client/protocol-mappers/models"
+              remove_mapper() {
+                name="$1"
+                mapper="$("$kcadm" get "$path" -r "$REALM" --fields id,name --config "$config"                   | tr -d '\n' | sed 's/},/}\n/g'                   | grep "\"name\" : \"$name\""                   | sed -n 's/.*"id" : "\([^"]*\)".*/\1/p' | head -n 1 || true)"
+                if [ -n "$mapper" ]; then
+                  "$kcadm" delete "$path/$mapper" -r "$REALM" --config "$config" >/dev/null
+                fi
+              }
+
+              remove_mapper scenescape-api-audience
+              cat >/tmp/audience.json <<'JSON'
+              {
+                "name": "scenescape-api-audience",
+                "protocol": "openid-connect",
+                "protocolMapper": "oidc-audience-mapper",
+                "config": {
+                  "included.custom.audience": "scenescape-api",
+                  "access.token.claim": "true",
+                  "id.token.claim": "false"
+                }
+              }
+              JSON
+              "$kcadm" create "$path" -r "$REALM" -f /tmp/audience.json --config "$config" >/dev/null
+
+              remove_mapper scenescape-scene-scopes
+              cat >/tmp/scenes.json <<'JSON'
+              {
+                "name": "scenescape-scene-scopes",
+                "protocol": "openid-connect",
+                "protocolMapper": "oidc-usermodel-attribute-mapper",
+                "config": {
+                  "user.attribute": "scenescape_scenes",
+                  "claim.name": "scenes",
+                  "jsonType.label": "String",
+                  "multivalued": "true",
+                  "access.token.claim": "true",
+                  "id.token.claim": "true",
+                  "userinfo.token.claim": "true"
+                }
+              }
+              JSON
+              "$kcadm" create "$path" -r "$REALM" -f /tmp/scenes.json --config "$config" >/dev/null
+
+              verified="$("$kcadm" get "$path" -r "$REALM" --fields name,config --config "$config")"
+              echo "$verified" | grep -q '"name" : "scenescape-api-audience"'
+              echo "$verified" | grep -q '"included.custom.audience" : "scenescape-api"'
+              echo "$verified" | grep -q '"name" : "scenescape-scene-scopes"'
+              echo "$verified" | grep -q '"claim.name" : "scenes"'
+              echo "Keycloak SceneScape audience and scene-scope mappers verified."
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+{{- end }}

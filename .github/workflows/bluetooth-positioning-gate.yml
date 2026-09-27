@@ -1,0 +1,219 @@
+---
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+name: "[Bluetooth] Positioning Gate"
+run-name: "[Bluetooth] Positioning Gate"
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - feature/react-keycloak-modern-ui
+    paths:
+      - "control-api/scenescape_api/bluetooth_*.py"
+      - "control-api/scenescape_api/database.py"
+      - "control-api/scenescape_api/auth.py"
+      - "control-api/scenescape_api/app.py"
+      - "control-api/scenescape_api/cli.py"
+      - "control-api/scenescape_api/scene_service.py"
+      - "control-api/tests/test_bluetooth_*.py"
+      - "control-api/tests/data/bluetooth-positioning/**"
+      - "control-api/tests/browser_server.py"
+      - "modern-ui/src/App.tsx"
+      - "modern-ui/src/api/client.ts"
+      - "modern-ui/src/native/BluetoothPositioning.tsx"
+      - "modern-ui/src/native/BluetoothCalibration.tsx"
+      - "modern-ui/src/native/bluetoothApi.ts"
+      - "modern-ui/src/native/native.css"
+      - "modern-ui/tests/AuthFixture.tsx"
+      - "modern-ui/tests/sceneWorkspaceContract.test.mjs"
+      - "modern-ui/tests/e2e/sceneWorkspace.spec.ts"
+      - "modern-ui/tests/e2e/nativeSceneWorkspace.spec.ts"
+      - "kubernetes/scenescape-native/**"
+      - "docs/specs/bluetooth-positioning/**"
+      - ".github/evidence/bluetooth-positioning/**"
+      - ".github/workflows/bluetooth-positioning-gate.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bluetooth-positioning-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bt-domain:
+    name: "Bluetooth domain and native regression"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Create Python environment
+        run: |
+          python3 -m venv .venv-bt
+          . .venv-bt/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r control-api/requirements.txt -r control-api/requirements-test.txt
+
+      - name: Compile Bluetooth control-plane modules
+        env:
+          PYTHONPATH: control-api
+        run: |
+          . .venv-bt/bin/activate
+          python -m compileall -q control-api/scenescape_api
+
+      - name: Run Bluetooth positioning tests and native concurrency regressions
+        env:
+          PYTHONPATH: control-api
+        run: |
+          . .venv-bt/bin/activate
+          pytest -q \
+            control-api/tests/test_bluetooth_*.py \
+            control-api/tests/test_native_api.py::test_native_updates_require_revision_and_reject_stale_writes \
+            control-api/tests/test_native_api.py::test_resource_kind_uid_unique_index_survives_migrate \
+            control-api/tests/test_native_api.py::test_native_delete_requires_current_revision
+
+      - name: Run BT-16 deterministic load benchmark
+        env:
+          PYTHONPATH: control-api
+        run: |
+          . .venv-bt/bin/activate
+          python -m scenescape_api.bluetooth_benchmark \
+            --tags 20 \
+            --anchors 4 \
+            --hz 5 \
+            --duration 5 \
+            --noise-stddev-m 0.05
+
+  bt-ui:
+    name: "Bluetooth management UI contract and build"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 22
+        shell: bash
+        run: |
+          export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+          if [ -s "$NVM_DIR/nvm.sh" ]; then
+            # shellcheck source=/dev/null
+            . "$NVM_DIR/nvm.sh"
+            nvm install 22
+            nvm use 22
+          fi
+          node --version
+          npm --version
+
+      - name: Install Modern UI dependencies
+        working-directory: modern-ui
+        run: npm install --no-audit --no-fund
+
+      - name: Run Bluetooth/Scene Workspace UI contracts
+        working-directory: modern-ui
+        run: npm run test:ux
+
+      - name: Typecheck and production build
+        working-directory: modern-ui
+        run: |
+          npm run typecheck
+          npm run build
+
+  bt-helm:
+    name: "Bluetooth Helm hardening"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Verify Helm is available
+        run: helm version --short
+
+      - name: Render fail-closed default deployment
+        run: |
+          helm lint kubernetes/scenescape-native \
+            --set runtimeSecret=runtime \
+            --set serviceAuthSecret=service-auth \
+            --set tls.existingSecret=api-tls \
+            --set tls.serverName=scenescape-api \
+            --set media.existingClaim=media \
+            --set mqtt.host=broker \
+            --set mqtt.caSecret=mqtt-ca \
+            --set publicOrigin=https://scenescape.example.test \
+            --set oidc.issuer=https://id.example.test/realms/scenescape \
+            --set oidc.browserUrl=https://id.example.test \
+            --set ingress.enabled=false
+          helm template bt16 kubernetes/scenescape-native \
+            --set runtimeSecret=runtime \
+            --set serviceAuthSecret=service-auth \
+            --set tls.existingSecret=api-tls \
+            --set tls.serverName=scenescape-api \
+            --set media.existingClaim=media \
+            --set mqtt.host=broker \
+            --set mqtt.caSecret=mqtt-ca \
+            --set publicOrigin=https://scenescape.example.test \
+            --set oidc.issuer=https://id.example.test/realms/scenescape \
+            --set oidc.browserUrl=https://id.example.test \
+            --set ingress.enabled=false \
+            > /tmp/bt16-default.yaml
+          grep -q 'name: BLUETOOTH_POSITIONING_ENABLED' /tmp/bt16-default.yaml
+          grep -q 'value: "false"' /tmp/bt16-default.yaml
+          if grep -q 'kind: CronJob' /tmp/bt16-default.yaml; then
+            echo "Bluetooth retention CronJob must not render while Bluetooth is disabled"
+            exit 1
+          fi
+
+      - name: Render safe replicated Bluetooth workers
+        run: |
+          helm template bt16 kubernetes/scenescape-native \
+            --set runtimeSecret=runtime \
+            --set serviceAuthSecret=service-auth \
+            --set tls.existingSecret=api-tls \
+            --set tls.serverName=scenescape-api \
+            --set media.existingClaim=media \
+            --set mqtt.host=broker \
+            --set mqtt.caSecret=mqtt-ca \
+            --set mqtt.sharedSubscriptionGroup=bt-workers \
+            --set worker.replicas=2 \
+            --set bluetooth.enabled=true \
+            --set bluetooth.telemetryEnabled=true \
+            --set publicOrigin=https://scenescape.example.test \
+            --set oidc.issuer=https://id.example.test/realms/scenescape \
+            --set oidc.browserUrl=https://id.example.test \
+            --set ingress.enabled=false \
+            > /tmp/bt16-scaled.yaml
+          grep -q 'kind: CronJob' /tmp/bt16-scaled.yaml
+          grep -q 'kind: PodDisruptionBudget' /tmp/bt16-scaled.yaml
+          grep -q 'name: MQTT_SHARED_SUBSCRIPTION_GROUP' /tmp/bt16-scaled.yaml
+          grep -q 'value: "bt-workers"' /tmp/bt16-scaled.yaml
+
+      - name: Reject unsafe duplicate MQTT ownership
+        run: |
+          if helm template bt16 kubernetes/scenescape-native \
+            --set runtimeSecret=runtime \
+            --set serviceAuthSecret=service-auth \
+            --set tls.existingSecret=api-tls \
+            --set tls.serverName=scenescape-api \
+            --set media.existingClaim=media \
+            --set mqtt.host=broker \
+            --set mqtt.caSecret=mqtt-ca \
+            --set worker.replicas=2 \
+            --set publicOrigin=https://scenescape.example.test \
+            --set oidc.issuer=https://id.example.test/realms/scenescape \
+            --set oidc.browserUrl=https://id.example.test \
+            --set ingress.enabled=false \
+            > /tmp/bt16-unsafe.yaml 2> /tmp/bt16-unsafe.err; then
+            echo "Unsafe replicated worker render unexpectedly succeeded"
+            exit 1
+          fi
+          grep -q 'mqtt.sharedSubscriptionGroup is required when worker.replicas > 1' /tmp/bt16-unsafe.err

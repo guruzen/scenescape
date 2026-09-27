@@ -1,0 +1,65 @@
+---
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+name: "[Bluetooth] BT-08 Tracking Engine"
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - feature/react-keycloak-modern-ui
+    paths:
+      - "control-api/scenescape_api/bluetooth_tracking.py"
+      - "control-api/scenescape_api/bluetooth_pipeline.py"
+      - "control-api/scenescape_api/database.py"
+      - "control-api/tests/test_bluetooth_tracking.py"
+      - "control-api/tests/test_bluetooth_pipeline.py"
+      - "docs/specs/bluetooth-positioning/BT-08-tracking-engine.md"
+      - ".github/evidence/bluetooth-positioning/BT-08-tracking-engine.md"
+      - ".github/workflows/bluetooth-bt08-gate.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bluetooth-bt08-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tracking:
+    name: "BT-08 tracker regression"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Create Python environment
+        run: |
+          python3 -m venv .venv-bt08
+          . .venv-bt08/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r control-api/requirements.txt -r control-api/requirements-test.txt
+
+      - name: Compile tracking modules
+        env:
+          PYTHONPATH: control-api
+        run: |
+          . .venv-bt08/bin/activate
+          python -m compileall -q \
+            control-api/scenescape_api/bluetooth_tracking.py \
+            control-api/scenescape_api/bluetooth_pipeline.py
+
+      - name: Run BT-08 tracking tests
+        env:
+          PYTHONPATH: control-api
+        run: |
+          . .venv-bt08/bin/activate
+          pytest -q \
+            control-api/tests/test_bluetooth_tracking.py \
+            control-api/tests/test_bluetooth_pipeline.py::test_bt08_pipeline_turns_measurements_into_raw_and_tracked_positions \
+            control-api/tests/test_bluetooth_pipeline.py::test_bt08_pipeline_motion_limits_env_is_bounded_and_typed \
+            control-api/tests/test_bluetooth_pipeline.py::test_bt08_pipeline_identity_context_exposes_assignment_motion_class \
+            control-api/tests/test_bluetooth_pipeline.py::test_bt08_pipeline_same_timestamp_anchor_refinement_is_not_out_of_order
