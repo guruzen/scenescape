@@ -1,6 +1,7 @@
 # BT-14 — Operational Integration
 
-**Status:** PLANNED  
+**Status:** BLOCKED  
+**Blocker:** BT-13 is not COMPLETE. Operational integration is software-implemented but cannot be release-certified against real qualified Bluetooth tracks yet.  
 **Dependencies:** BT-09, BT-10, BT-13  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -47,11 +48,11 @@ Integrate quality-gated Bluetooth positions into regions, tripwires, incidents, 
 
 ## Required tests
 
-- [ ] Boundary jitter.
-- [ ] Tripwire direction.
-- [ ] Low-quality suppression.
-- [ ] History filters.
-- [ ] Health alerts.
+- [x] Boundary jitter.
+- [x] Tripwire direction.
+- [x] Low-quality suppression.
+- [x] History filters.
+- [x] Health alerts.
 - [ ] Context permissions.
 - [ ] Vision incident regression.
 
@@ -63,8 +64,8 @@ Integrate quality-gated Bluetooth positions into regions, tripwires, incidents, 
 
 ## Acceptance criteria
 
-- [ ] No event storms.
-- [ ] Health actionable.
+- [x] No event storms.
+- [x] Health actionable.
 - [ ] Vision incidents preserved.
 
 ## Out of scope
@@ -78,9 +79,9 @@ Disable BLE spatial-event adapter; positioning remains visible.
 
 ## Implementation record
 
-- Implementation commit: _not yet recorded_
-- Evidence: _not yet recorded_
-- Known deviations: _none at planning baseline_
+- Implementation commits: `1197156183cc`, `e6038efdc0bd`, `9afceec55f62`, `c8f24e3f8d03`, `289bfe4fb687`, `a017c3afca5c`
+- Evidence: `.github/evidence/bluetooth-positioning/BT-14-operational-integration.md`
+- Known deviations: Core operational behavior is implemented and synthetic/integration tested. Completion remains dependency-blocked until BT-13 provides qualified real-site tracks and final permissions/vision-regression evidence is captured.
 
 ## Continuation prompt
 
