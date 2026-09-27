@@ -246,7 +246,7 @@ def test_bt09_scene_scoped_viewer_gets_position_but_not_assignment_label(api):
   assert response.status_code == 200, response.text
   bt = next(item for item in response.json()["objects"] if item["id"] == "bt:tag-a")
   assert bt["label"] == "tag-a"
-  assert bt["bluetooth"]["assignment"]["entity_id"] == "forklift-27"
+  assert bt["bluetooth"]["assignment"]["entity_id"] is None
   assert bt["bluetooth"]["assignment"]["display_name"] is None
 
   denied = client.get(
