@@ -260,7 +260,11 @@ def test_bt07_coherent_window_uses_latest_epoch_and_newest_range_per_anchor(bt07
   a1 = next(row for row in rows if row.anchor_uid == "a1")
   assert a1.sequence == 3
   assert a1.distance_m == pytest.approx(4.0)
-  assert all(row.source_timestamp >= base + timedelta(milliseconds=750) for row in rows)
+  assert all(
+      row.source_timestamp.replace(tzinfo=timezone.utc)
+      >= base + timedelta(milliseconds=750)
+      for row in rows
+  )
 
 
 def test_bt07_minimum_supported_geometry_is_explicitly_degraded():
