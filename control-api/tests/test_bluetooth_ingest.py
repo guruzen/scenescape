@@ -318,9 +318,21 @@ def test_bt06_malformed_mqtt_payloads_are_rejected_and_counted(api):
       )
     assert oversized.value.code == "payload_too_large"
 
+    invalid_schema = _envelope(now=now)["payload"]
+    invalid_schema["quality"] = 2.0
+    with pytest.raises(MeasurementRejected) as invalid:
+      ingest_mqtt_message(
+          db,
+          "scenescape/data/bluetooth/range/scene-a/anchor-a/tag-a",
+          json.dumps(invalid_schema),
+          now=now,
+      )
+    assert invalid.value.code == "invalid_payload"
+
   snapshot = metrics.snapshot()
   assert snapshot["rejected_by_reason"]["malformed_json"] == 1
   assert snapshot["rejected_by_reason"]["payload_too_large"] == 1
+  assert snapshot["rejected_by_reason"]["invalid_payload"] == 1
 
 
 def test_bt06_real_backpressure_persists_raw_before_solver_drop(api, monkeypatch):
