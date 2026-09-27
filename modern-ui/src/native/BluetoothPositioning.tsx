@@ -11,6 +11,7 @@ import {
   type BluetoothAssignment,
   type BluetoothDiagnostics,
   type BluetoothTag,
+  type BluetoothTelemetry,
   type TagPayload,
 } from "./bluetoothApi";
 
@@ -95,6 +96,20 @@ const batteryText = (tag: BluetoothTag) =>
 const stateLabel = (value: string) =>
   value ? value.replaceAll("_", " ") : "unknown";
 
+const telemetryFreshness = (telemetry: BluetoothTelemetry | null) => {
+  if (!telemetry) return "No telemetry received";
+  return telemetry.freshness.stale
+    ? `Stale · observed ${displayTime(telemetry.observed_at)}`
+    : `Fresh · observed ${displayTime(telemetry.observed_at)}`;
+};
+
+const telemetryBattery = (telemetry: BluetoothTelemetry | null) => {
+  if (!telemetry || telemetry.battery.percent === null || telemetry.battery.percent === undefined)
+    return "Unknown";
+  return `${Math.round(Number(telemetry.battery.percent))}% · ${stateLabel(telemetry.battery.status)}`;
+};
+
+
 function StatusBadge({ state }: { state: string }) {
   return (
     <span className={`bt-status bt-status-${state || "unknown"}`}>
@@ -122,6 +137,8 @@ export default function BluetoothPositioning({
     null,
   );
   const [selectedTag, setSelectedTag] = useState<BluetoothTag | null>(null);
+  const [deviceTelemetry, setDeviceTelemetry] =
+    useState<BluetoothTelemetry | null>(null);
   const [anchorDraft, setAnchorDraft] = useState<AnchorPayload>(emptyAnchor);
   const [tagDraft, setTagDraft] = useState<TagPayload>(emptyTag);
   const [assignmentDraft, setAssignmentDraft] =
@@ -218,6 +235,13 @@ export default function BluetoothPositioning({
 
   const openAnchor = (row: BluetoothAnchor | null) => {
     setSelectedAnchor(row);
+    setDeviceTelemetry(null);
+    if (row) {
+      void bluetoothApi.anchors
+        .telemetry(row.uid)
+        .then((result) => setDeviceTelemetry(result.telemetry))
+        .catch(() => setDeviceTelemetry(null));
+    }
     const next = row
       ? {
           serial_number: row.serial_number,
@@ -240,6 +264,13 @@ export default function BluetoothPositioning({
 
   const openTag = (row: BluetoothTag | null) => {
     setSelectedTag(row);
+    setDeviceTelemetry(null);
+    if (row) {
+      void bluetoothApi.tags
+        .telemetry(row.uid)
+        .then((result) => setDeviceTelemetry(result.telemetry))
+        .catch(() => setDeviceTelemetry(null));
+    }
     const next = row
       ? {
           serial_number: row.serial_number,
@@ -782,14 +813,26 @@ export default function BluetoothPositioning({
 
                 <div className="bt-readout-grid">
                   <div>
-                    <span>Last seen</span>
-                    <b>Unknown</b>
-                    <small>Anchor telemetry arrives in BT-10.</small>
+                    <span>Telemetry</span>
+                    <b>{deviceTelemetry ? stateLabel(deviceTelemetry.battery.status) : "Unknown"}</b>
+                    <small>{telemetryFreshness(deviceTelemetry)}</small>
+                  </div>
+                  <div>
+                    <span>Firmware</span>
+                    <b>{deviceTelemetry?.device_information.firmware_revision || selectedAnchor?.firmware_revision || "Unknown"}</b>
+                    <small>
+                      {deviceTelemetry ? `Source ${deviceTelemetry.source}` : "No device telemetry received."}
+                    </small>
+                  </div>
+                  <div>
+                    <span>Battery</span>
+                    <b>{telemetryBattery(deviceTelemetry)}</b>
+                    <small>Unknown is distinct from a measured 0% battery.</small>
                   </div>
                   <div>
                     <span>Calibration</span>
-                    <b>Not configured</b>
-                    <small>Map calibration is implemented in BT-04.</small>
+                    <b>Configured separately</b>
+                    <small>Map calibration is managed in the Calibration tab.</small>
                   </div>
                 </div>
 
@@ -1003,20 +1046,22 @@ export default function BluetoothPositioning({
             <div className="bt-readout-grid">
               <div>
                 <span>Battery</span>
-                <b>{selectedTag ? batteryText(selectedTag) : "Unknown"}</b>
-                <small>
-                  {selectedTag?.battery?.observed_at
-                    ? `Observed ${displayTime(selectedTag.battery.observed_at)}`
-                    : "No battery telemetry received."}
-                </small>
+                <b>{deviceTelemetry ? telemetryBattery(deviceTelemetry) : selectedTag ? batteryText(selectedTag) : "Unknown"}</b>
+                <small>{deviceTelemetry ? telemetryFreshness(deviceTelemetry) : selectedTag?.battery?.observed_at ? `Observed ${displayTime(selectedTag.battery.observed_at)}` : "No battery telemetry received."}</small>
+              </div>
+              <div>
+                <span>Telemetry source</span>
+                <b>{deviceTelemetry?.source || selectedTag?.battery?.source || "Unknown"}</b>
+                <small>Provider/gateway telemetry only; no browser BLE pairing.</small>
+              </div>
+              <div>
+                <span>Firmware</span>
+                <b>{deviceTelemetry?.device_information.firmware_revision || selectedTag?.firmware_revision || "Unknown"}</b>
+                <small>{deviceTelemetry?.device_information.model || selectedTag?.model || "Model unknown"}</small>
               </div>
               <div>
                 <span>Last seen</span>
-                <b>
-                  {selectedTag
-                    ? displayTime(selectedTag.last_seen_at)
-                    : "Unknown"}
-                </b>
+                <b>{selectedTag ? displayTime(selectedTag.last_seen_at) : "Unknown"}</b>
                 <small>Telemetry is read-only in this management UI.</small>
               </div>
             </div>
