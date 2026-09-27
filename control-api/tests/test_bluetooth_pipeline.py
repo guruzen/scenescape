@@ -10,6 +10,7 @@ from sqlalchemy import select
 from scenescape_api.bluetooth_domain import (
     activate_calibration,
     create_anchor,
+    create_assignment,
     create_calibration,
     create_provider,
     create_tag,
@@ -17,6 +18,7 @@ from scenescape_api.bluetooth_domain import (
 from scenescape_api.bluetooth_ingest import ingest_measurement, metrics as ingest_metrics, solver_buffer
 from scenescape_api.bluetooth_pipeline import (
     drain_solver_queue,
+    identity_context,
     reset_runtime_state,
     runtime_diagnostics,
 )
@@ -172,6 +174,26 @@ def test_bt08_pipeline_turns_measurements_into_raw_and_tracked_positions(db):
   assert diagnostics["pipeline"]["measurements_processed"] == 4
   assert diagnostics["queue_depth"] == 0
   assert diagnostics["tracker"]["active_tracks"] == 1
+
+
+def test_bt08_pipeline_identity_context_exposes_assignment_motion_class(db):
+  session, _database, _anchors = db
+  assignment = create_assignment(
+      session,
+      {
+          "uid": "bt08-assignment-vehicle",
+          "tag_uid": "tag-a",
+          "entity_type": "vehicle",
+          "entity_id": "forklift-8",
+          "valid_from": BASE - timedelta(seconds=1),
+      },
+      "admin",
+  )
+  session.commit()
+
+  revision, motion_class = identity_context(session, "tag-a", BASE)
+  assert revision == f"assignment:{assignment.uid}:{assignment.revision}"
+  assert motion_class == "vehicle"
 
 
 def test_bt08_pipeline_same_timestamp_anchor_refinement_is_not_out_of_order(db):
