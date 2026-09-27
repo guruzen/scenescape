@@ -1,6 +1,7 @@
 # BT-15 — Multimodal BLE + Vision Fusion
 
-**Status:** PLANNED  
+**Status:** BLOCKED  
+**Blocker:** BT-13 is not COMPLETE. Fusion software is implemented, but real-site false-association/continuity acceptance cannot be quantified yet.  
 **Dependencies:** BT-09, BT-13  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -49,12 +50,12 @@ Associate BLE tags and camera tracks into one logical entity while retaining sou
 
 ## Required tests
 
-- [ ] One tag/track.
-- [ ] Ambiguous close tracks.
-- [ ] Crossing.
-- [ ] Camera dropout.
-- [ ] Bad BLE fix.
-- [ ] Assignment change.
+- [x] One tag/track.
+- [x] Ambiguous close tracks.
+- [x] Crossing.
+- [x] Camera dropout.
+- [x] Bad BLE fix.
+- [x] Assignment change.
 - [ ] False-fusion metrics.
 - [ ] Redaction.
 
@@ -68,8 +69,8 @@ Associate BLE tags and camera tracks into one logical entity while retaining sou
 
 - [ ] Continuity improves within documented false-association threshold.
 - [ ] Low confidence remains separate.
-- [ ] Provenance recoverable.
-- [ ] No biometric identity inference.
+- [x] Provenance recoverable.
+- [x] No biometric identity inference.
 
 ## Out of scope
 
@@ -82,9 +83,9 @@ Feature flag disables fusion; source observations unchanged.
 
 ## Implementation record
 
-- Implementation commit: _not yet recorded_
-- Evidence: _not yet recorded_
-- Known deviations: _none at planning baseline_
+- Implementation commits: `f8e0425c9d0e`, `12045a8af465`, `1a2df093ef40`, `86580f7f3197`, `dd26e6b769e3`
+- Evidence: `.github/evidence/bluetooth-positioning/BT-15-multimodal-fusion.md`
+- Known deviations: Software ambiguity/privacy/provenance behavior is covered. Quantified false-association and continuity thresholds require BT-13-qualified real-site scenarios.
 
 ## Continuation prompt
 
