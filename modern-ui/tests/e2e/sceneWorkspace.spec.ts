@@ -1082,3 +1082,91 @@ test("BT-04 anchor calibration smoke: map pixels become metres and revisions are
 
   await screenshot(page, testInfo, "bt04-anchor-calibration.png");
 });
+
+
+test("BT-09 Bluetooth live layer renders in 2D and 3D with provenance", async ({
+  page,
+}, testInfo) => {
+  const btObject = {
+    id: "bt:tag-a",
+    source: "bluetooth",
+    category: "asset",
+    type: "bluetooth-tag",
+    label: "Forklift 27",
+    translation: [4.0, 3.0, 1.0],
+    velocity: [0.8, 0.1, 0.0],
+    tracking_radius: 0.24,
+    timestamp: "2026-09-20T03:45:00Z",
+    bluetooth: {
+      tag_id: "tag-a",
+      state: "good",
+      predicted: false,
+      method: "channel_sounding",
+      score: 0.92,
+      anchors_used: 1,
+      horizontal_uncertainty_m: 0.24,
+      vertical_uncertainty_m: null,
+      last_measured_at: "2026-09-20T03:45:00Z",
+      anchor_ids: ["bt-anchor-a"],
+      battery: { percent: 55, status: "normal", source: "gatt" },
+    },
+  };
+  const btAnchor = {
+    id: "bt-anchor-a",
+    serial_number: "ANCHOR-A",
+    state: "active",
+    translation: [1.0, 2.0, 3.0],
+    calibration_revision: 1,
+    capabilities: ["channel_sounding"],
+  };
+  const btLive = {
+    ...live,
+    objects: [...live.objects, btObject],
+    bluetooth: {
+      objects: [btObject],
+      count: 1,
+      latest_observed_at: "2026-09-20T03:45:00Z",
+      stale: false,
+    },
+  };
+  const btBundle = { ...bundle, bluetooth_anchors: [btAnchor] };
+
+  await page.route("**/api/v2/scenes/scene-a/bundle", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(btBundle) }),
+  );
+  await page.route("**/api/v2/scenes/scene-a/live", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(btLive) }),
+  );
+  await page.route("**/api/v2/scenes/scene-a/live/stream", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: `data: ${JSON.stringify(btLive)}\n\n`,
+    }),
+  );
+
+  await openScene(page);
+
+  await expect(page.locator(".source-bluetooth")).toHaveCount(1);
+  await expect(page.locator(".bluetooth-anchor")).toHaveCount(1);
+  await expect(page.locator(".bluetooth-uncertainty")).toHaveCount(1);
+
+  await page.getByRole("checkbox", { name: /Anchor links/ }).check();
+  await expect(page.locator(".bluetooth-anchor-link")).toHaveCount(1);
+
+  await page.locator(".source-bluetooth").click();
+  const inspector = page.locator('[aria-label="Scene inspector"]');
+  await expect(inspector).toContainText("Bluetooth tracked object");
+  await expect(inspector).toContainText("Channel Sounding");
+  await expect(inspector).toContainText("0.24 m");
+  await expect(inspector).toContainText("55%");
+
+  await screenshot(page, testInfo, "bt09-live-2d.png");
+
+  await page
+    .locator(".scene-secondary-nav")
+    .getByRole("button", { name: "3D Scene" })
+    .click();
+  await expect(page.locator(".three-canvas")).toBeVisible();
+  await screenshot(page, testInfo, "bt09-live-3d.png");
+});
