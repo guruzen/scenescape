@@ -173,6 +173,35 @@ export type CalibrationPayload = {
   details?: Record<string, unknown>;
 };
 
+export type BluetoothTelemetry = {
+  id: number;
+  device_type: "tag" | "anchor";
+  device_id: string;
+  provider_id: string;
+  source: string;
+  observed_at: string;
+  ingested_at: string;
+  freshness: { age_s: number; stale: boolean };
+  battery: {
+    percent?: number | null;
+    voltage_v?: number | null;
+    status: string;
+  };
+  device_information: {
+    manufacturer?: string | null;
+    model?: string | null;
+    hardware_revision?: string | null;
+    firmware_revision?: string | null;
+  };
+  details: Record<string, unknown>;
+};
+
+export type BluetoothTelemetryResponse = {
+  device_type: "tag" | "anchor";
+  device_id: string;
+  telemetry: BluetoothTelemetry | null;
+};
+
 export type BluetoothDiagnostics = {
   anchors: {
     total: number;
@@ -287,6 +316,11 @@ export const bluetoothApi = {
         { method: "DELETE" },
       );
     },
+    telemetry(uid: string) {
+      return apiFetch<BluetoothTelemetryResponse>(
+        `/api/v2/bluetooth/anchors/${encodeURIComponent(uid)}/telemetry`,
+      );
+    },
   },
   tags: {
     list(
@@ -334,6 +368,11 @@ export const bluetoothApi = {
       return apiFetch(
         `/api/v2/bluetooth/tags/${encodeURIComponent(uid)}?revision=${revision}`,
         { method: "DELETE" },
+      );
+    },
+    telemetry(uid: string) {
+      return apiFetch<BluetoothTelemetryResponse>(
+        `/api/v2/bluetooth/tags/${encodeURIComponent(uid)}/telemetry`,
       );
     },
   },
