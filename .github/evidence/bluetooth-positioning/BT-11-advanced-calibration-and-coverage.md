@@ -47,12 +47,12 @@ with five repeated measurements per anchor/point.
 
 Injected anchor range biases:
 
-| Anchor | Injected bias | Recovery requirement | Outlier evidence |
-| --- | ---: | ---: | --- |
-| a1 | +0.35 m | recovered within ±0.03 m | normal samples |
-| a2 | -0.18 m | recovered within ±0.03 m | normal samples |
-| a3 | +0.24 m | recovered within ±0.03 m | one +4.0 m bad survey sample rejected |
-| a4 | -0.12 m | recovered within ±0.03 m | normal samples |
+| Anchor | Injected bias |     Recovery requirement | Outlier evidence                      |
+| ------ | ------------: | -----------------------: | ------------------------------------- |
+| a1     |       +0.35 m | recovered within ±0.03 m | normal samples                        |
+| a2     |       -0.18 m | recovered within ±0.03 m | normal samples                        |
+| a3     |       +0.24 m | recovered within ±0.03 m | one +4.0 m bad survey sample rejected |
+| a4     |       -0.12 m | recovered within ±0.03 m | normal samples                        |
 
 The estimator records:
 
@@ -72,10 +72,10 @@ The a3 regression explicitly requires at least one rejected sample.
 A separate truth point at `(4.2, 6.1, 1.0)` is solved using the injected
 anchor biases.
 
-| Validation mode | Calibration metadata | Result |
-| --- | --- | --- |
-| Before correction | no per-anchor range bias | non-zero biased horizontal solution |
-| After correction | recovered `range_bias_m` and `range_stddev_m` | horizontal error is lower than the uncorrected result and < 0.08 m |
+| Validation mode   | Calibration metadata                          | Result                                                             |
+| ----------------- | --------------------------------------------- | ------------------------------------------------------------------ |
+| Before correction | no per-anchor range bias                      | non-zero biased horizontal solution                                |
+| After correction  | recovered `range_bias_m` and `range_stddev_m` | horizontal error is lower than the uncorrected result and < 0.08 m |
 
 The acceptance regression therefore proves improvement on a validation point
 that is not one of the survey-point coordinates.
