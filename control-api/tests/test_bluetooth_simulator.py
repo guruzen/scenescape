@@ -224,3 +224,68 @@ def test_bt05_versioned_bundle_loads_only_when_explicitly_enabled(tmp_path):
         bundle,
         {"SCENESCAPE_ENABLE_BLUETOOTH_SIMULATOR": "1", "SCENESCAPE_ENV": "test"},
     )
+
+
+
+def test_bt05_anchor_bias_and_timestamp_jitter_are_deterministic():
+  scenario = base_scenario(
+      duration_s=1.0,
+      step_s=1.0,
+      anchors=[
+          {"anchor_id": "a1", "x_m": 0.0, "y_m": 0.0, "z_m": 3.0, "bias_m": 0.75},
+          {"anchor_id": "a2", "x_m": 10.0, "y_m": 0.0, "z_m": 3.0},
+          {"anchor_id": "a3", "x_m": 10.0, "y_m": 10.0, "z_m": 3.0},
+          {"anchor_id": "a4", "x_m": 0.0, "y_m": 10.0, "z_m": 3.0},
+      ],
+      faults={
+          "noise_stddev_m": 0.0,
+          "jitter_stddev_s": 0.2,
+          "nlos_probability": 0.0,
+          "outlier_probability": 0.0,
+          "packet_loss_probability": 0.0,
+      },
+  )
+  first = simulate(scenario)
+  second = simulate(scenario)
+  assert first == second
+
+  a1 = next(
+      item
+      for item in first.measurements
+      if item["anchor_id"] == "a1" and item["payload"]["sequence"] == 1
+  )
+  ideal = math.sqrt(6.0)
+  assert a1["payload"]["distance_m"] == pytest.approx(ideal + 0.75, abs=1e-6)
+  assert a1["payload"]["source_timestamp"] != first.truth[0]["source_timestamp"]
+
+
+def test_bt05_accelerated_playback_scales_inter_measurement_delay():
+  from scenescape_api.bluetooth_simulator import play_measurements
+
+  scenario = base_scenario(
+      duration_s=1.0,
+      step_s=1.0,
+      mode="accelerated",
+      speed=4.0,
+      faults={
+          "noise_stddev_m": 0.0,
+          "jitter_stddev_s": 0.0,
+          "nlos_probability": 0.0,
+          "outlier_probability": 0.0,
+          "packet_loss_probability": 0.0,
+      },
+  )
+  sleeps = []
+  emitted = list(play_measurements(scenario, sleep_fn=sleeps.append))
+  assert len(emitted) == 8
+  assert sleeps
+  assert all(delay >= 0.0 for delay in sleeps)
+  assert max(sleeps) == pytest.approx(0.25, abs=1e-9)
+
+
+def test_bt05_realtime_mode_rejects_acceleration_factor():
+  value = base_scenario().model_dump(mode="json")
+  value["mode"] = "realtime"
+  value["speed"] = 2.0
+  with pytest.raises(ValidationError, match="realtime mode requires speed=1"):
+    SimulatorScenario.model_validate(value)
