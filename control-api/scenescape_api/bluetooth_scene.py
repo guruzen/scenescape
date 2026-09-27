@@ -132,7 +132,9 @@ def bluetooth_object(
           "assignment": (
               {
                   "entity_type": assignment.entity_type,
-                  "entity_id": assignment.entity_id,
+                  "entity_id": (
+                      assignment.entity_id if include_assignment_label else None
+                  ),
                   "display_name": assignment_label,
               }
               if assignment is not None
