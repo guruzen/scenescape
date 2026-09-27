@@ -1,6 +1,6 @@
 # BT-09 — Scene Data-Plane Integration
 
-**Status:** PLANNED  
+**Status:** COMPLETE  
 **Dependencies:** BT-08  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -49,26 +49,26 @@ Project Bluetooth tracks into existing bundle/live/SSE/history and render 2D/3D 
 
 ## Required tests
 
-- [ ] Bundle/live isolation.
-- [ ] 2D uncertainty/trails/velocity.
-- [ ] 3D.
-- [ ] SSE+polling fallback.
-- [ ] History filters.
-- [ ] Malformed payload.
-- [ ] Vision regression.
+- [x] Bundle/live isolation.
+- [x] 2D uncertainty/trails/velocity.
+- [x] 3D.
+- [x] SSE+polling fallback.
+- [x] History filters.
+- [x] Malformed payload.
+- [x] Vision regression.
 
 ## Evidence required
 
-- [ ] 2D/3D screenshots.
-- [ ] Playwright.
-- [ ] Backend tests.
+- [x] 2D/3D screenshots.
+- [x] Playwright.
+- [x] Backend tests.
 
 ## Acceptance criteria
 
-- [ ] BLE live positions visible without corrupting camera data.
-- [ ] Quality visible.
-- [ ] Existing UX works.
-- [ ] BLE/vision remain separate.
+- [x] BLE live positions visible without corrupting camera data.
+- [x] Quality visible.
+- [x] Existing UX works.
+- [x] BLE/vision remain separate.
 
 ## Out of scope
 
