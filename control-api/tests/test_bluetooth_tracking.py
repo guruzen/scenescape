@@ -6,8 +6,15 @@ import random
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
+import pytest
+from sqlalchemy import select
 
-from scenescape_api.bluetooth_tracking import BluetoothTracker, TrackerConfig
+from scenescape_api.bluetooth_tracking import (
+    BluetoothTracker,
+    TrackerConfig,
+    persist_tracked_position,
+)
+from scenescape_api.database import Base, BluetoothTrackedPosition
 
 
 BASE = datetime(2026, 9, 26, 10, 0, tzinfo=timezone.utc)
@@ -290,3 +297,108 @@ def test_bt08_large_tag_count_is_memory_bounded_and_evicts_lru():
       identity_revision="assign-0",
   )
   assert result["provenance"]["reason"] == "track_created"
+
+
+
+def test_bt08_long_measured_gap_resets_filter_instead_of_smoothing_across_gap():
+  tracker = BluetoothTracker(
+      TrackerConfig(reset_gap_s=3.0, max_speed_mps=5.0)
+  )
+  tracker.update(
+      "scene-a",
+      "tag-a",
+      _raw(0, x=1.0, y=1.0),
+      calibration_revision="cal-1",
+      identity_revision="assign-1",
+  )
+  result = tracker.update(
+      "scene-a",
+      "tag-a",
+      _raw(5, x=4.0, y=1.0),
+      calibration_revision="cal-1",
+      identity_revision="assign-1",
+  )
+
+  assert result["provenance"]["reason"] == "long_gap"
+  assert result["velocity"]["vx_mps"] == pytest.approx(0.0)
+  assert tracker.metrics["resets"] == 1
+
+
+def test_bt08_same_tag_in_different_scene_starts_independent_track():
+  tracker = BluetoothTracker()
+  first = tracker.update(
+      "scene-a",
+      "tag-a",
+      _raw(0, x=1.0, y=1.0),
+      calibration_revision="cal-a",
+      identity_revision="assign-1",
+  )
+  second = tracker.update(
+      "scene-b",
+      "tag-a",
+      _raw(0, x=20.0, y=20.0),
+      calibration_revision="cal-b",
+      identity_revision="assign-1",
+  )
+
+  assert first["provenance"]["reason"] == "track_created"
+  assert second["provenance"]["reason"] == "track_created"
+  assert second["position"]["x_m"] == pytest.approx(20.0)
+  assert len(tracker) == 2
+
+
+@pytest.fixture
+def bt08_db(tmp_path, monkeypatch):
+  monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path}/bt08.db")
+  import scenescape_api.database as database
+
+  if database._engine is not None:
+    database._engine.dispose()
+  database._engine = None
+  database._Session = None
+  engine = database.get_engine()
+  Base.metadata.create_all(engine)
+  session = database.sessions()()
+  yield session
+  session.close()
+  engine.dispose()
+  database._engine = None
+  database._Session = None
+
+
+def test_bt08_persisted_track_retains_velocity_versions_and_provenance(bt08_db):
+  tracker = BluetoothTracker()
+  tracker.update(
+      "scene-a",
+      "tag-a",
+      _raw(0, x=1.0, y=2.0),
+      calibration_revision="cal-7",
+      identity_revision="assign-9",
+  )
+  tracked = tracker.update(
+      "scene-a",
+      "tag-a",
+      _raw(1, x=2.0, y=2.0),
+      calibration_revision="cal-7",
+      identity_revision="assign-9",
+  )
+  row = persist_tracked_position(bt08_db, tracked)
+  bt08_db.commit()
+  stored = bt08_db.scalar(
+      select(BluetoothTrackedPosition).where(BluetoothTrackedPosition.id == row.id)
+  )
+
+  assert stored is not None
+  assert stored.state == "good"
+  assert stored.predicted is False
+  assert stored.vx_mps is not None
+  assert stored.vy_mps is not None
+  assert stored.method == "channel_sounding"
+  assert stored.solver_name == "robust-wls"
+  assert stored.solver_version == "1"
+  assert stored.tracker_name == "cv-kalman"
+  assert stored.tracker_version == "1"
+  assert stored.provenance["calibration_revision"] == "cal-7"
+  assert stored.provenance["identity_revision"] == "assign-9"
+  assert stored.provenance["accepted_anchor_ids"] == ["a1", "a2", "a3", "a4"]
+  assert stored.provenance["reason"] == "measurement_update"
