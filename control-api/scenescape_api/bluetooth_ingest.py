@@ -217,10 +217,10 @@ def _future_skew_s() -> float:
 def parse_mqtt_range_topic(topic: str) -> tuple[str, str, str]:
   parts = [part for part in str(topic).split("/") if part]
   if len(parts) != 7 or parts[:4] != ["scenescape", "data", "bluetooth", "range"]:
-    raise MeasurementRejected("invalid_topic", "MQTT topic is not a Bluetooth range topic")
+    _reject("invalid_topic", "MQTT topic is not a Bluetooth range topic")
   scene_id, anchor_id, tag_id = parts[4:7]
   if any(not value or len(value) > 96 for value in (scene_id, anchor_id, tag_id)):
-    raise MeasurementRejected("invalid_topic", "MQTT Bluetooth topic identifiers are invalid")
+    _reject("invalid_topic", "MQTT Bluetooth topic identifiers are invalid")
   return scene_id, anchor_id, tag_id
 
 
@@ -385,11 +385,7 @@ def ingest_mqtt_message(
 
   if not isinstance(payload, dict):
     _reject("invalid_payload", "Bluetooth range payload must be a JSON object")
-  try:
-    envelope = mqtt_envelope(topic, payload)
-  except MeasurementRejected:
-    metrics.rejected("invalid_topic")
-    raise
+  envelope = mqtt_envelope(topic, payload)
   return ingest_measurement(db, envelope, now=now)
 
 
