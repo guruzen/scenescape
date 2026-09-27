@@ -1,6 +1,7 @@
 # BT-13 — Accuracy Qualification
 
-**Status:** PLANNED  
+**Status:** BLOCKED  
+**Blocker:** BT-12 real Channel Sounding hardware/HIL is unavailable; the qualification harness is software-ready but real-site accuracy evidence cannot be produced.  
 **Dependencies:** BT-12  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -64,7 +65,7 @@ Establish evidence-backed accuracy, availability, latency and robustness envelop
 
 - [ ] Targets supported or revised transparently.
 - [ ] Poor conditions documented.
-- [ ] Accuracy and availability separated.
+- [x] Accuracy and availability separated.
 - [ ] Release claims trace to evidence.
 
 ## Out of scope
@@ -77,9 +78,9 @@ If targets fail, retain experimental status and iterate calibration/solver/provi
 
 ## Implementation record
 
-- Implementation commit: _not yet recorded_
-- Evidence: _not yet recorded_
-- Known deviations: _none at planning baseline_
+- Implementation commits: `0192162ea66d`, `6e03f42b1a02`
+- Evidence: `.github/evidence/bluetooth-positioning/BT-13-accuracy-qualification.md`
+- Known deviations: Qualification tooling is implemented and deterministically tested, but all real-site acceptance remains blocked by BT-12 HIL. No production accuracy claim is permitted.
 
 ## Continuation prompt
 
