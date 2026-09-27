@@ -17,6 +17,7 @@ from scenescape_api.bluetooth_domain import (
 )
 from scenescape_api.bluetooth_ingest import ingest_measurement, metrics as ingest_metrics, solver_buffer
 from scenescape_api.bluetooth_pipeline import (
+    _motion_limits_from_env,
     drain_solver_queue,
     identity_context,
     reset_runtime_state,
@@ -174,6 +175,20 @@ def test_bt08_pipeline_turns_measurements_into_raw_and_tracked_positions(db):
   assert diagnostics["pipeline"]["measurements_processed"] == 4
   assert diagnostics["queue_depth"] == 0
   assert diagnostics["tracker"]["active_tracks"] == 1
+
+
+def test_bt08_pipeline_motion_limits_env_is_bounded_and_typed(monkeypatch):
+  monkeypatch.setenv(
+      "BLUETOOTH_TRACKER_MOTION_LIMITS_JSON",
+      '{"person": 2.2, "vehicle": 12, "bad": "nope", "zero": 0}',
+  )
+  assert _motion_limits_from_env() == {
+      "person": 2.2,
+      "vehicle": 12.0,
+  }
+
+  monkeypatch.setenv("BLUETOOTH_TRACKER_MOTION_LIMITS_JSON", "not-json")
+  assert _motion_limits_from_env() == {}
 
 
 def test_bt08_pipeline_identity_context_exposes_assignment_motion_class(db):
