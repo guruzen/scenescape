@@ -1,6 +1,6 @@
 # BT-08 — Tracking Engine
 
-**Status:** PLANNED  
+**Status:** COMPLETE  
 **Dependencies:** BT-07  
 **Program:** SceneScape Bluetooth High-Accuracy Positioning
 
@@ -45,25 +45,25 @@ Stabilize raw solves temporally and produce velocity/freshness with bounded pred
 
 ## Required tests
 
-- [ ] Constant velocity.
-- [ ] Stop/start/turn.
-- [ ] Dropout expiry.
-- [ ] Out-of-order.
-- [ ] Impossible jump.
-- [ ] Calibration revision.
-- [ ] Large tag count.
+- [x] Constant velocity.
+- [x] Stop/start/turn.
+- [x] Dropout expiry.
+- [x] Out-of-order.
+- [x] Impossible jump.
+- [x] Calibration revision.
+- [x] Large tag count.
 
 ## Evidence required
 
-- [ ] Raw vs tracked jitter/error.
-- [ ] Velocity error.
-- [ ] State timeline.
+- [x] Raw vs tracked jitter/error.
+- [x] Velocity error.
+- [x] State timeline.
 
 ## Acceptance criteria
 
-- [ ] Jitter reduced within latency budget.
-- [ ] Predictions expire.
-- [ ] Deterministic state/velocity.
+- [x] Jitter reduced within latency budget.
+- [x] Predictions expire.
+- [x] Deterministic state/velocity.
 
 ## Out of scope
 
@@ -76,9 +76,9 @@ Disable tracker; publish raw solves marked raw.
 
 ## Implementation record
 
-- Implementation commit: _not yet recorded_
-- Evidence: _not yet recorded_
-- Known deviations: _none at planning baseline_
+- Implementation commits: `019b584f8c66`, `311022ef40f8`, `eef4e0f43f37`, `dd0da8afc576`, `dc8940d13644`, `92c5071729f7`, `8ee126874dab`, `7b0ced184d9d`, `92a34d7faacb`, `c08b1062652a`, `276ef568625d`, `09a81d076ea9`, `70b70ef54174`, `5e277c060ccb`, `521060c401ed`, `48f55495eac9`
+- Evidence: `.github/evidence/bluetooth-positioning/BT-08-tracking-engine.md`
+- Known deviations: Solver v1 exposes horizontal/vertical uncertainty rather than a full covariance matrix; the tracker converts those uncertainty values into a conservative diagonal measurement covariance.
 
 ## Continuation prompt
 
