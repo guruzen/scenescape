@@ -60,4 +60,5 @@ jobs:
           pytest -q \
             control-api/tests/test_bluetooth_tracking.py \
             control-api/tests/test_bluetooth_pipeline.py::test_bt08_pipeline_turns_measurements_into_raw_and_tracked_positions \
+            control-api/tests/test_bluetooth_pipeline.py::test_bt08_pipeline_identity_context_exposes_assignment_motion_class \
             control-api/tests/test_bluetooth_pipeline.py::test_bt08_pipeline_same_timestamp_anchor_refinement_is_not_out_of_order
