@@ -333,6 +333,7 @@ def test_bt06_malformed_mqtt_payloads_are_rejected_and_counted(api):
   assert snapshot["rejected_by_reason"]["malformed_json"] == 1
   assert snapshot["rejected_by_reason"]["payload_too_large"] == 1
   assert snapshot["rejected_by_reason"]["invalid_payload"] == 1
+  assert "invalid_topic" not in snapshot["rejected_by_reason"]
 
 
 def test_bt06_real_backpressure_persists_raw_before_solver_drop(api, monkeypatch):
